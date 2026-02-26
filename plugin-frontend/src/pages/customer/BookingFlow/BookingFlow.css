@@ -1,0 +1,273 @@
+.booking-flow {
+  background: var(--color-bg);
+}
+
+.booking-flow__back {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+  transition: color var(--transition-fast);
+}
+
+.booking-flow__back:hover {
+  color: var(--color-accent);
+}
+
+/* Step indicator: horizontal bar with circles, connected by lines */
+.booking-flow__steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: var(--space-2xl);
+  flex-wrap: wrap;
+}
+
+.booking-flow__step-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.booking-flow__step-wrap--has-line {
+  flex: 1;
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.booking-flow__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  position: relative;
+  z-index: 1;
+}
+
+.booking-flow__step-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  border: 2px solid var(--color-border);
+  transition: all var(--transition-base);
+}
+
+.booking-flow__step--active .booking-flow__step-circle {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  color: var(--color-on-accent);
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(var(--color-accent-rgb), 0.35);
+}
+
+.booking-flow__step--done .booking-flow__step-circle {
+  background: var(--color-success);
+  color: white;
+  border-color: transparent;
+}
+
+.booking-flow__step-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.booking-flow__step--active .booking-flow__step-label {
+  color: var(--color-text-primary);
+}
+
+.booking-flow__step--done .booking-flow__step-label {
+  color: var(--color-success);
+}
+
+.booking-flow__step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border);
+  margin: 0 var(--space-sm);
+  margin-top: -40px;
+  min-width: 40px;
+  transition: background var(--transition-base);
+}
+
+.booking-flow__step-line--done {
+  background: linear-gradient(90deg, var(--color-success), var(--color-success));
+}
+
+/* Content card */
+.booking-flow__content {
+  padding: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  background: var(--color-white);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+}
+
+.booking-flow__content:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.booking-flow__content-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xl);
+}
+
+/* Point cards */
+.booking-flow__points-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.booking-flow__point-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-lg);
+  cursor: pointer;
+  border: 2px solid var(--color-border-light);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  text-align: center;
+}
+
+.booking-flow__point-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(var(--color-accent-rgb), 0.3);
+}
+
+.booking-flow__point-card--selected {
+  border-color: var(--color-accent);
+  background: linear-gradient(135deg, rgba(var(--color-accent-rgb), 0.06), rgba(var(--color-accent-2-rgb), 0.06));
+  box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.2);
+}
+
+.booking-flow__point-icon {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-sm);
+  opacity: 0.9;
+}
+
+.booking-flow__point-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-base);
+}
+
+.booking-flow__point-power {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.booking-flow__point-connector {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Form */
+.booking-flow__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-xl);
+  margin-bottom: var(--space-xl);
+}
+
+/* Summary card */
+.booking-flow__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.booking-flow__summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.booking-flow__summary-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.booking-flow__summary-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.booking-flow__summary-value {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.booking-flow__actions {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: flex-end;
+}
+
+.booking-flow__actions .btn--accent {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+}
+
+@media (max-width: 768px) {
+  .booking-flow__steps {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .booking-flow__step-wrap {
+    flex-direction: column;
+    max-width: none;
+  }
+
+  .booking-flow__step-line {
+    width: 2px;
+    height: 24px;
+    margin: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .booking-flow__points-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-flow__form {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-flow__actions {
+    flex-direction: column;
+  }
+
+  .booking-flow__actions .btn {
+    width: 100%;
+  }
+}

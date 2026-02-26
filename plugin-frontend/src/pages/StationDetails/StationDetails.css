@@ -1,0 +1,505 @@
+/* ===== STATION DETAILS - Tesla-Inspired Premium Design ===== */
+
+.station-details__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xl);
+  text-decoration: none;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.station-details__back:hover {
+  color: var(--color-accent);
+  transform: translateX(-2px);
+}
+
+.station-details__back-arrow {
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+/* Hero Header */
+.station-details__hero {
+  position: relative;
+  padding: var(--space-2xl) var(--space-xl);
+  margin: 0 calc(-1 * var(--space-lg));
+  margin-bottom: var(--space-2xl);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-accent-rgb), 0.06) 0%,
+    rgba(var(--color-primary-rgb), 0.03) 50%,
+    rgba(var(--color-accent-rgb), 0.04) 100%
+  );
+  border: 1px solid rgba(var(--color-accent-rgb), 0.12);
+  overflow: hidden;
+}
+
+.station-details__hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--color-accent-rgb), 0.3),
+    transparent
+  );
+  opacity: 0.6;
+}
+
+.station-details__hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.station-details__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.station-details__status-dot--active {
+  background: var(--color-success);
+  box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+}
+
+.station-details__status-dot--inactive {
+  background: var(--color-text-muted);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.station-details__hero-title {
+  font-size: clamp(var(--font-size-2xl), 4vw, var(--font-size-4xl));
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: var(--space-sm);
+}
+
+.station-details__hero-city {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Info Cards Grid - 2x2 */
+.station-details__info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+.station-details__info-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all var(--transition-base);
+}
+
+.station-details__info-card:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.2);
+  box-shadow: var(--shadow-md);
+}
+
+.station-details__info-icon {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-sm);
+  opacity: 0.9;
+}
+
+.station-details__info-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-xs);
+}
+
+.station-details__info-value {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.station-details__info-value--mono {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: var(--font-size-sm);
+}
+
+/* Section */
+.station-details__section {
+  margin-bottom: var(--space-2xl);
+}
+
+.station-details__section-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-lg);
+  letter-spacing: -0.02em;
+}
+
+.station-details__empty {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  padding: var(--space-xl);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+/* Charging Points - Cards Grid */
+.station-details__points-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+.station-details__point-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all var(--transition-base);
+}
+
+.station-details__point-card:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.25);
+  box-shadow: var(--shadow-md);
+}
+
+.station-details__point-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.station-details__point-type-icon {
+  font-size: 1.25rem;
+}
+
+.station-details__point-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.station-details__point-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.badge--available {
+  background: rgba(39, 174, 96, 0.12);
+  color: var(--color-success);
+}
+
+.badge--available .station-details__point-dot {
+  background: var(--color-success);
+}
+
+.badge--reserved {
+  background: rgba(52, 152, 219, 0.12);
+  color: var(--color-info);
+}
+
+.badge--reserved .station-details__point-dot {
+  background: var(--color-info);
+}
+
+.badge--charging {
+  background: rgba(243, 156, 18, 0.12);
+  color: var(--color-warning);
+}
+
+.badge--charging .station-details__point-dot {
+  background: var(--color-warning);
+}
+
+.badge--out-of-service {
+  background: rgba(231, 76, 60, 0.12);
+  color: var(--color-danger);
+}
+
+.badge--out-of-service .station-details__point-dot {
+  background: var(--color-danger);
+}
+
+.badge--neutral {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.badge--neutral .station-details__point-dot {
+  background: var(--color-text-muted);
+}
+
+.station-details__point-name {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.station-details__point-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.station-details__point-meta-item {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.station-details__point-meta-item strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Pricing Cards */
+.station-details__pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-lg);
+}
+
+.station-details__pricing-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all var(--transition-base);
+}
+
+.station-details__pricing-card:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.2);
+}
+
+.station-details__pricing-type {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
+}
+
+.station-details__pricing-rate {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.station-details__pricing-fee {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.station-details__pricing-model {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Book Now CTA */
+.station-details__cta-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2xl) 0;
+  margin-top: var(--space-xl);
+}
+
+.station-details__book-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
+  padding: 18px 48px;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-on-accent);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-2) 100%);
+  border: none;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  box-shadow: 0 4px 24px rgba(var(--color-accent-rgb), 0.35);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.station-details__book-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.2), transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.station-details__book-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(var(--color-accent-rgb), 0.45);
+}
+
+.station-details__book-btn:hover::before {
+  opacity: 1;
+}
+
+.station-details__book-btn:active {
+  transform: translateY(0);
+}
+
+.station-details__login-hint {
+  margin-top: var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.station-details__login-hint a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.station-details__login-hint a:hover {
+  text-decoration: underline;
+}
+
+/* Loading State */
+.station-details__loading {
+  padding: var(--space-3xl) 0;
+  text-align: center;
+}
+
+.station-details__spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--space-lg);
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.station-details__loading-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xl);
+}
+
+.station-details__skeleton {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.skeleton-line {
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border-light) 25%,
+    var(--color-border) 50%,
+    var(--color-border-light) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line--hero {
+  height: 28px;
+  width: 60%;
+  margin: 0 auto var(--space-md);
+}
+
+.skeleton-line--sub {
+  width: 80%;
+  margin: 0 auto var(--space-sm);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .station-details__points-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .station-details__hero {
+    margin: 0;
+    padding: var(--space-xl);
+  }
+
+  .station-details__info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .station-details__points-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .station-details__pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .station-details__book-btn {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .station-details__hero-title {
+    font-size: var(--font-size-2xl);
+  }
+}

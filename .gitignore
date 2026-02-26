@@ -1,0 +1,13 @@
+# Node
+node_modules/
+dist/
+
+# Java
+target/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

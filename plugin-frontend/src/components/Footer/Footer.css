@@ -1,0 +1,214 @@
+/* ===== FOOTER - Tesla-inspired dark gradient ===== */
+.footer {
+  background: var(--gradient-dark);
+  color: var(--color-text-inverse);
+  margin-top: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  opacity: 0.6;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.25);
+}
+
+.footer__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-lg) var(--space-sm);
+}
+
+.footer__grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+/* ===== BRAND SECTION ===== */
+.footer__brand {
+  max-width: 320px;
+}
+
+.footer__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-white);
+  margin-bottom: var(--space-sm);
+  transition: opacity var(--transition-fast);
+  text-decoration: none;
+}
+
+.footer__logo:hover {
+  opacity: 0.9;
+}
+
+.footer__logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  filter: invert(1) drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25));
+}
+
+.footer__tagline {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.footer__details {
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.6;
+}
+
+/* ===== QUICK LINKS ===== */
+.footer__section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: var(--space-sm);
+}
+
+.footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.footer__links a {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: all var(--transition-base);
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-block;
+}
+
+.footer__links a:hover {
+  color: var(--color-on-accent);
+  transform: translateX(4px);
+}
+
+/* ===== COMPANY SECTION ===== */
+.footer__company-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.footer__company-links a {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: all var(--transition-base);
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-block;
+}
+
+.footer__company-links a:hover {
+  color: var(--color-on-accent);
+  transform: translateX(4px);
+}
+
+/* ===== BOTTOM BAR ===== */
+.footer__bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: var(--space-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.footer__copyright {
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .footer__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-2xl);
+    text-align: center;
+  }
+
+  .footer__brand {
+    max-width: none;
+  }
+
+  .footer__logo {
+    justify-content: center;
+  }
+
+  .footer__section-title {
+    text-align: center;
+  }
+
+  .footer__links a:hover,
+  .footer__company-links a:hover {
+    transform: none;
+  }
+
+  .footer__bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+/* ===== COMPACT FOOTER (LOGIN PAGE ONLY) ===== */
+.footer--compact .footer__inner {
+  padding: var(--space-sm) var(--space-lg) 4px;
+}
+
+.footer--compact .footer__grid {
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.footer--compact .footer__logo-img {
+  height: 84px;
+}
+
+.footer--compact .footer__details {
+  gap: 2px;
+}
+
+.footer--compact .footer__section-title {
+  margin-bottom: 4px;
+}
+
+.footer--compact .footer__links,
+.footer--compact .footer__company-links {
+  gap: 1px;
+}
+
+.footer--compact .footer__bottom {
+  padding-top: 4px;
+}

@@ -1,0 +1,231 @@
+/* ===== EMAIL INBOX - Simulated mail client ===== */
+.email-inbox {
+  min-height: 100vh;
+  padding-top: var(--navbar-height);
+  background: var(--color-bg);
+}
+
+.ei-header {
+  text-align: center;
+  padding: var(--space-2xl) 0 var(--space-xl);
+}
+
+.ei-header__icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-sm);
+}
+
+.ei-header__title {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.ei-header__subtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Search bar */
+.ei-search {
+  display: flex;
+  gap: var(--space-sm);
+  max-width: 540px;
+  margin: 0 auto var(--space-lg);
+}
+
+.ei-search__input {
+  flex: 1;
+  padding: 14px 18px;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background: var(--color-white);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.ei-search__input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-light);
+}
+
+.ei-search__btn {
+  padding: 14px 24px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-on-accent);
+  background: var(--gradient-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-base);
+}
+
+.ei-search__btn:hover:not(:disabled) {
+  box-shadow: var(--shadow-accent-lg);
+  transform: translateY(-1px);
+}
+
+.ei-search__btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.ei-error {
+  text-align: center;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-md);
+}
+
+/* Toolbar */
+.ei-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.ei-toolbar__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.ei-toolbar__refresh {
+  background: none;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.ei-toolbar__refresh:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Results area */
+.ei-results {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* Empty state */
+.ei-empty {
+  text-align: center;
+  padding: var(--space-2xl);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--color-border);
+}
+
+.ei-empty__icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-sm);
+}
+
+.ei-empty__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.ei-empty__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Message card */
+.ei-message {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.ei-message__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ei-message__from {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ei-message__time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ei-message__subject {
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.ei-message__body {
+  padding: 0 var(--space-lg) var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.ei-message__otp-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 var(--space-lg) var(--space-lg);
+  padding: var(--space-lg);
+  background: linear-gradient(135deg, var(--color-accent-light), rgba(var(--color-accent-rgb), 0.12));
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.ei-message__otp-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ei-message__otp-code {
+  font-size: var(--font-size-3xl);
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.4em;
+  color: var(--color-text-primary);
+  user-select: all;
+}
+
+@media (max-width: 600px) {
+  .ei-search {
+    flex-direction: column;
+  }
+  .ei-message__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-xs);
+  }
+}

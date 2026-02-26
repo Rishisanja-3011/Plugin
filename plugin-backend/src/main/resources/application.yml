@@ -1,0 +1,51 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/plugin_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:45srt}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:plugin.available@gmail.com}
+    password: ${MAIL_PASSWORD:ohfvjfltmpdodbxv}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: ${MAIL_HOST:smtp.gmail.com}
+
+app:
+  mail:
+    from: ${MAIL_FROM:${MAIL_USERNAME:plugin.available@gmail.com}}
+  confirm:
+    base-url: ${APP_BASE_URL:http://localhost:8080}
+  jwt:
+    secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}
+    expiration-ms: 86400000
+    refresh-expiration-ms: 604800000
+
+logging:
+  level:
+    com.plugin: INFO
+    org.springframework.security: INFO

@@ -1,0 +1,117 @@
+/* ===== ADMIN LAYOUT ===== */
+.admin-layout { display: flex; min-height: calc(100vh - var(--navbar-height)); padding-top: var(--navbar-height); }
+.admin-sidebar { width: var(--sidebar-width); background: var(--color-primary); padding: var(--space-lg) 0; position: fixed; top: var(--navbar-height); left: 0; height: calc(100vh - var(--navbar-height)); overflow-y: auto; flex-shrink: 0; z-index: 10; }
+.admin-sidebar__title { font-size: var(--font-size-xs); font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.1em; padding: 0 var(--space-lg); margin-bottom: var(--space-md); }
+.admin-sidebar__link { display: flex; align-items: center; gap: var(--space-sm); padding: 11px var(--space-lg); font-size: var(--font-size-sm); color: rgba(255,255,255,0.6); font-weight: 500; transition: all 200ms ease; border-left: 3px solid transparent; }
+.admin-sidebar__link:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.9); }
+.admin-sidebar__link--active { background: rgba(255, 255, 255, 0.08); color: var(--color-on-accent); font-weight: 600; border-left-color: var(--color-on-accent); }
+.admin-content { flex: 1; padding: var(--space-xl) var(--space-2xl); min-width: 0; background: var(--color-bg); margin-left: var(--sidebar-width); }
+
+@media (max-width: 768px) {
+  .admin-layout { flex-direction: column; }
+  .admin-sidebar { width: 100%; height: auto; position: static; display: flex; overflow-x: auto; padding: var(--space-sm) 0; gap: 0; }
+  .admin-sidebar__title { display: none; }
+  .admin-sidebar__link { white-space: nowrap; padding: 10px var(--space-md); border-left: none; border-bottom: 3px solid transparent; font-size: var(--font-size-xs); }
+  .admin-sidebar__link--active { border-left-color: transparent; border-bottom-color: var(--color-on-accent); }
+  .admin-content { padding: var(--space-lg); margin-left: 0; }
+}
+
+/* ===== STATION FILTER ===== */
+.cp-station-filter {
+  margin-bottom: var(--space-xl);
+  max-width: 360px;
+}
+
+/* ===== CHARGING POINTS GRID ===== */
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-md);
+}
+
+.cp-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+.cp-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--color-border);
+}
+
+.cp-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.cp-card__id {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.cp-card__body {
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.cp-card__detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cp-card__label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.cp-card__value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.cp-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border-light);
+  flex-wrap: wrap;
+}
+
+.form-select--sm {
+  padding: 7px 12px;
+  font-size: var(--font-size-xs);
+  flex: 1;
+  min-width: 120px;
+}
+
+.admin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4xl) 0;
+  gap: var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .cp-grid { grid-template-columns: 1fr; }
+}

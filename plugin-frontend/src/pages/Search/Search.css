@@ -1,0 +1,264 @@
+/* ===== SEARCH - Tesla-inspired premium design ===== */
+.search__form {
+  margin-bottom: var(--space-xl);
+}
+
+/* ===== Search bar - large, centered, with icon ===== */
+.search__bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--color-white);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xs);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.search__bar:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-light), var(--shadow-md);
+}
+
+.search__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-md);
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.search__bar:focus-within .search__icon {
+  color: var(--color-accent);
+}
+
+.search__input {
+  flex: 1;
+  padding: 16px 12px;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  min-width: 0;
+}
+
+.search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.search__btn {
+  padding: 12px 24px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-on-accent);
+  background: var(--gradient-accent);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.search__btn:hover {
+  box-shadow: var(--shadow-accent);
+  transform: translateY(-1px);
+}
+
+.search__btn:active {
+  transform: translateY(0);
+}
+
+/* ===== Filter chips - pill-shaped ===== */
+.search__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+  justify-content: center;
+}
+
+.search__chip {
+  padding: 10px 24px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-white);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.search__chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.search__chip--active {
+  background: var(--gradient-accent);
+  color: var(--color-on-accent);
+  border-color: transparent;
+  box-shadow: var(--shadow-accent);
+}
+
+.search__chip--active:hover {
+  box-shadow: var(--shadow-accent-lg);
+  color: var(--color-on-accent);
+}
+
+/* ===== Station cards grid ===== */
+.search__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+/* ===== Station card - premium design ===== */
+.search__card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  position: relative;
+}
+
+.search__card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-border);
+}
+
+.search__card-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-accent);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.search__card:hover .search__card-top {
+  opacity: 1;
+}
+
+.search__card-body {
+  padding: var(--space-lg);
+}
+
+.search__card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.search__card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  flex: 1;
+  min-width: 0;
+}
+
+.search__card-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+.search__card-address {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+  line-height: 1.5;
+}
+
+.search__card-city {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.search__card-pricing {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1024px) {
+  .search__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .search__bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-sm);
+  }
+
+  .search__icon {
+    padding: var(--space-sm) 0;
+    justify-content: flex-start;
+  }
+
+  .search__input {
+    padding: var(--space-md);
+  }
+
+  .search__btn {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .search__filters {
+    justify-content: flex-start;
+  }
+
+  .search__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .search__card-body {
+    padding: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .search__card-header {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .search__card-badge {
+    align-self: flex-start;
+  }
+}
