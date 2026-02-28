@@ -160,7 +160,7 @@ export default function Landing() {
             animate={featuresInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
           >
-            Why Choose PLUGIN
+            Why Choose PLUGIN?
           </motion.h2>
           <p className="landing__section-subtitle">
             Built for drivers who demand the best charging experience

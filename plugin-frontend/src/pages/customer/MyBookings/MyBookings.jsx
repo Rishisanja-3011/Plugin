@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
@@ -129,12 +129,12 @@ export default function MyBookings() {
 
         {loading ? (
           <div className="empty-state">
-            <div className="empty-state__icon">⏳</div>
+            <div className="empty-state__icon">{'\u23F3'}</div>
             <h2 className="empty-state__title">Loading...</h2>
           </div>
         ) : bookings.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">📅</div>
+            <div className="empty-state__icon">{'\u{1F4DD}'}</div>
             <h2 className="empty-state__title">No bookings yet</h2>
             <p className="empty-state__text">Book a charging slot to get started.</p>
             <Link to="/search" className="btn btn--accent" style={{ marginTop: 'var(--space-md)' }}>
@@ -152,79 +152,33 @@ export default function MyBookings() {
               {bookings.map((b, i) => (
                 <motion.div
                   key={b.id ?? i}
-                  className={`my-bookings__card card ${expandedId === b.id ? 'my-bookings__card--expanded' : ''}`}
+                  className="my-bookings__item"
                   variants={cardVariants}
-                  onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}
-                  style={{ cursor: 'pointer' }}
                 >
-                  <div className="my-bookings__card-main">
-                    <div className="my-bookings__card-header">
-                      <span className="my-bookings__ref">#{b.referenceId ?? b.id ?? '—'}</span>
-                      <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '—'}</span>
-                      <span className="my-bookings__expand-icon">{expandedId === b.id ? '▲' : '▼'}</span>
+                  <div
+                    className={`my-bookings__card card ${expandedId === b.id ? 'my-bookings__card--expanded' : ''}`}
+                    onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="my-bookings__card-main">
+                      <div className="my-bookings__card-header">
+                        <span className="my-bookings__ref">#{b.referenceId ?? b.id ?? '\u2014'}</span>
+                        <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '\u2014'}</span>
+                      </div>
+                      <h3 className="my-bookings__station">
+                        {b.stationName ?? b.station?.name ?? 'Station'}
+                      </h3>
+                      <p className="my-bookings__meta">
+                        {b.chargingPointIdentifier ?? b.chargingPointName ?? 'Point'} {'\u2022'}{' '}
+                        {b.startTime
+                          ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                          : '\u2014'}
+                      </p>
                     </div>
-                    <h3 className="my-bookings__station">
-                      {b.stationName ?? b.station?.name ?? 'Station'}
-                    </h3>
-                    <p className="my-bookings__meta">
-                      {b.chargingPointIdentifier ?? b.chargingPointName ?? 'Point'} •{' '}
-                      {b.startTime
-                        ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-                        : '—'}
-                    </p>
-                  </div>
 
-                  <AnimatePresence>
-                    {expandedId === b.id && (
-                      <motion.div
-                        className="my-bookings__details"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25 }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="my-bookings__detail-grid">
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Booking ID</span>
-                            <span className="my-bookings__detail-value">{b.referenceId ?? b.id ?? '—'}</span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Station</span>
-                            <span className="my-bookings__detail-value">{b.stationName ?? '—'}</span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Charging Point</span>
-                            <span className="my-bookings__detail-value">{b.chargingPointIdentifier ?? '—'}</span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Point Type</span>
-                            <span className="my-bookings__detail-value">{b.pointType ?? '—'}</span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Start Time</span>
-                            <span className="my-bookings__detail-value">
-                              {b.startTime ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
-                            </span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">End Time</span>
-                            <span className="my-bookings__detail-value">
-                              {b.endTime ? new Date(b.endTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
-                            </span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Status</span>
-                            <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '—'}</span>
-                          </div>
-                          <div className="my-bookings__detail-item">
-                            <span className="my-bookings__detail-label">Booked On</span>
-                            <span className="my-bookings__detail-value">
-                              {b.createdAt ? new Date(b.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="my-bookings__detail-actions">
+                    <div className="my-bookings__card-controls">
+                      {(canStart(b) || canCancel(b)) && (
+                        <div className="my-bookings__card-actions" onClick={(e) => e.stopPropagation()}>
                           {canStart(b) && (
                             <button
                               className="btn btn--accent btn--sm"
@@ -244,9 +198,64 @@ export default function MyBookings() {
                             </button>
                           )}
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      )}
+                      <span className="my-bookings__expand-icon">{expandedId === b.id ? '\u25B2' : '\u25BC'}</span>
+                    </div>
+
+                    <AnimatePresence>
+                      {expandedId === b.id && (
+                        <motion.div
+                          className="my-bookings__details"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25 }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="my-bookings__detail-grid">
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Booking ID</span>
+                              <span className="my-bookings__detail-value">{b.referenceId ?? b.id ?? '\u2014'}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Station</span>
+                              <span className="my-bookings__detail-value">{b.stationName ?? '\u2014'}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Charging Point</span>
+                              <span className="my-bookings__detail-value">{b.chargingPointIdentifier ?? '\u2014'}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Point Type</span>
+                              <span className="my-bookings__detail-value">{b.pointType ?? '\u2014'}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Start Time</span>
+                              <span className="my-bookings__detail-value">
+                                {b.startTime ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                              </span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">End Time</span>
+                              <span className="my-bookings__detail-value">
+                                {b.endTime ? new Date(b.endTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                              </span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Status</span>
+                              <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '\u2014'}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Booked On</span>
+                              <span className="my-bookings__detail-value">
+                                {b.createdAt ? new Date(b.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                              </span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -306,3 +315,4 @@ export default function MyBookings() {
     </motion.main>
   );
 }
+

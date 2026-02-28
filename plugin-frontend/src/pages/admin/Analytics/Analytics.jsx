@@ -51,7 +51,6 @@ export default function Analytics() {
       .finally(() => setLoading(false));
   }, []);
 
-
   const stats = data ? [
     { icon: '\u26A1', label: 'Total Sessions', value: data.totalSessions ?? 0 },
     { icon: '\u{1F50B}', label: 'Total Energy', value: (Number(data.totalEnergyDelivered ?? data.totalEnergyKwh ?? data.totalEnergy ?? 0)).toFixed(1) + ' kWh' },
@@ -87,7 +86,7 @@ export default function Analytics() {
                 </motion.div>
               ))}
             </div>
-</>
+          </>
         )}
       </motion.main>
     </div>

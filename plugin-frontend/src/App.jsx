@@ -37,6 +37,7 @@ import AdminNotifications from './pages/admin/Notifications/Notifications';
 export default function App() {
   const location = useLocation();
   const isLogin = location.pathname === '/login';
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
     <>
@@ -75,7 +76,7 @@ export default function App() {
 
           </Routes>
         </AnimatePresence>
-        <Footer compact={isLogin} />
+        <Footer compact={isLogin} userSide={!isAdminRoute} adminSide={isAdminRoute} />
       </BillingLock>
     </>
   );
