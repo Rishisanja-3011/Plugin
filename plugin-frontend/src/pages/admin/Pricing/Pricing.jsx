@@ -220,7 +220,7 @@ export default function Pricing() {
                     <span className="pricing-card__value">{'\u20B9'}{p.ratePerUnit ?? '-'}{p.pricingModel === 'PER_KWH' ? '/kWh' : '/min'}</span>
                   </div>
                   {p.description && (
-                    <div className="pricing-card__row">
+                    <div className="pricing-card__row pricing-card__row--description">
                       <span className="pricing-card__label">Description</span>
                       <span className="pricing-card__value">{p.description}</span>
                     </div>

@@ -72,6 +72,17 @@
   align-items: center;
 }
 
+.pricing-card__row--description {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pricing-card__row--description .pricing-card__value {
+  flex-basis: 100%;
+  text-align: left;
+}
+
 .pricing-card__label {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
