@@ -42,7 +42,7 @@ const cardVariants = {
 };
 
 const emptyForm = { identifier: '', connectorType: '', maxPowerKw: '', pointType: 'FAST', stationId: '' };
-const statusOptions = ['AVAILABLE', 'RESERVED', 'CHARGING', 'OUT_OF_SERVICE'];
+const statusOptions = ['AVAILABLE', 'RESERVED', 'CHARGING', 'OUT_OF_SERVICE', 'UNAVAILABLE'];
 
 export default function ChargingPoints() {
   const toast = useToast();
@@ -143,7 +143,13 @@ export default function ChargingPoints() {
   };
 
   const statusBadge = (status) => {
-    const map = { AVAILABLE: 'badge--success', RESERVED: 'badge--info', CHARGING: 'badge--warning', OUT_OF_SERVICE: 'badge--danger' };
+    const map = {
+      AVAILABLE: 'badge--success',
+      RESERVED: 'badge--info',
+      CHARGING: 'badge--warning',
+      OUT_OF_SERVICE: 'badge--danger',
+      UNAVAILABLE: 'badge--danger',
+    };
     return map[status] || 'badge--neutral';
   };
 

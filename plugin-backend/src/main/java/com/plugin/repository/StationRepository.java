@@ -14,7 +14,9 @@ public interface StationRepository extends JpaRepository<Station, Long> {
 
     Page<Station> findByActiveTrueAndPincode(String pincode, Pageable pageable);
 
-    @Query("SELECT s FROM Station s WHERE s.active = true AND " +
+    Page<Station> findByPincode(String pincode, Pageable pageable);
+
+    @Query("SELECT s FROM Station s WHERE " +
            "(LOWER(s.city) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(s.name) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(s.pincode) LIKE LOWER(CONCAT('%', :query, '%')) OR " +

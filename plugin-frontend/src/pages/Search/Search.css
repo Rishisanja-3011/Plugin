@@ -139,6 +139,19 @@
   border-color: var(--color-border);
 }
 
+.search__card--closed {
+  border-color: rgba(231, 76, 60, 0.28);
+}
+
+.search__card--closed .search__card-top {
+  opacity: 1;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.search__card--closed:hover {
+  border-color: rgba(231, 76, 60, 0.4);
+}
+
 .search__card-top {
   position: absolute;
   top: 0;
@@ -187,6 +200,12 @@
   background: var(--color-success-light);
   color: var(--color-success);
   border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+.search__card-badge--closed {
+  background: rgba(231, 76, 60, 0.12);
+  color: #b42318;
+  border-color: rgba(231, 76, 60, 0.28);
 }
 
 .search__card-address {

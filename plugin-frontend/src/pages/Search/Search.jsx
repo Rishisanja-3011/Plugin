@@ -109,7 +109,16 @@ export default function Search() {
     return points.length || (station.totalPoints ?? station.total_points ?? 0);
   };
 
+  const isStationActive = (station) => {
+    if (typeof station.active === 'boolean') return station.active;
+    if (typeof station.isActive === 'boolean') return station.isActive;
+    return true;
+  };
+
   const formatAvailability = (station) => {
+    if (!isStationActive(station)) {
+      return 'Station Closed';
+    }
     const available = getAvailableCount(station);
     const total = getTotalCount(station);
     return total > 0 ? `${available} / ${total} available` : `${available} available`;
@@ -209,7 +218,7 @@ export default function Search() {
                       >
                         <Link
                           to={`/stations/${station.id}`}
-                          className="search__card card"
+                          className={`search__card card ${!isStationActive(station) ? 'search__card--closed' : ''}`}
                         >
                           <div className="search__card-top" />
                           <div className="search__card-body">
@@ -217,7 +226,9 @@ export default function Search() {
                               <h3 className="search__card-title">
                                 {station.name ?? station.stationName ?? 'Unnamed Station'}
                               </h3>
-                              <span className="search__card-badge">
+                              <span
+                                className={`search__card-badge ${!isStationActive(station) ? 'search__card-badge--closed' : ''}`}
+                              >
                                 {formatAvailability(station)}
                               </span>
                             </div>

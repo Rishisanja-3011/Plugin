@@ -392,6 +392,22 @@
   transform: translateY(0);
 }
 
+.station-details__book-btn--disabled {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.station-details__book-btn--disabled::before {
+  display: none;
+}
+
+.station-details__book-btn--disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .station-details__login-hint {
   margin-top: var(--space-lg);
   font-size: var(--font-size-sm);

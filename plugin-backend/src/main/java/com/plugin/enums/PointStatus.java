@@ -4,5 +4,6 @@ public enum PointStatus {
     AVAILABLE,
     RESERVED,
     CHARGING,
-    OUT_OF_SERVICE
+    OUT_OF_SERVICE,
+    UNAVAILABLE
 }

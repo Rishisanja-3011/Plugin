@@ -26,7 +26,7 @@ public class StationService {
     }
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
-        return stationRepository.findByActiveTrue(pageable).map(this::toResponse);
+        return stationRepository.findAll(pageable).map(this::toResponse);
     }
 
     public Page<StationResponse> searchStations(String query, Pageable pageable) {
@@ -38,7 +38,7 @@ public class StationService {
             if (trimmed.length() < 6) {
                 return Page.empty(pageable);
             }
-            return stationRepository.findByActiveTrueAndPincode(trimmed, pageable).map(this::toResponse);
+            return stationRepository.findByPincode(trimmed, pageable).map(this::toResponse);
         }
         return stationRepository.searchStations(trimmed, pageable).map(this::toResponse);
     }
@@ -98,6 +98,16 @@ public class StationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         station.setActive(!station.getActive());
         station = stationRepository.save(station);
+
+        var points = chargingPointRepository.findByStationId(station.getId());
+        if (!station.getActive()) {
+            points.forEach(point -> point.setStatus(PointStatus.UNAVAILABLE));
+            chargingPointRepository.saveAll(points);
+        } else {
+            points.forEach(point -> point.setStatus(PointStatus.AVAILABLE));
+            chargingPointRepository.saveAll(points);
+        }
+
         String action = station.getActive() ? "ACTIVATE_STATION" : "DEACTIVATE_STATION";
         auditService.log(action, "STATION", station.getId(), performedBy,
                 (station.getActive() ? "Activated" : "Deactivated") + " station: " + station.getName());

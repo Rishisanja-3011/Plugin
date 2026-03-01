@@ -11,6 +11,7 @@ const STATUS_CONFIG = {
   CHARGING: { class: 'badge--charging', color: 'orange' },
   OCCUPIED: { class: 'badge--charging', color: 'orange' },
   OUT_OF_SERVICE: { class: 'badge--out-of-service', color: 'red' },
+  UNAVAILABLE: { class: 'badge--out-of-service', color: 'red' },
   MAINTENANCE: { class: 'badge--out-of-service', color: 'red' },
   OFFLINE: { class: 'badge--out-of-service', color: 'red' },
 };
@@ -147,6 +148,7 @@ export default function StationDetails() {
     : station.coordinates ?? null;
 
   const bookUrl = user ? `/customer/book/${id}` : '/login';
+  const canBook = Boolean(isActive);
 
   const pricingItems = Array.isArray(pricing)
     ? pricing.map((p) => ({
@@ -221,7 +223,8 @@ export default function StationDetails() {
           ) : (
             <div className="station-details__points-grid">
               {chargingPoints.map((point, i) => {
-                const statusConfig = getStatusConfig(point.status);
+                const displayStatus = isActive ? point.status : 'UNAVAILABLE';
+                const statusConfig = getStatusConfig(displayStatus);
                 const pointName = point.identifier ?? point.name ?? point.pointName ?? `Point ${i + 1}`;
                 const pointType = (point.pointType ?? point.type ?? point.chargerType ?? '—').toUpperCase();
                 const power = point.maxPowerKw ?? point.power ?? point.powerKw ?? point.power_kw;
@@ -239,7 +242,7 @@ export default function StationDetails() {
                       </span>
                       <span className={`station-details__point-badge ${statusConfig.class}`}>
                         <span className="station-details__point-dot" />
-                        {point.status ?? 'Unknown'}
+                        {displayStatus ?? 'Unknown'}
                       </span>
                     </div>
                     <h4 className="station-details__point-name">{pointName}</h4>
@@ -293,13 +296,22 @@ export default function StationDetails() {
         </motion.section>
 
         <motion.div className="station-details__cta-wrap" variants={itemVariants}>
-          <Link to={bookUrl} className="station-details__book-btn">
-            Book Now
-          </Link>
-          {!user && (
+          {canBook ? (
+            <Link to={bookUrl} className="station-details__book-btn">
+              Book Now
+            </Link>
+          ) : (
+            <button type="button" className="station-details__book-btn station-details__book-btn--disabled" disabled>
+              Station Closed
+            </button>
+          )}
+          {!user && canBook && (
             <p className="station-details__login-hint">
               <Link to="/login">Sign in</Link> to book a charging slot.
             </p>
+          )}
+          {!canBook && (
+            <p className="station-details__login-hint">Booking is unavailable because this station is closed.</p>
           )}
         </motion.div>
       </div>
