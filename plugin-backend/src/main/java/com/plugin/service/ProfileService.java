@@ -97,7 +97,7 @@ public class ProfileService {
         }
 
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
-            throw new BadRequestException("New password must be different from current password");
+            throw new BadRequestException("You can't use your old password.");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));

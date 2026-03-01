@@ -162,6 +162,10 @@ public class ForgotPasswordService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("You can't use your old password.");
+        }
+
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 

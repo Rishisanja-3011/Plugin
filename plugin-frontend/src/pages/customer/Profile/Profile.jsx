@@ -19,6 +19,9 @@ export default function Profile() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSecurityOptions, setShowSecurityOptions] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const menuRef = useRef(null);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -92,6 +95,13 @@ export default function Profile() {
     setPasswordForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const closePasswordModal = () => {
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setShowPasswordModal(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nextRegError = validateRegistration(form.vehicleRegistration);
@@ -122,6 +132,14 @@ export default function Profile() {
       toast.error('Current and new password are required');
       return;
     }
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    if (passwordForm.currentPassword === passwordForm.newPassword) {
+      toast.error("You can't use your old password.");
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       toast.error('New password and confirmation do not match');
       return;
@@ -135,7 +153,7 @@ export default function Profile() {
       });
       toast.success(res.data?.message || 'Password updated successfully');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setShowPasswordModal(false);
+      closePasswordModal();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update password');
     } finally {
@@ -359,7 +377,7 @@ export default function Profile() {
         </motion.form>
 
         {showPasswordModal && (
-          <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
+          <div className="modal-overlay" onClick={closePasswordModal}>
             <div className="modal card" onClick={(e) => e.stopPropagation()}>
               <h3 className="modal__title">Change Password</h3>
               <form onSubmit={handlePasswordSubmit}>
@@ -367,49 +385,114 @@ export default function Profile() {
                   <label className="form-label" htmlFor="currentPassword">
                     Current Password
                   </label>
-                  <input
-                    id="currentPassword"
-                    name="currentPassword"
-                    type="password"
-                    className="form-input"
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordChangeInput}
-                    autoComplete="current-password"
-                  />
+                  <div className="profile__password-wrap">
+                    <input
+                      id="currentPassword"
+                      name="currentPassword"
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      className="form-input profile__password-input"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChangeInput}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="profile__password-toggle"
+                      onClick={() => setShowCurrentPassword((prev) => !prev)}
+                      aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                    >
+                      {showCurrentPassword ? (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
+                          <path d="M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="newPassword">
                     New Password
                   </label>
-                  <input
-                    id="newPassword"
-                    name="newPassword"
-                    type="password"
-                    className="form-input"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordChangeInput}
-                    autoComplete="new-password"
-                  />
+                  <div className="profile__password-wrap">
+                    <input
+                      id="newPassword"
+                      name="newPassword"
+                      type={showNewPassword ? 'text' : 'password'}
+                      className="form-input profile__password-input"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChangeInput}
+                      minLength={8}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="profile__password-toggle"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                    >
+                      {showNewPassword ? (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
+                          <path d="M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="confirmPassword">
                     Confirm New Password
                   </label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    className="form-input"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordChangeInput}
-                    autoComplete="new-password"
-                  />
+                  <div className="profile__password-wrap">
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      className="form-input profile__password-input"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordChangeInput}
+                      minLength={8}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="profile__password-toggle"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirmPassword ? (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
+                          <path d="M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="modal__actions">
                   <button
                     type="button"
                     className="btn btn--ghost"
-                    onClick={() => setShowPasswordModal(false)}
+                    onClick={closePasswordModal}
                     disabled={changingPassword}
                   >
                     Cancel

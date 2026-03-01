@@ -8,7 +8,6 @@ import './SessionStatus.css';
 const HISTORY_PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
-const ESTIMATED_RATE_PER_KWH = 15;
 
 const DATE_FILTERS = [
   { value: 'ALL', label: 'All' },
@@ -509,13 +508,17 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
   }, [session.startTime]);
 
   const isLive = isInProgressStatus(session.status);
-  const fallbackPowerKw = session.chargingPointMaxPowerKw ?? session.maxPowerKw ?? 50;
+  const fallbackPowerKw = Number(session.chargingPointMaxPowerKw ?? session.maxPowerKw ?? 50);
+  const estimateRate = Number(session.estimateRate ?? session.rateApplied ?? 15);
+  const estimateRateType = (session.estimateRateType ?? session.rateType ?? 'PER_KWH').toUpperCase();
   const liveEnergyKwh = (elapsedMs / 3600000) * fallbackPowerKw;
   const deliveredEnergyKwh = isLive
     ? liveEnergyKwh
     : Number(session.energyDeliveredKwh ?? liveEnergyKwh);
 
-  const estimatedCost = deliveredEnergyKwh * ESTIMATED_RATE_PER_KWH;
+  const estimatedCost = estimateRateType === 'PER_MINUTE'
+    ? (elapsedMs / 60000) * estimateRate
+    : deliveredEnergyKwh * estimateRate;
 
   return (
     <motion.div className="session-status__active-card card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>

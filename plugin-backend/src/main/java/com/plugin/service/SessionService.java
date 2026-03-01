@@ -183,18 +183,52 @@ public class SessionService {
     }
 
     private SessionResponse toResponse(ChargingSession s) {
+        BigDecimal estimateRate = null;
+        String estimateRateType = null;
+        BigDecimal estimatedAmount = null;
+
+        if (s.getStatus() == SessionStatus.IN_PROGRESS) {
+            Pricing pricing = pricingRepository
+                    .findByStationIdAndPointType(
+                            s.getChargingPoint().getStation().getId(),
+                            s.getChargingPoint().getPointType())
+                    .orElse(null);
+
+            estimateRate = pricing != null ? pricing.getRatePerUnit() : BigDecimal.valueOf(15);
+            estimateRateType = pricing != null ? pricing.getPricingModel().name() : PricingModel.PER_KWH.name();
+
+            long elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
+            BigDecimal elapsedMinutes = BigDecimal.valueOf(elapsedSeconds)
+                    .divide(BigDecimal.valueOf(60), 6, RoundingMode.HALF_UP);
+            BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(s.getChargingPoint().getMaxPowerKw())
+                    .multiply(BigDecimal.valueOf(elapsedSeconds))
+                    .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
+
+            if (PricingModel.PER_MINUTE.name().equals(estimateRateType)) {
+                estimatedAmount = elapsedMinutes.multiply(estimateRate);
+            } else {
+                estimatedAmount = elapsedEnergyKwh.multiply(estimateRate);
+            }
+            estimatedAmount = estimatedAmount.setScale(2, RoundingMode.HALF_UP);
+        }
+
         return SessionResponse.builder()
                 .id(s.getId())
                 .bookingId(s.getBooking().getId())
                 .bookingReference(s.getBooking().getReferenceId())
                 .chargingPointId(s.getChargingPoint().getId())
                 .chargingPointIdentifier(s.getChargingPoint().getIdentifier())
+                .chargingPointType(s.getChargingPoint().getPointType().name())
+                .chargingPointMaxPowerKw(s.getChargingPoint().getMaxPowerKw())
                 .customerId(s.getCustomer().getId())
                 .customerName(s.getCustomer().getFullName())
                 .stationName(s.getChargingPoint().getStation().getName())
                 .startTime(s.getStartTime())
                 .endTime(s.getEndTime())
                 .energyDeliveredKwh(s.getEnergyDeliveredKwh())
+                .estimateRate(estimateRate)
+                .estimateRateType(estimateRateType)
+                .estimatedAmount(estimatedAmount)
                 .status(s.getStatus().name())
                 .build();
     }

@@ -12,11 +12,16 @@ public class SessionResponse {
     private String bookingReference;
     private Long chargingPointId;
     private String chargingPointIdentifier;
+    private String chargingPointType;
+    private Double chargingPointMaxPowerKw;
     private Long customerId;
     private String customerName;
     private String stationName;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal energyDeliveredKwh;
+    private BigDecimal estimateRate;
+    private String estimateRateType;
+    private BigDecimal estimatedAmount;
     private String status;
 }
