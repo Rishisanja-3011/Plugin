@@ -3,6 +3,7 @@ package com.plugin.entity;
 import com.plugin.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -36,6 +37,12 @@ public class Booking {
 
     @Column(nullable = false)
     private LocalDateTime endTime;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal lockedRatePerUnit;
+
+    @Column(length = 15)
+    private String lockedRateType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 15)

@@ -162,6 +162,13 @@ export default function BookingFlow() {
   }
 
   const stationName = station.name ?? station.stationName ?? 'Station';
+  const selectedPointType = (selectedPoint?.pointType ?? selectedPoint?.type ?? '').toString().toUpperCase();
+  const matchedPricing = Array.isArray(pricing)
+    ? pricing.find((p) => ((p.pointType ?? p.type ?? '').toString().toUpperCase()) === selectedPointType)
+    : pricing && selectedPointType
+      ? ((pricing.pointType ?? pricing.type ?? '').toString().toUpperCase() === selectedPointType ? pricing : null)
+      : pricing;
+  const matchedPricingUnit = '/kWh';
 
   return (
     <motion.main
@@ -372,24 +379,19 @@ export default function BookingFlow() {
                     {DURATION_OPTIONS.find((o) => o.value === duration)?.label ?? `${duration} min`}
                   </span>
                 </div>
-                {(() => {
-                  const pointType = selectedPoint?.pointType ?? selectedPoint?.type ?? '';
-                  const matchedPricing = Array.isArray(pricing)
-                    ? pricing.find((p) => p.pointType === pointType) ?? pricing[0]
-                    : pricing;
-                  if (matchedPricing?.ratePerUnit != null) {
-                    const model = (matchedPricing.pricingModel ?? 'PER_KWH').replace('PER_', '/').toLowerCase();
-                    return (
-                      <div className="booking-flow__summary-row">
-                        <span className="booking-flow__summary-label">Rate</span>
-                        <span className="booking-flow__summary-value">
-                          ₹{matchedPricing.ratePerUnit}{model}
-                        </span>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
+                {matchedPricing?.ratePerUnit != null ? (
+                  <div className="booking-flow__summary-row">
+                    <span className="booking-flow__summary-label">Rate</span>
+                    <span className="booking-flow__summary-value">
+                      ₹{matchedPricing.ratePerUnit}{matchedPricingUnit}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="booking-flow__summary-row">
+                    <span className="booking-flow__summary-label">Rate</span>
+                    <span className="booking-flow__summary-value">Not configured for this point type yet</span>
+                  </div>
+                )}
               </div>
               <div className="booking-flow__actions">
                 <button type="button" className="btn btn--outline" onClick={() => setStep(2)}>

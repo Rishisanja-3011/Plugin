@@ -510,15 +510,12 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
   const isLive = isInProgressStatus(session.status);
   const fallbackPowerKw = Number(session.chargingPointMaxPowerKw ?? session.maxPowerKw ?? 50);
   const estimateRate = Number(session.estimateRate ?? session.rateApplied ?? 15);
-  const estimateRateType = (session.estimateRateType ?? session.rateType ?? 'PER_KWH').toUpperCase();
   const liveEnergyKwh = (elapsedMs / 3600000) * fallbackPowerKw;
   const deliveredEnergyKwh = isLive
     ? liveEnergyKwh
     : Number(session.energyDeliveredKwh ?? liveEnergyKwh);
 
-  const estimatedCost = estimateRateType === 'PER_MINUTE'
-    ? (elapsedMs / 60000) * estimateRate
-    : deliveredEnergyKwh * estimateRate;
+  const estimatedCost = deliveredEnergyKwh * estimateRate;
 
   return (
     <motion.div className="session-status__active-card card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>

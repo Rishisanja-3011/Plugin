@@ -41,9 +41,6 @@ public class PricingService {
     public PricingResponse createOrUpdate(PricingRequest request, String performedBy) {
         Station station = stationRepository.findById(request.getStationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
-        if (request.getPricingModel() == PricingModel.PER_MINUTE) {
-            throw new BadRequestException("Only PER_KWH pricing is allowed");
-        }
 
         Optional<Pricing> existing = pricingRepository
                 .findByStationIdAndPointType(request.getStationId(), request.getPointType());
@@ -55,14 +52,14 @@ public class PricingService {
                 .pointType(request.getPointType())
                 .build());
 
-        pricing.setPricingModel(request.getPricingModel());
+        pricing.setPricingModel(PricingModel.PER_KWH);
         pricing.setRatePerUnit(request.getRatePerUnit());
         pricing.setDescription(request.getDescription());
         pricing = pricingRepository.save(pricing);
 
         auditService.log("UPSERT_PRICING", "PRICING", pricing.getId(), performedBy,
                 "Pricing set for station " + station.getName() + " " + request.getPointType() +
-                ": " + request.getRatePerUnit() + " " + request.getPricingModel());
+                ": " + request.getRatePerUnit() + " " + PricingModel.PER_KWH);
         return toResponse(pricing);
     }
 

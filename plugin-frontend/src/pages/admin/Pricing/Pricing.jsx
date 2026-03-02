@@ -132,7 +132,7 @@ export default function Pricing() {
     const payload = {
       stationId: Number(form.stationId),
       pointType: form.pointType,
-      pricingModel: form.pricingModel,
+      pricingModel: 'PER_KWH',
       ratePerUnit: Number(form.ratePerUnit),
       description: form.description || null,
     };
@@ -213,11 +213,11 @@ export default function Pricing() {
                 <div className="pricing-card__body">
                   <div className="pricing-card__row">
                     <span className="pricing-card__label">Pricing Model</span>
-                    <span className="pricing-card__value">{p.pricingModel === 'PER_KWH' ? 'Per kWh' : 'Per Minute'}</span>
+                    <span className="pricing-card__value">Per kWh</span>
                   </div>
                   <div className="pricing-card__row">
                     <span className="pricing-card__label">Rate</span>
-                    <span className="pricing-card__value">{'\u20B9'}{p.ratePerUnit ?? '-'}{p.pricingModel === 'PER_KWH' ? '/kWh' : '/min'}</span>
+                    <span className="pricing-card__value">{'\u20B9'}{p.ratePerUnit ?? '-'}/kWh</span>
                   </div>
                   {p.description && (
                     <div className="pricing-card__row pricing-card__row--description">
@@ -274,9 +274,7 @@ export default function Pricing() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Pricing Model *</label>
-                      <select className="form-select" value={form.pricingModel} onChange={(e) => setForm({ ...form, pricingModel: e.target.value })} required>
-                        <option value="PER_KWH">Per kWh</option>
-                      </select>
+                      <input className="form-input" value="Per kWh" disabled readOnly />
                     </div>
                   </div>
                   <div className="form-group">

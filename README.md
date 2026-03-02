@@ -97,7 +97,7 @@ Navigate to **http://localhost:5173** in your browser.
 | `users` | User accounts with roles (ADMIN, STATION_OPERATOR, CUSTOMER) |
 | `stations` | Charging stations with address, hours, coordinates |
 | `charging_points` | Individual charging points per station (FAST/SLOW, status) |
-| `pricing` | Pricing models per station + point type (per kWh or per minute) |
+| `pricing` | Pricing models per station + point type (per kWh) |
 | `bookings` | Customer bookings with overlap prevention |
 | `charging_sessions` | Active/completed charging sessions with energy tracking |
 | `bills` | Invoices generated per completed session |
@@ -298,7 +298,7 @@ curl http://localhost:8080/api/admin/dashboard \
 - [x] Customer registration and login
 - [x] Station CRUD with activate/deactivate
 - [x] Charging points management (FAST/SLOW, status tracking)
-- [x] Pricing models (per kWh, per minute)
+- [x] Pricing models (per kWh)
 - [x] Booking system with overlap prevention
 - [x] Available time slot calculation
 - [x] Charging session simulation (start/end with energy calculation)

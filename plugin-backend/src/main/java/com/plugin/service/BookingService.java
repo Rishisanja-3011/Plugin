@@ -31,6 +31,7 @@ public class BookingService {
     private final StationRepository stationRepository;
     private final ChargingPointRepository cpRepository;
     private final UserRepository userRepository;
+    private final PricingSnapshotService pricingSnapshotService;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
@@ -84,6 +85,8 @@ public class BookingService {
         }
 
         String refId = generateReferenceId();
+        PricingSnapshotService.PricingSnapshot lockedPricing =
+                pricingSnapshotService.resolveFor(station, chargingPoint.getPointType());
 
         Booking booking = Booking.builder()
                 .referenceId(refId)
@@ -92,10 +95,20 @@ public class BookingService {
                 .chargingPoint(chargingPoint)
                 .startTime(startTime)
                 .endTime(endTime)
+                .lockedRatePerUnit(lockedPricing.ratePerUnit())
+                .lockedRateType(lockedPricing.rateType())
                 .status(BookingStatus.CONFIRMED)
                 .build();
 
         booking = bookingRepository.save(booking);
+
+        if (lockedPricing.usedFallback()) {
+            pricingSnapshotService.notifyAdminsMissingPricing(
+                    station,
+                    chargingPoint.getPointType(),
+                    "Booking " + refId + " was created by " + customerEmail + "."
+            );
+        }
 
         auditService.log("CREATE_BOOKING", "BOOKING", booking.getId(), customerEmail,
                 "Booking created: " + refId);
@@ -151,8 +164,20 @@ public class BookingService {
 
         booking.setStartTime(startTime);
         booking.setEndTime(endTime);
+        PricingSnapshotService.PricingSnapshot lockedPricing =
+                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
+        booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
+        booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
         booking = bookingRepository.save(booking);
+
+        if (lockedPricing.usedFallback()) {
+            pricingSnapshotService.notifyAdminsMissingPricing(
+                    booking.getStation(),
+                    booking.getChargingPoint().getPointType(),
+                    "Booking " + booking.getReferenceId() + " was modified by " + customerEmail + "."
+            );
+        }
 
         auditService.log("MODIFY_BOOKING", "BOOKING", booking.getId(), customerEmail,
                 "Booking modified: " + booking.getReferenceId());
@@ -346,6 +371,8 @@ public class BookingService {
                 .pointType(b.getChargingPoint().getPointType().name())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
+                .lockedRatePerUnit(b.getLockedRatePerUnit())
+                .lockedRateType(b.getLockedRateType())
                 .status(b.getStatus().name())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())

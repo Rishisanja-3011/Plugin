@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -28,6 +29,7 @@ class BookingOverlapTest {
     @Mock private StationRepository stationRepository;
     @Mock private ChargingPointRepository cpRepository;
     @Mock private UserRepository userRepository;
+    @Mock private PricingSnapshotService pricingSnapshotService;
     @Mock private AuditService auditService;
     @Mock private NotificationService notificationService;
 
@@ -45,6 +47,12 @@ class BookingOverlapTest {
                 .openingTime(LocalTime.of(6, 0)).closingTime(LocalTime.of(23, 0)).build();
         chargingPoint = ChargingPoint.builder().id(1L).identifier("CP-01").station(station)
                 .pointType(PointType.FAST).maxPowerKw(150.0).status(PointStatus.AVAILABLE).build();
+        lenient().when(pricingSnapshotService.resolveFor(any(), any()))
+                .thenReturn(new PricingSnapshotService.PricingSnapshot(
+                        BigDecimal.valueOf(18),
+                        PricingModel.PER_KWH.name(),
+                        false
+                ));
     }
 
     @Test

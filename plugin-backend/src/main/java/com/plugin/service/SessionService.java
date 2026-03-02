@@ -6,6 +6,7 @@ import com.plugin.enums.*;
 import com.plugin.exception.*;
 import com.plugin.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,16 @@ public class SessionService {
     private final BookingRepository bookingRepository;
     private final ChargingPointRepository cpRepository;
     private final UserRepository userRepository;
-    private final PricingRepository pricingRepository;
     private final BillRepository billRepository;
+    private final PricingSnapshotService pricingSnapshotService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+
+    @Value("${app.billing.default-rate-per-kwh:15}")
+    private BigDecimal defaultRatePerKwh;
+
+    @Value("${app.billing.efficiency-factor:0.92}")
+    private double billingEfficiencyFactor;
 
     @Transactional
     public SessionResponse startSession(Long bookingId, String customerEmail) {
@@ -46,6 +53,8 @@ public class SessionService {
         if (sessionRepository.findByBookingId(bookingId).isPresent()) {
             throw new ConflictException("Session already exists for this booking");
         }
+
+        ensureLockedPricing(booking, "Session started for booking " + booking.getReferenceId() + ".");
 
         ChargingPoint cp = booking.getChargingPoint();
         cp.setStatus(PointStatus.CHARGING);
@@ -81,10 +90,10 @@ public class SessionService {
         // Simulate energy delivered
         long durationMinutes = Duration.between(session.getStartTime(), session.getEndTime()).toMinutes();
         if (durationMinutes < 1) durationMinutes = 1;
+
         double powerKw = session.getChargingPoint().getMaxPowerKw();
-        double energyKwh = (powerKw * durationMinutes) / 60.0;
-        // Add some randomness for realism (80-100% efficiency)
-        energyKwh = energyKwh * (0.8 + Math.random() * 0.2);
+        double theoreticalEnergyKwh = (powerKw * durationMinutes) / 60.0;
+        double energyKwh = theoreticalEnergyKwh * normalizedEfficiency();
         session.setEnergyDeliveredKwh(BigDecimal.valueOf(energyKwh).setScale(2, RoundingMode.HALF_UP));
 
         session = sessionRepository.save(session);
@@ -136,31 +145,23 @@ public class SessionService {
     }
 
     private void generateBill(ChargingSession session) {
+        Booking booking = session.getBooking();
+        ensureLockedPricing(booking, "Session " + session.getId() + " ended.");
         ChargingPoint cp = session.getChargingPoint();
-        Pricing pricing = pricingRepository
-                .findByStationIdAndPointType(cp.getStation().getId(), cp.getPointType())
-                .orElse(null);
 
         BigDecimal totalAmount;
-        String rateType;
-        BigDecimal rate;
+        String rateType = booking.getLockedRateType();
+        BigDecimal rate = booking.getLockedRatePerUnit();
         BigDecimal energyKwh = session.getEnergyDeliveredKwh();
         long durationMinutes = Duration.between(session.getStartTime(), session.getEndTime()).toMinutes();
+        if (durationMinutes < 1) durationMinutes = 1;
 
-        if (pricing != null) {
-            rate = pricing.getRatePerUnit();
-            if (pricing.getPricingModel() == PricingModel.PER_KWH) {
-                totalAmount = energyKwh.multiply(rate);
-                rateType = "PER_KWH";
-            } else {
-                totalAmount = BigDecimal.valueOf(durationMinutes).multiply(rate);
-                rateType = "PER_MINUTE";
-            }
-        } else {
-            rate = BigDecimal.valueOf(15);
-            totalAmount = energyKwh.multiply(rate);
-            rateType = "PER_KWH";
+        if (rate == null || rateType == null || rateType.isBlank()) {
+            rate = defaultRatePerKwh;
+            rateType = PricingModel.PER_KWH.name();
         }
+        rateType = PricingModel.PER_KWH.name();
+        totalAmount = energyKwh.multiply(rate);
 
         totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
 
@@ -188,27 +189,21 @@ public class SessionService {
         BigDecimal estimatedAmount = null;
 
         if (s.getStatus() == SessionStatus.IN_PROGRESS) {
-            Pricing pricing = pricingRepository
-                    .findByStationIdAndPointType(
-                            s.getChargingPoint().getStation().getId(),
-                            s.getChargingPoint().getPointType())
-                    .orElse(null);
-
-            estimateRate = pricing != null ? pricing.getRatePerUnit() : BigDecimal.valueOf(15);
-            estimateRateType = pricing != null ? pricing.getPricingModel().name() : PricingModel.PER_KWH.name();
+            Booking booking = s.getBooking();
+            estimateRate = booking.getLockedRatePerUnit();
+            estimateRateType = booking.getLockedRateType();
+            if (estimateRate == null || estimateRateType == null || estimateRateType.isBlank()) {
+                estimateRate = defaultRatePerKwh;
+                estimateRateType = PricingModel.PER_KWH.name();
+            }
+            estimateRateType = PricingModel.PER_KWH.name();
 
             long elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
-            BigDecimal elapsedMinutes = BigDecimal.valueOf(elapsedSeconds)
-                    .divide(BigDecimal.valueOf(60), 6, RoundingMode.HALF_UP);
             BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(s.getChargingPoint().getMaxPowerKw())
+                    .multiply(BigDecimal.valueOf(normalizedEfficiency()))
                     .multiply(BigDecimal.valueOf(elapsedSeconds))
                     .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
-
-            if (PricingModel.PER_MINUTE.name().equals(estimateRateType)) {
-                estimatedAmount = elapsedMinutes.multiply(estimateRate);
-            } else {
-                estimatedAmount = elapsedEnergyKwh.multiply(estimateRate);
-            }
+            estimatedAmount = elapsedEnergyKwh.multiply(estimateRate);
             estimatedAmount = estimatedAmount.setScale(2, RoundingMode.HALF_UP);
         }
 
@@ -231,5 +226,35 @@ public class SessionService {
                 .estimatedAmount(estimatedAmount)
                 .status(s.getStatus().name())
                 .build();
+    }
+
+    private double normalizedEfficiency() {
+        if (billingEfficiencyFactor < 0.0) return 0.0;
+        if (billingEfficiencyFactor > 1.0) return 1.0;
+        return billingEfficiencyFactor;
+    }
+
+    private void ensureLockedPricing(Booking booking, String context) {
+        boolean hasValidLockedRate = booking.getLockedRatePerUnit() != null
+                && PricingModel.PER_KWH.name().equalsIgnoreCase(booking.getLockedRateType());
+        if (hasValidLockedRate) {
+            return;
+        }
+
+        PricingSnapshotService.PricingSnapshot snapshot = pricingSnapshotService.resolveFor(
+                booking.getStation(),
+                booking.getChargingPoint().getPointType()
+        );
+        booking.setLockedRatePerUnit(snapshot.ratePerUnit());
+        booking.setLockedRateType(PricingModel.PER_KWH.name());
+        bookingRepository.save(booking);
+
+        if (snapshot.usedFallback()) {
+            pricingSnapshotService.notifyAdminsMissingPricing(
+                    booking.getStation(),
+                    booking.getChargingPoint().getPointType(),
+                    context
+            );
+        }
     }
 }

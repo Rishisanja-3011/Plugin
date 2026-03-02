@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8081}
 
 spring:
   datasource:
@@ -19,6 +19,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+      continue-on-error: true
 
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
@@ -39,7 +40,10 @@ app:
   mail:
     from: ${MAIL_FROM:${MAIL_USERNAME:plugin.available@gmail.com}}
   confirm:
-    base-url: ${APP_BASE_URL:http://localhost:8080}
+    base-url: ${APP_BASE_URL:http://localhost:8081}
+  billing:
+    default-rate-per-kwh: ${DEFAULT_RATE_PER_KWH:15}
+    efficiency-factor: ${CHARGING_EFFICIENCY_FACTOR:0.92}
   jwt:
     secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}
     expiration-ms: 86400000

@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     charging_point_id BIGINT NOT NULL,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
+    locked_rate_per_unit DECIMAL(10,2),
+    locked_rate_type VARCHAR(15),
     status VARCHAR(15) NOT NULL DEFAULT 'CONFIRMED',
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
@@ -172,3 +174,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     INDEX idx_audit_entity (entity_type, entity_id),
     INDEX idx_audit_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE bookings
+    ADD COLUMN locked_rate_per_unit DECIMAL(10,2);
+
+ALTER TABLE bookings
+    ADD COLUMN locked_rate_type VARCHAR(15);
+
+UPDATE pricing
+SET pricing_model = 'PER_KWH'
+WHERE pricing_model <> 'PER_KWH';
+
+UPDATE bookings
+SET locked_rate_type = 'PER_KWH'
+WHERE locked_rate_type IS NOT NULL
+  AND locked_rate_type <> 'PER_KWH';
+
+UPDATE bills
+SET rate_type = 'PER_KWH'
+WHERE rate_type IS NOT NULL
+  AND rate_type <> 'PER_KWH';

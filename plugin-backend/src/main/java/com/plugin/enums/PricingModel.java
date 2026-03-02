@@ -1,6 +1,5 @@
 package com.plugin.enums;
 
 public enum PricingModel {
-    PER_KWH,
-    PER_MINUTE
+    PER_KWH
 }

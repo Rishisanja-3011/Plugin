@@ -120,8 +120,8 @@ public class DataSeeder implements CommandLineRunner {
                 .pricingModel(PricingModel.PER_KWH).ratePerUnit(BigDecimal.valueOf(20.00))
                 .description("Fast charging at Rs 20/kWh").build());
         pricingRepository.save(Pricing.builder().station(s2).pointType(PointType.SLOW)
-                .pricingModel(PricingModel.PER_MINUTE).ratePerUnit(BigDecimal.valueOf(5.00))
-                .description("Slow charging at Rs 5/min").build());
+                .pricingModel(PricingModel.PER_KWH).ratePerUnit(BigDecimal.valueOf(10.00))
+                .description("Slow charging at Rs 10/kWh").build());
 
         // Audit
         auditLogRepository.save(AuditLog.builder()
