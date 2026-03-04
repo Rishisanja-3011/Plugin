@@ -97,21 +97,8 @@
   font-weight: 800;
   color: var(--color-primary);
   font-variant-numeric: tabular-nums;
-  margin-bottom: var(--space-xs);
-  letter-spacing: -0.02em;
-}
-
-.session-status__active-energy {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-
-.session-status__active-cost {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  font-weight: 600;
   margin-bottom: var(--space-md);
+  letter-spacing: -0.02em;
 }
 
 .session-status__active-meta {

@@ -507,16 +507,6 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
     return () => clearInterval(interval);
   }, [session.startTime]);
 
-  const isLive = isInProgressStatus(session.status);
-  const fallbackPowerKw = Number(session.chargingPointMaxPowerKw ?? session.maxPowerKw ?? 50);
-  const estimateRate = Number(session.estimateRate ?? session.rateApplied ?? 15);
-  const liveEnergyKwh = (elapsedMs / 3600000) * fallbackPowerKw;
-  const deliveredEnergyKwh = isLive
-    ? liveEnergyKwh
-    : Number(session.energyDeliveredKwh ?? liveEnergyKwh);
-
-  const estimatedCost = deliveredEnergyKwh * estimateRate;
-
   return (
     <motion.div className="session-status__active-card card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <span className="badge badge--success session-status__live-badge">
@@ -525,8 +515,6 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
 
       <h3 className="session-status__active-station">{session.stationName ?? 'Station'}</h3>
       <div className="session-status__active-timer">{formatDurationFromMs(elapsedMs)}</div>
-      <p className="session-status__active-energy">{deliveredEnergyKwh.toFixed(2)} kWh delivered</p>
-      <p className="session-status__active-cost">Estimated cost: {formatCurrency(estimatedCost)}</p>
 
       <div className="session-status__active-meta">
         <div className="session-status__active-meta-item">

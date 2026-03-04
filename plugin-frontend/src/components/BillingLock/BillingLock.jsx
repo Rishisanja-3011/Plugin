@@ -40,7 +40,7 @@ export default function BillingLock({ children }) {
     refreshLock(true);
     const pollInterval = setInterval(() => {
       refreshLock(false);
-    }, 1000);
+    }, 5000);
 
     return () => { cancelled = true; clearInterval(pollInterval); };
   }, [loading, user, isCustomer, location.pathname]);
