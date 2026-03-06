@@ -40,6 +40,7 @@ public class DataSeeder implements CommandLineRunner {
                 .password(passwordEncoder.encode("Admin@123"))
                 .phone("9999999999")
                 .role(Role.ADMIN)
+                .active(true)
                 .build());
 
         User customer = userRepository.save(User.builder()
@@ -48,6 +49,7 @@ public class DataSeeder implements CommandLineRunner {
                 .password(passwordEncoder.encode("User@123"))
                 .phone("8888888888")
                 .role(Role.CUSTOMER)
+                .active(true)
                 .vehicleMake("Tesla")
                 .vehicleModel("Model 3")
                 .vehicleRegistration("MH01AB1234")

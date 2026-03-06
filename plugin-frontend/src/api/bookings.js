@@ -23,7 +23,13 @@ export const billsApi = {
   getById: (id) => api.get(`/bills/${id}`),
   pay: (id) => api.post(`/bills/${id}/pay`),
   getMyUnpaidCount: () => api.get('/bills/my/unpaid-count'),
-  downloadInvoice: (id) => api.get(`/bills/my/${id}/invoice`, { responseType: 'blob' }),
+  downloadInvoice: (id) => api.get(`/bills/my/${id}/invoice?t=${Date.now()}`, {
+    responseType: 'blob',
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  }),
 };
 
 export const notificationsApi = {

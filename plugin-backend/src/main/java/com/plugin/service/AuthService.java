@@ -53,8 +53,14 @@ public class AuthService {
 
     @Transactional
     public Map<String, String> register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email already registered");
+        User existingUser = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (existingUser != null) {
+            if (existingUser.getRole() != Role.CUSTOMER) {
+                throw new BadRequestException("Email already registered");
+            }
+            if (Boolean.TRUE.equals(existingUser.getActive())) {
+                throw new BadRequestException("Email already registered");
+            }
         }
 
         String otp = generateOtp();
@@ -98,9 +104,27 @@ public class AuthService {
             throw new BadRequestException("Invalid OTP");
         }
 
-        if (userRepository.existsByEmail(pending.getEmail())) {
+        User existingUser = userRepository.findByEmail(pending.getEmail()).orElse(null);
+        if (existingUser != null) {
+            if (existingUser.getRole() != Role.CUSTOMER) {
+                pendingRegistrationRepository.delete(pending);
+                throw new BadRequestException("Email already registered");
+            }
+
+            if (Boolean.TRUE.equals(existingUser.getActive())) {
+                pendingRegistrationRepository.delete(pending);
+                throw new BadRequestException("Email already registered");
+            }
+
+            existingUser.setFullName(pending.getFullName());
+            existingUser.setPassword(pending.getPassword());
+            existingUser.setPhone(pending.getPhone());
+            existingUser.setRole(Role.CUSTOMER);
+            existingUser.setActive(true);
+            userRepository.save(existingUser);
             pendingRegistrationRepository.delete(pending);
-            throw new BadRequestException("Email already registered");
+
+            return Map.of("message", "Account reactivated successfully. You can now log in.");
         }
 
         User user = User.builder()
@@ -109,6 +133,7 @@ public class AuthService {
                 .password(pending.getPassword())
                 .phone(pending.getPhone())
                 .role(Role.CUSTOMER)
+                .active(true)
                 .build();
 
         userRepository.save(user);
@@ -122,9 +147,12 @@ public class AuthService {
         PendingRegistration pending = pendingRegistrationRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadRequestException("No pending registration found. Please register again."));
 
-        if (userRepository.existsByEmail(pending.getEmail())) {
-            pendingRegistrationRepository.delete(pending);
-            throw new BadRequestException("Email already registered");
+        User existingUser = userRepository.findByEmail(pending.getEmail()).orElse(null);
+        if (existingUser != null) {
+            if (existingUser.getRole() != Role.CUSTOMER || Boolean.TRUE.equals(existingUser.getActive())) {
+                pendingRegistrationRepository.delete(pending);
+                throw new BadRequestException("Email already registered");
+            }
         }
 
         String otp = generateOtp();
@@ -153,6 +181,10 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BadRequestException("Invalid email or password");
+        }
+
+        if (Boolean.FALSE.equals(user.getActive())) {
+            throw new BadRequestException("Your account is deleted. Contact admin.");
         }
 
         String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());

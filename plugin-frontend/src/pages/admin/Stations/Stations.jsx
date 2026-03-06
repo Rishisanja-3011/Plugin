@@ -11,6 +11,7 @@ const sidebarLinks = [
   { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
   { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
   { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
+  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
   { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
   { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
   { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },

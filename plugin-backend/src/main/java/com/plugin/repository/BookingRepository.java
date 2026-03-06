@@ -58,6 +58,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         @Param("dayEnd") LocalDateTime dayEnd);
 
     Page<Booking> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Page<Booking> findByStatusOrderByCreatedAtDesc(BookingStatus status, Pageable pageable);
+    long countByCustomerId(Long customerId);
+    long countByCustomerIdAndStatus(Long customerId, BookingStatus status);
 
     boolean existsByCustomerId(Long customerId);
 

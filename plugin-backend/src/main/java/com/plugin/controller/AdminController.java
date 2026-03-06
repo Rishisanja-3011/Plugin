@@ -4,6 +4,7 @@ import com.plugin.dto.request.ChargingPointRequest;
 import com.plugin.dto.request.PricingRequest;
 import com.plugin.dto.request.StationRequest;
 import com.plugin.dto.response.*;
+import com.plugin.enums.BookingStatus;
 import com.plugin.enums.PointStatus;
 import com.plugin.service.*;
 import jakarta.validation.Valid;
@@ -33,6 +34,7 @@ public class AdminController {
     private final ChargingPointService cpService;
     private final PricingService pricingService;
     private final BookingService bookingService;
+    private final AdminCustomerService adminCustomerService;
     private final SessionService sessionService;
     private final BillService billService;
     private final DashboardService dashboardService;
@@ -142,13 +144,36 @@ public class AdminController {
     @GetMapping("/bookings")
     public ResponseEntity<Page<BookingResponse>> getAllBookings(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(bookingService.getAllBookings(PageRequest.of(page, size)));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) BookingStatus status) {
+        return ResponseEntity.ok(bookingService.getAllBookings(PageRequest.of(page, size), status));
     }
 
     @GetMapping("/bookings/stats")
     public ResponseEntity<Map<String, Long>> getBookingStats() {
         return ResponseEntity.ok(bookingService.getBookingStats());
+    }
+
+    @GetMapping("/customers")
+    public ResponseEntity<Page<AdminCustomerResponse>> getCustomers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Boolean active) {
+        return ResponseEntity.ok(adminCustomerService.getCustomers(
+                PageRequest.of(page, size, Sort.by("createdAt").descending()),
+                name,
+                active
+        ));
+    }
+
+    @PatchMapping("/customers/{id}/status")
+    public ResponseEntity<AdminCustomerResponse> updateCustomerStatus(
+            @PathVariable Long id,
+            @RequestParam boolean active,
+            Authentication auth) {
+        String actor = auth != null ? auth.getName() : "SYSTEM";
+        return ResponseEntity.ok(adminCustomerService.updateCustomerStatus(id, active, actor));
     }
 
     @GetMapping("/bookings/station/{stationId}")
@@ -208,6 +233,9 @@ public class AdminController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + invoice.filename() + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
                 .body(invoice.data());
     }
 

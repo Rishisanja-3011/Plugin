@@ -263,8 +263,11 @@ public class BookingService {
         return toResponse(booking);
     }
 
-    public Page<BookingResponse> getAllBookings(Pageable pageable) {
-        return bookingRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+    public Page<BookingResponse> getAllBookings(Pageable pageable, BookingStatus status) {
+        if (status == null) {
+            return bookingRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+        }
+        return bookingRepository.findByStatusOrderByCreatedAtDesc(status, pageable).map(this::toResponse);
     }
 
     public Page<BookingResponse> getBookingsByStation(Long stationId, Pageable pageable) {

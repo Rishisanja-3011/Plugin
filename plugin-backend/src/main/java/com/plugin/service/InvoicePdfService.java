@@ -12,7 +12,6 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.plugin.entity.Bill;
-import com.plugin.entity.Station;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -23,221 +22,340 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Service
 public class InvoicePdfService {
 
-    private static final DateTimeFormatter HEADER_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
-    private static final java.awt.Color INK_BLACK = new java.awt.Color(18, 18, 18);
-    private static final java.awt.Color TEXT_DARK = new java.awt.Color(35, 35, 35);
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
+    private static final java.awt.Color TEXT_DARK = new java.awt.Color(26, 26, 26);
     private static final java.awt.Color TEXT_MUTED = new java.awt.Color(90, 90, 90);
-    private static final java.awt.Color ROW_BORDER = new java.awt.Color(210, 210, 210);
-    private static final java.awt.Color BORDER_GRAY = new java.awt.Color(222, 226, 230);
+    private static final java.awt.Color BORDER_LIGHT = new java.awt.Color(210, 210, 210);
+    private static final java.awt.Color BORDER_DARK = new java.awt.Color(45, 45, 45);
     private static final String PAYMENT_METHOD = "UPI";
+    private static final String TRANSACTION_ID = "-";
+    private static final String WEBSITE_URL = "www.plugin.com";
     private static final String SUPPORT_EMAIL = "plugin.onservice@gmail.com";
-    private static final String SUPPORT_PHONE = "+91 8200203790";
 
     public byte[] generateInvoice(Bill bill) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, 36, 36, 42, 36);
+        Document document = new Document(PageSize.A4, 28, 28, 24, 24);
         PdfWriter.getInstance(document, out);
         document.open();
 
-        Font headerTitleFont = new Font(Font.HELVETICA, 16, Font.BOLD, INK_BLACK);
-        Font subValueFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_DARK);
-        Font blockTitleFont = new Font(Font.HELVETICA, 10, Font.BOLD, INK_BLACK);
-        Font blockValueFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_DARK);
-        Font sectionTitleFont = new Font(Font.HELVETICA, 10, Font.BOLD, java.awt.Color.WHITE);
-        Font detailLabelFont = new Font(Font.HELVETICA, 10, Font.BOLD, INK_BLACK);
-        Font detailValueFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_DARK);
-        Font totalValueFont = new Font(Font.HELVETICA, 10, Font.BOLD, INK_BLACK);
-        Font footerFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_MUTED);
-        Font supportTitleFont = new Font(Font.HELVETICA, 10, Font.BOLD, INK_BLACK);
-        Font supportValueFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_DARK);
+        Font title = new Font(Font.HELVETICA, 13, Font.BOLD, TEXT_DARK);
+        Font body = new Font(Font.HELVETICA, 9, Font.NORMAL, TEXT_DARK);
+        Font bodyBold = new Font(Font.HELVETICA, 9, Font.BOLD, TEXT_DARK);
+        Font muted = new Font(Font.HELVETICA, 9, Font.NORMAL, TEXT_MUTED);
+        Font tableHeader = new Font(Font.HELVETICA, 10, Font.BOLD, TEXT_DARK);
+        Font totalText = new Font(Font.HELVETICA, 10, Font.BOLD, TEXT_DARK);
+        Font totalBar = new Font(Font.HELVETICA, 11, Font.BOLD, java.awt.Color.WHITE);
 
-        addHeader(document, bill, headerTitleFont, subValueFont);
-        addSpacer(document, 10f);
-        addBillToAndStationBlock(document, bill, blockTitleFont, blockValueFont);
-        addSpacer(document, 12f);
-        addSectionTitle(document, "CHARGING SESSION DETAILS", sectionTitleFont);
-        addSessionDetailsTable(document, bill, detailLabelFont, detailValueFont, totalValueFont);
-        addSpacer(document, 16f);
-        addThankYouSection(document, footerFont);
-        addSpacer(document, 12f);
-        addSupportFooter(document, supportTitleFont, supportValueFont);
+        addLogo(document);
+        addSpacer(document, 2f);
+        addDivider(document);
+        addSpacer(document, 4f);
+
+        addTopInfo(document, bill, body, bodyBold);
+        addSpacer(document, 3f);
+        addDivider(document);
+        addSpacer(document, 4f);
+
+        addCustomerSession(document, bill, body, bodyBold);
+        addSpacer(document, 3f);
+        addDivider(document);
+        addSpacer(document, 4f);
+
+        addChargeTable(document, bill, tableHeader, body, bodyBold, totalText, totalBar);
+        addSpacer(document, 4f);
+
+        addPaymentBlock(document, bill, title, body, bodyBold);
+        addSpacer(document, 4f);
+        addFooter(document, bodyBold, muted);
 
         document.close();
         return out.toByteArray();
     }
 
-    private void addHeader(Document document, Bill bill, Font titleFont, Font valueFont) {
-        PdfPTable headerTable = new PdfPTable(new float[]{1.4f, 1.6f});
-        headerTable.setWidthPercentage(100f);
-
-        PdfPCell left = new PdfPCell();
-        left.setBorder(Rectangle.NO_BORDER);
-        left.setVerticalAlignment(Element.ALIGN_TOP);
+    private void addLogo(Document document) {
         Image logo = loadLogoImage();
         if (logo != null) {
-            left.addElement(logo);
-        } else {
-            left.addElement(new Paragraph("PLUGIN", titleFont));
+            logo.scaleToFit(220f, 62f);
+            logo.setAlignment(Element.ALIGN_CENTER);
+            document.add(logo);
+            return;
         }
-
-        PdfPCell right = new PdfPCell();
-        right.setBorder(Rectangle.NO_BORDER);
-        right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        right.setVerticalAlignment(Element.ALIGN_TOP);
-        Paragraph title = new Paragraph("Payment Confirmation", titleFont);
-        title.setAlignment(Element.ALIGN_RIGHT);
-        right.addElement(title);
-        right.addElement(new Paragraph("Invoice Number: " + safe(bill.getInvoiceNumber()), valueFont));
-        right.addElement(new Paragraph("Date: " + formatHeaderDate(resolveReferenceDateTime(bill)), valueFont));
-
-        headerTable.addCell(left);
-        headerTable.addCell(right);
-        document.add(headerTable);
+        Paragraph fallback = new Paragraph("PLUGIN", new Font(Font.HELVETICA, 28, Font.BOLD, TEXT_DARK));
+        fallback.setAlignment(Element.ALIGN_CENTER);
+        document.add(fallback);
     }
 
-    private void addBillToAndStationBlock(Document document, Bill bill, Font titleFont, Font valueFont) {
-        PdfPTable infoTable = new PdfPTable(new float[]{1f, 1f});
-        infoTable.setWidthPercentage(100f);
-
-        PdfPCell billedTo = new PdfPCell();
-        billedTo.setBorder(Rectangle.NO_BORDER);
-        billedTo.setPadding(2f);
-        billedTo.setVerticalAlignment(Element.ALIGN_TOP);
-        billedTo.addElement(new Paragraph("Billed To:", titleFont));
-        billedTo.addElement(new Paragraph(safe(bill.getCustomer() != null ? bill.getCustomer().getFullName() : null), valueFont));
-        billedTo.addElement(new Paragraph(safe(bill.getCustomer() != null ? bill.getCustomer().getEmail() : null), valueFont));
-
-        PdfPCell station = new PdfPCell();
-        station.setBorder(Rectangle.NO_BORDER);
-        station.setPadding(2f);
-        station.setVerticalAlignment(Element.ALIGN_TOP);
-        station.addElement(new Paragraph("Station Location:", titleFont));
-        station.addElement(new Paragraph(buildStationLocation(bill.getStation()), valueFont));
-
-        infoTable.addCell(billedTo);
-        infoTable.addCell(station);
-        document.add(infoTable);
-    }
-
-    private void addSectionTitle(Document document, String text, Font font) {
-        PdfPTable section = new PdfPTable(1);
-        section.setWidthPercentage(100f);
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell.setBackgroundColor(INK_BLACK);
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(7f);
-        section.addCell(cell);
-        document.add(section);
-    }
-
-    private void addSessionDetailsTable(Document document, Bill bill, Font labelFont, Font valueFont, Font totalValueFont) {
-        PdfPTable table = new PdfPTable(new float[]{1.5f, 2.2f});
+    private void addTopInfo(Document document, Bill bill, Font body, Font bodyBold) {
+        PdfPTable table = new PdfPTable(new float[]{1f, 1f});
         table.setWidthPercentage(100f);
 
-        addDetailRow(table, "Session ID:", formatSessionId(bill), labelFont, valueFont, false);
-        addDetailRow(table, "Charging Date & Time:", formatChargingDateTime(bill), labelFont, valueFont, false);
-        addDetailRow(table, "Energy Consumed:", formatEnergy(bill.getEnergyKwh()), labelFont, valueFont, false);
-        addDetailRow(table, "Duration (min):", formatNumber(bill.getDurationMinutes()), labelFont, valueFont, false);
-        addDetailRow(table, "Rate:", formatRate(bill.getRateApplied(), bill.getRateType()), labelFont, valueFont, false);
-        addDetailRow(table, "Payment Method:", PAYMENT_METHOD, labelFont, valueFont, false);
-        addDetailRow(table, "Amount Paid:", formatMoney(bill.getTotalAmount()), labelFont, totalValueFont, true);
+        PdfPCell left = baseCell();
+        left.addElement(line("Invoice #:", safe(bill.getInvoiceNumber()), body, bodyBold));
+        left.addElement(line("Station ID:", formatStationId(bill), body, bodyBold));
+        left.addElement(line("Location:", formatLocationName(bill), body, bodyBold));
+
+        PdfPCell right = baseCell();
+        right.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        right.addElement(rightLine("Date:", formatDate(resolveReferenceDateTime(bill)), body, bodyBold));
+        right.addElement(rightLine("Time:", formatTime(resolveReferenceDateTime(bill)), body, bodyBold));
+        right.addElement(rightLine("Status:", formatStatus(bill), body, bodyBold));
+
+        table.addCell(left);
+        table.addCell(right);
+        document.add(table);
+    }
+
+    private void addCustomerSession(Document document, Bill bill, Font body, Font bodyBold) {
+        PdfPTable table = new PdfPTable(new float[]{1f, 1f});
+        table.setWidthPercentage(100f);
+
+        PdfPCell left = baseCell();
+        left.addElement(line("Customer Name:", formatCustomerName(bill), body, bodyBold));
+        left.addElement(line("Vehicle:", formatVehicle(bill), body, bodyBold));
+        left.addElement(line("Connector:", formatConnector(bill), body, bodyBold));
+        left.addElement(line("Session ID:", formatSessionId(bill), body, bodyBold));
+
+        PdfPCell right = baseCell();
+        right.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        right.addElement(rightLine("Start Time:", formatSessionStart(bill), body, bodyBold));
+        right.addElement(rightLine("End Time:", formatSessionEnd(bill), body, bodyBold));
+        right.addElement(rightLine("Duration:", formatDuration(resolveDurationSeconds(bill)), body, bodyBold));
+
+        table.addCell(left);
+        table.addCell(right);
+        document.add(table);
+    }
+
+    private void addChargeTable(
+            Document document,
+            Bill bill,
+            Font headerFont,
+            Font body,
+            Font bodyBold,
+            Font totalText,
+            Font totalBar
+    ) {
+        BigDecimal total = amountOrZero(bill.getTotalAmount());
+        BigDecimal rate = amountOrZero(bill.getRateApplied());
+        BigDecimal energy = amountOrZero(bill.getEnergyKwh());
+        long totalSeconds = resolveDurationSeconds(bill);
+        String rateType = safe(bill.getRateType()).toUpperCase(Locale.ENGLISH);
+
+        BigDecimal energyAmount = BigDecimal.ZERO;
+        BigDecimal timeAmount = BigDecimal.ZERO;
+        if (rate.signum() > 0 && energy.signum() > 0 && rateType.contains("KWH")) {
+            energyAmount = rate.multiply(energy).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (rate.signum() > 0 && totalSeconds > 0 && (rateType.contains("MIN") || rateType.contains("MINUTE"))) {
+            BigDecimal durationMinutesExact = BigDecimal.valueOf(totalSeconds)
+                    .divide(BigDecimal.valueOf(60), 4, RoundingMode.HALF_UP);
+            timeAmount = rate.multiply(durationMinutesExact).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        List<InvoiceLineItem> rows = new ArrayList<>();
+        rows.add(new InvoiceLineItem(
+                "Energy Consumed",
+                rateType.contains("KWH") ? formatMoney(rate) + "/kWh" : "-",
+                energy.signum() > 0 ? formatNumber(energy) + " kWh" : "-",
+                energyAmount.signum() > 0 ? energyAmount : null
+        ));
+        rows.add(new InvoiceLineItem(
+                "Charging Time",
+                (rateType.contains("MIN") || rateType.contains("MINUTE")) ? formatMoney(rate) + "/min" : "-",
+                totalSeconds > 0 ? formatDuration(totalSeconds) : "-",
+                timeAmount.signum() > 0 ? timeAmount : null
+        ));
+
+        BigDecimal itemSum = energyAmount.add(timeAmount).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal serviceFee = total.subtract(itemSum).setScale(2, RoundingMode.HALF_UP);
+        if (serviceFee.signum() < 0) serviceFee = BigDecimal.ZERO;
+        if (serviceFee.signum() > 0) {
+            rows.add(new InvoiceLineItem("Service Fee", "-", "-", serviceFee));
+            itemSum = itemSum.add(serviceFee).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        if (itemSum.signum() == 0 && total.signum() > 0) {
+            rows.clear();
+            rows.add(new InvoiceLineItem("Charging Session", formatRate(bill.getRateApplied(), bill.getRateType()), "-", total));
+            itemSum = total;
+        }
+
+        BigDecimal subtotal = itemSum;
+        BigDecimal tax = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal grandTotal = subtotal.add(tax).setScale(2, RoundingMode.HALF_UP);
+
+        PdfPTable table = new PdfPTable(new float[]{2.8f, 1.6f, 1.5f, 1.2f});
+        table.setWidthPercentage(100f);
+
+        addHeaderCell(table, "Description", headerFont, Element.ALIGN_LEFT);
+        addHeaderCell(table, "Rate", headerFont, Element.ALIGN_CENTER);
+        addHeaderCell(table, "Usage", headerFont, Element.ALIGN_CENTER);
+        addHeaderCell(table, "Total", headerFont, Element.ALIGN_RIGHT);
+
+        for (InvoiceLineItem row : rows) {
+            addBodyCell(table, row.description(), body, Element.ALIGN_LEFT);
+            addBodyCell(table, row.rate(), body, Element.ALIGN_CENTER);
+            addBodyCell(table, row.usage(), body, Element.ALIGN_CENTER);
+            addBodyCell(table, row.amount() != null ? formatMoney(row.amount()) : "-", bodyBold, Element.ALIGN_RIGHT);
+        }
+
+        PdfPCell subtotalLabel = new PdfPCell(new Phrase("Subtotal", totalText));
+        subtotalLabel.setColspan(3);
+        subtotalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        subtotalLabel.setPadding(5f);
+        subtotalLabel.setBorder(Rectangle.TOP);
+        subtotalLabel.setBorderColor(BORDER_LIGHT);
+        table.addCell(subtotalLabel);
+
+        PdfPCell subtotalValue = new PdfPCell(new Phrase(formatMoney(subtotal), totalText));
+        subtotalValue.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        subtotalValue.setPadding(5f);
+        subtotalValue.setBorder(Rectangle.TOP);
+        subtotalValue.setBorderColor(BORDER_LIGHT);
+        table.addCell(subtotalValue);
+
+        PdfPCell taxLabel = new PdfPCell(new Phrase("Tax (0%)", totalText));
+        taxLabel.setColspan(3);
+        taxLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        taxLabel.setPadding(5f);
+        taxLabel.setBorder(Rectangle.TOP);
+        taxLabel.setBorderColor(BORDER_LIGHT);
+        table.addCell(taxLabel);
+
+        PdfPCell taxValue = new PdfPCell(new Phrase(formatMoney(tax), totalText));
+        taxValue.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        taxValue.setPadding(5f);
+        taxValue.setBorder(Rectangle.TOP);
+        taxValue.setBorderColor(BORDER_LIGHT);
+        table.addCell(taxValue);
+
+        PdfPCell grandLabel = new PdfPCell(new Phrase("TOTAL", totalBar));
+        grandLabel.setColspan(3);
+        grandLabel.setBackgroundColor(BORDER_DARK);
+        grandLabel.setHorizontalAlignment(Element.ALIGN_LEFT);
+        grandLabel.setPadding(6f);
+        grandLabel.setBorder(Rectangle.NO_BORDER);
+        table.addCell(grandLabel);
+
+        PdfPCell grandValue = new PdfPCell(new Phrase(formatMoney(grandTotal), totalBar));
+        grandValue.setBackgroundColor(BORDER_DARK);
+        grandValue.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        grandValue.setPadding(6f);
+        grandValue.setBorder(Rectangle.NO_BORDER);
+        table.addCell(grandValue);
 
         document.add(table);
     }
 
-    private void addDetailRow(
-            PdfPTable table,
-            String label,
-            String value,
-            Font labelFont,
-            Font valueFont,
-            boolean emphasize
-    ) {
-        PdfPCell left = new PdfPCell(new Phrase(label, labelFont));
-        left.setPadding(6.5f);
-        left.setBorder(Rectangle.BOTTOM);
-        left.setBorderColor(ROW_BORDER);
-        left.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        if (emphasize) {
-            left.setBorderWidthBottom(1.25f);
-        }
-        table.addCell(left);
+    private void addPaymentBlock(Document document, Bill bill, Font title, Font body, Font bodyBold) {
+        Paragraph heading = new Paragraph("Payment Details", title);
+        heading.setSpacingAfter(5f);
+        document.add(heading);
 
-        PdfPCell right = new PdfPCell(new Phrase(value, valueFont));
-        right.setPadding(6.5f);
-        right.setBorder(Rectangle.BOTTOM);
-        right.setBorderColor(ROW_BORDER);
-        right.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        if (emphasize) {
-            right.setBorderWidthBottom(1.25f);
-        }
-        table.addCell(right);
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(100f);
+
+        PdfPCell cell = baseCell();
+        cell.addElement(line("Payment Method:", PAYMENT_METHOD, body, bodyBold));
+        cell.addElement(line("Transaction ID:", TRANSACTION_ID, body, bodyBold));
+        cell.addElement(line("Status:", formatStatus(bill), body, bodyBold));
+        table.addCell(cell);
+
+        document.add(table);
     }
 
-    private void addThankYouSection(Document document, Font font) {
-        PdfPTable thanks = new PdfPTable(new float[]{1.2f, 1.6f, 1.2f});
-        thanks.setWidthPercentage(100f);
+    private void addFooter(Document document, Font bold, Font normal) {
+        addDivider(document);
+        addSpacer(document, 3f);
 
-        PdfPCell left = new PdfPCell();
-        left.setBorder(Rectangle.TOP);
-        left.setBorderColor(BORDER_GRAY);
-        left.setFixedHeight(14f);
-
-        PdfPCell center = new PdfPCell(new Phrase("Thank You for using PLUGIN", font));
-        center.setHorizontalAlignment(Element.ALIGN_CENTER);
-        center.setBorder(Rectangle.NO_BORDER);
-        center.setPaddingTop(1f);
-
-        PdfPCell right = new PdfPCell();
-        right.setBorder(Rectangle.TOP);
-        right.setBorderColor(BORDER_GRAY);
-        right.setFixedHeight(14f);
-
-        thanks.addCell(left);
-        thanks.addCell(center);
-        thanks.addCell(right);
+        Paragraph thanks = new Paragraph("Thank you for charging with PLUGIN", bold);
+        thanks.setAlignment(Element.ALIGN_LEFT);
         document.add(thanks);
+
+        addSpacer(document, 2f);
+        Paragraph support = new Paragraph(WEBSITE_URL + "    |    " + SUPPORT_EMAIL, normal);
+        support.setAlignment(Element.ALIGN_LEFT);
+        document.add(support);
     }
 
-    private void addSupportFooter(Document document, Font titleFont, Font valueFont) {
-        PdfPTable footer = new PdfPTable(1);
-        footer.setWidthPercentage(100f);
-
-        PdfPCell support = new PdfPCell();
-        support.setBorder(Rectangle.NO_BORDER);
-        support.setPadding(2f);
-        support.addElement(new Paragraph("Customer Support", titleFont));
-        support.addElement(new Paragraph(SUPPORT_EMAIL, valueFont));
-        support.addElement(new Paragraph(SUPPORT_PHONE, valueFont));
-
-        footer.addCell(support);
-        document.add(footer);
+    private void addHeaderCell(PdfPTable table, String text, Font font, int align) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setPadding(5f);
+        cell.setHorizontalAlignment(align);
+        cell.setBorder(Rectangle.TOP | Rectangle.BOTTOM);
+        cell.setBorderColor(BORDER_LIGHT);
+        table.addCell(cell);
     }
 
-    private void addSpacer(Document document, float spacing) {
-        Paragraph spacer = new Paragraph(" ");
-        spacer.setSpacingBefore(spacing);
+    private void addBodyCell(PdfPTable table, String text, Font font, int align) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setPadding(5f);
+        cell.setHorizontalAlignment(align);
+        cell.setBorder(Rectangle.BOTTOM);
+        cell.setBorderColor(BORDER_LIGHT);
+        table.addCell(cell);
+    }
+
+    private Paragraph line(String label, String value, Font labelFont, Font valueFont) {
+        Paragraph p = new Paragraph();
+        p.setSpacingAfter(2f);
+        p.add(new Phrase(label + " ", labelFont));
+        p.add(new Phrase(value, valueFont));
+        return p;
+    }
+
+    private Paragraph rightLine(String label, String value, Font labelFont, Font valueFont) {
+        Paragraph p = line(label, value, labelFont, valueFont);
+        p.setAlignment(Element.ALIGN_RIGHT);
+        return p;
+    }
+
+    private PdfPCell baseCell() {
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setPadding(2f);
+        return cell;
+    }
+
+    private void addDivider(Document document) {
+        PdfPTable divider = new PdfPTable(1);
+        divider.setWidthPercentage(100f);
+        PdfPCell line = new PdfPCell();
+        line.setFixedHeight(1f);
+        line.setBorder(Rectangle.NO_BORDER);
+        line.setBackgroundColor(BORDER_LIGHT);
+        divider.addCell(line);
+        document.add(divider);
+    }
+
+    private void addSpacer(Document document, float before) {
+        PdfPTable spacer = new PdfPTable(1);
+        spacer.setWidthPercentage(100f);
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setFixedHeight(before);
+        spacer.addCell(cell);
         document.add(spacer);
     }
 
     private Image loadLogoImage() {
-        try (InputStream input = new ClassPathResource("static/brand-logo.png").getInputStream()) {
-            byte[] bytes = StreamUtils.copyToByteArray(input);
-            Image logo = Image.getInstance(bytes);
-            logo.scaleToFit(210f, 52f);
-            logo.setAlignment(Element.ALIGN_LEFT);
-            return logo;
-        } catch (Exception ignored) {
-            return null;
+        String[] paths = {"static/brand-logo-invoice.png", "static/brand-logo.png"};
+        for (String path : paths) {
+            try (InputStream input = new ClassPathResource(path).getInputStream()) {
+                byte[] bytes = StreamUtils.copyToByteArray(input);
+                return Image.getInstance(bytes);
+            } catch (Exception ignored) {
+            }
         }
+        return null;
     }
 
     private String safe(String value) {
@@ -245,50 +363,93 @@ public class InvoicePdfService {
     }
 
     private String formatDate(LocalDateTime value) {
-        return value == null ? "-" : value.format(DATE_FORMAT) + ", " + value.format(TIME_FORMAT);
+        return value == null ? "-" : value.format(DATE_FORMAT);
     }
 
-    private String formatHeaderDate(LocalDateTime value) {
-        return value == null ? "-" : value.format(HEADER_DATE_FORMAT);
+    private String formatTime(LocalDateTime value) {
+        return value == null ? "-" : value.format(TIME_FORMAT);
     }
 
     private String formatMoney(BigDecimal value) {
-        return value == null ? "-" : "\u20B9" + value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        if (value == null) return "-";
+        return "\u20B9" + value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
-    private String formatRate(BigDecimal rate, String rateType) {
-        if (rate == null && (rateType == null || rateType.isBlank())) return "-";
-        String amount = rate != null ? "\u20B9" + rate.setScale(2, RoundingMode.HALF_UP).toPlainString() : "-";
-        return rateType != null && !rateType.isBlank() ? amount + " / " + rateType : amount;
+    private String formatRate(BigDecimal rate, String type) {
+        String amount = rate == null ? "-" : formatMoney(rate);
+        if (type == null || type.isBlank()) return amount;
+        return amount + " / " + type;
     }
 
-    private String formatNumber(Number value) {
-        return value == null ? "-" : value.toString();
+    private String formatNumber(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private BigDecimal amountOrZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String formatStationId(Bill bill) {
+        if (bill.getStation() == null || bill.getStation().getId() == null) return "-";
+        return "ST-" + bill.getStation().getId();
+    }
+
+    private String formatLocationName(Bill bill) {
+        if (bill.getStation() == null) return "-";
+        String name = safe(bill.getStation().getName());
+        if (!"-".equals(name)) return name;
+        return safe(bill.getStation().getAddress());
+    }
+
+    private String formatCustomerName(Bill bill) {
+        return safe(bill.getCustomer() != null ? bill.getCustomer().getFullName() : null);
+    }
+
+    private String formatVehicle(Bill bill) {
+        if (bill.getCustomer() == null) return "-";
+        String make = safe(bill.getCustomer().getVehicleMake());
+        String model = safe(bill.getCustomer().getVehicleModel());
+        if ("-".equals(make) && "-".equals(model)) return "-";
+        if ("-".equals(make)) return model;
+        if ("-".equals(model)) return make;
+        return make + " " + model;
+    }
+
+    private String formatConnector(Bill bill) {
+        if (bill.getSession() == null || bill.getSession().getChargingPoint() == null) return "-";
+        String connector = safe(bill.getSession().getChargingPoint().getConnectorType());
+        if (!"-".equals(connector)) return connector;
+        return safe(bill.getSession().getChargingPoint().getIdentifier());
     }
 
     private String formatSessionId(Bill bill) {
         if (bill.getSession() == null || bill.getSession().getId() == null) return "-";
-        return String.valueOf(bill.getSession().getId());
+        return "CHG-" + bill.getSession().getId();
     }
 
-    private String formatEnergy(BigDecimal energy) {
-        if (energy == null) return "-";
-        return energy.setScale(2, RoundingMode.HALF_UP).toPlainString() + " kWh";
-    }
-
-    private String formatChargingDateTime(Bill bill) {
+    private String formatSessionStart(Bill bill) {
         if (bill.getSession() == null) return "-";
-        LocalDateTime start = bill.getSession().getStartTime();
-        LocalDateTime end = bill.getSession().getEndTime();
+        return formatTime(bill.getSession().getStartTime());
+    }
 
-        if (start == null && end == null) return "-";
-        if (start == null) return formatDate(end);
-        if (end == null) return formatDate(start);
+    private String formatSessionEnd(Bill bill) {
+        if (bill.getSession() == null) return "-";
+        return formatTime(bill.getSession().getEndTime());
+    }
 
-        String date = start.format(DATE_FORMAT);
-        String startTime = start.format(TIME_FORMAT);
-        String endTime = end.format(TIME_FORMAT);
-        return date + ", " + startTime + " - " + endTime;
+    private String formatDuration(long totalSeconds) {
+        if (totalSeconds <= 0) return "0 sec";
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        if (minutes > 0 && seconds > 0) return minutes + " min " + seconds + " sec";
+        if (minutes > 0) return minutes + " min";
+        return seconds + " sec";
+    }
+
+    private String formatStatus(Bill bill) {
+        if (bill.getPaymentStatus() == null) return "-";
+        String raw = bill.getPaymentStatus().name().toLowerCase(Locale.ENGLISH);
+        return Character.toUpperCase(raw.charAt(0)) + raw.substring(1);
     }
 
     private LocalDateTime resolveReferenceDateTime(Bill bill) {
@@ -299,13 +460,20 @@ public class InvoicePdfService {
         return null;
     }
 
-    private String buildStationLocation(Station station) {
-        if (station == null) return "-";
-        String name = safe(station.getName());
-        String address = safe(station.getAddress());
-        if (!"-".equals(name) && !"-".equals(address)) return name + " / " + address;
-        if (!"-".equals(name)) return name;
-        if (!"-".equals(address)) return address;
-        return "-";
+    private long resolveDurationSeconds(Bill bill) {
+        if (bill == null) return 0;
+        if (bill.getSession() != null && bill.getSession().getStartTime() != null && bill.getSession().getEndTime() != null) {
+            long seconds = java.time.Duration.between(
+                    bill.getSession().getStartTime(),
+                    bill.getSession().getEndTime()
+            ).getSeconds();
+            return Math.max(0, seconds);
+        }
+        if (bill.getDurationMinutes() != null) {
+            return Math.max(0, bill.getDurationMinutes() * 60);
+        }
+        return 0;
     }
+
+    private record InvoiceLineItem(String description, String rate, String usage, BigDecimal amount) {}
 }

@@ -28,6 +28,7 @@ import AdminStations from './pages/admin/Stations/Stations';
 import AdminChargingPoints from './pages/admin/ChargingPoints/ChargingPoints';
 import AdminPricing from './pages/admin/Pricing/Pricing';
 import AdminBookings from './pages/admin/Bookings/Bookings';
+import AdminCustomers from './pages/admin/Customers/Customers';
 import AdminSessions from './pages/admin/Sessions/Sessions';
 import AdminRevenue from './pages/admin/Revenue/Revenue';
 import AdminAnalytics from './pages/admin/Analytics/Analytics';
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="/admin/charging-points" element={<ProtectedRoute role="ADMIN"><AdminChargingPoints /></ProtectedRoute>} />
             <Route path="/admin/pricing" element={<ProtectedRoute role="ADMIN"><AdminPricing /></ProtectedRoute>} />
             <Route path="/admin/bookings" element={<ProtectedRoute role="ADMIN"><AdminBookings /></ProtectedRoute>} />
+            <Route path="/admin/customers" element={<ProtectedRoute role="ADMIN"><AdminCustomers /></ProtectedRoute>} />
             <Route path="/admin/sessions" element={<ProtectedRoute role="ADMIN"><AdminSessions /></ProtectedRoute>} />
             <Route path="/admin/revenue" element={<ProtectedRoute role="ADMIN"><AdminRevenue /></ProtectedRoute>} />
             <Route path="/admin/analytics" element={<ProtectedRoute role="ADMIN"><AdminAnalytics /></ProtectedRoute>} />

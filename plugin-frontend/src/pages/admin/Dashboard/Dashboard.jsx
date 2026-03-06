@@ -10,6 +10,7 @@ const sidebarLinks = [
   { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
   { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
   { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
+  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
   { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
   { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
   { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
@@ -77,6 +78,7 @@ export default function Dashboard() {
     { to: '/admin/stations', label: 'Manage Stations', icon: '\u{1F3E2}' },
     { to: '/admin/charging-points', label: 'Charging Points', icon: '\u{1F50C}' },
     { to: '/admin/bookings', label: 'View Bookings', icon: '\u{1F4CB}' },
+    { to: '/admin/customers', label: 'Customers', icon: '\u{1F465}' },
     { to: '/admin/revenue', label: 'Revenue Report', icon: '\u{1F4B0}' },
     { to: '/admin/analytics', label: 'Analytics', icon: '\u{1F4C8}' },
   ];

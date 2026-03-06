@@ -25,8 +25,23 @@ export const adminApi = {
   deletePricing: (id) => api.delete(`/admin/pricing/${id}`),
 
   // Bookings
-  getAllBookings: (page = 0, size = 20) => api.get(`/admin/bookings?page=${page}&size=${size}`),
+  getAllBookings: (page = 0, size = 20, status = '') => {
+    const query = new URLSearchParams({ page, size });
+    if (status && status !== 'ALL') query.append('status', status);
+    return api.get(`/admin/bookings?${query.toString()}`);
+  },
   getBookingStats: () => api.get('/admin/bookings/stats'),
+
+  //Customers
+  getCustomers: (page = 0, size = 20, params = {}) => {
+    const query = new URLSearchParams({ page, size });
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, value);
+    });
+    return api.get(`/admin/customers?${query.toString()}`);
+  },
+  updateCustomerStatus: (id, active) => api.patch(`/admin/customers/${id}/status?active=${active}`),
   getBookingsByStation: (stationId, page = 0, size = 20) =>
     api.get(`/admin/bookings/station/${stationId}?page=${page}&size=${size}`),
   cancelBooking: (id) => api.post(`/admin/bookings/${id}/cancel`),

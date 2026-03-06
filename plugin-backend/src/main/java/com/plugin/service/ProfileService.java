@@ -12,7 +12,6 @@ import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.BillRepository;
 import com.plugin.repository.BookingRepository;
 import com.plugin.repository.ChargingSessionRepository;
-import com.plugin.repository.NotificationRepository;
 import com.plugin.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,7 +28,6 @@ public class ProfileService {
     private final BookingRepository bookingRepository;
     private final ChargingSessionRepository chargingSessionRepository;
     private final BillRepository billRepository;
-    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UserResponse getProfile(String email) {
@@ -58,6 +56,10 @@ public class ProfileService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        if (Boolean.FALSE.equals(user.getActive())) {
+            return Map.of("message", "Account already deleted");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BadRequestException("Invalid password");
         }
@@ -74,11 +76,8 @@ public class ProfileService {
             throw new BadRequestException("Cannot delete account with active bookings, active sessions, or unpaid bills");
         }
 
-        billRepository.deleteByCustomerId(userId);
-        chargingSessionRepository.deleteByCustomerId(userId);
-        bookingRepository.deleteByCustomerId(userId);
-        notificationRepository.deleteByUserId(userId);
-        userRepository.delete(user);
+        user.setActive(false);
+        userRepository.save(user);
         return Map.of("message", "Account deleted successfully");
     }
 

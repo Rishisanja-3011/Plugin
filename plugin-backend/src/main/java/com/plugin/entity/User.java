@@ -30,6 +30,9 @@ public class User {
     @Column(nullable = false, length = 20)
     private Role role;
 
+    @Column(nullable = false)
+    private Boolean active;
+
     @Column(length = 50)
     private String vehicleMake;
 
@@ -48,6 +51,7 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (active == null) active = true;
     }
 
     @PreUpdate

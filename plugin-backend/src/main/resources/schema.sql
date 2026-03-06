@@ -9,13 +9,15 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     role VARCHAR(20) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
     vehicle_make VARCHAR(50),
     vehicle_model VARCHAR(50),
     vehicle_registration VARCHAR(20),
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
     INDEX idx_users_email (email),
-    INDEX idx_users_role (role)
+    INDEX idx_users_role (role),
+    INDEX idx_users_active (active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS stations (
@@ -180,6 +182,9 @@ ALTER TABLE bookings
 
 ALTER TABLE bookings
     ADD COLUMN locked_rate_type VARCHAR(15);
+
+ALTER TABLE users
+    ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;
 
 UPDATE pricing
 SET pricing_model = 'PER_KWH'

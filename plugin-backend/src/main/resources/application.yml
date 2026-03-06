@@ -44,6 +44,10 @@ app:
   billing:
     default-rate-per-kwh: ${DEFAULT_RATE_PER_KWH:15}
     efficiency-factor: ${CHARGING_EFFICIENCY_FACTOR:0.92}
+  support:
+    email: ${SUPPORT_EMAIL:plugin.onservice@gmail.com}
+  website:
+    url: ${WEBSITE_URL:www.plugin.com}
   jwt:
     secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}
     expiration-ms: 86400000

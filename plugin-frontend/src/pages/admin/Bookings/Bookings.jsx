@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import './Bookings.css';
@@ -11,6 +11,7 @@ const sidebarLinks = [
   { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
   { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
   { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
+  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
   { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
   { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
   { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
@@ -51,27 +52,37 @@ export default function Bookings() {
   const [actionLoading, setActionLoading] = useState(null);
   const [stats, setStats] = useState({ total: 0, completed: 0, cancelled: 0 });
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const hasLoadedOnce = useRef(false);
+  const latestRequestRef = useRef(0);
 
-  const fetchBookings = (p = page) => {
-    setLoading(true);
-    adminApi.getAllBookings(p, 20)
-      .then((res) => {
-        const list = res.data.content || res.data || [];
-        setBookings(list);
-        setTotalPages(res.data.totalPages || 1);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-    adminApi.getBookingStats()
-      .then((res) => setStats({
-        total: res.data?.total ?? 0,
-        completed: res.data?.completed ?? 0,
-        cancelled: res.data?.cancelled ?? 0,
-      }))
-      .catch(() => {});
+  const fetchBookings = async (p = page, filter = statusFilter, showLoader = !hasLoadedOnce.current) => {
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
+    if (showLoader) setLoading(true);
+    const normalizedStatus = filter === 'ALL' ? '' : filter;
+    try {
+      const [bookingsRes, statsRes] = await Promise.all([
+        adminApi.getAllBookings(p, 20, normalizedStatus),
+        adminApi.getBookingStats(),
+      ]);
+      if (requestId !== latestRequestRef.current) return;
+      const list = bookingsRes.data?.content || bookingsRes.data || [];
+      setBookings(list);
+      setTotalPages(bookingsRes.data?.totalPages || 1);
+      setStats({
+        total: statsRes.data?.total ?? 0,
+        completed: statsRes.data?.completed ?? 0,
+        cancelled: statsRes.data?.cancelled ?? 0,
+      });
+    } catch {
+    } finally {
+      if (requestId !== latestRequestRef.current) return;
+      if (showLoader) setLoading(false);
+      hasLoadedOnce.current = true;
+    }
   };
 
-  useEffect(() => { fetchBookings(); }, [page]);
+  useEffect(() => { fetchBookings(page, statusFilter, !hasLoadedOnce.current); }, [page, statusFilter]);
   useEffect(() => {
     if (!selected) return undefined;
     document.body.classList.add('modal-open');
@@ -153,10 +164,14 @@ export default function Bookings() {
     return status !== 'CANCELLED' && status !== 'COMPLETED';
   };
 
-  const filteredBookings = bookings.filter((b) => {
-    if (statusFilter === 'ALL') return true;
-    return (b?.status || '').toUpperCase() === statusFilter;
-  });
+  const applyStatusFilter = (nextFilter) => {
+    setStatusFilter(nextFilter);
+    setPage(0);
+  };
+
+  const hasAnyBookings = stats.total > 0 || bookings.length > 0;
+  const tableTransitionKey = `${statusFilter}-${page}`;
+  const emptyFilterLabel = statusFilter === 'ALL' ? 'bookings' : `${statusFilter.toLowerCase()} bookings`;
 
   const handleCancel = async (b) => {
     if (!b?.id) return;
@@ -166,7 +181,7 @@ export default function Bookings() {
       const res = await adminApi.cancelBooking(b.id);
       toast.success('Booking cancelled');
       setSelected(res.data || b);
-      fetchBookings();
+      fetchBookings(page, statusFilter, false);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to cancel booking');
     } finally {
@@ -189,7 +204,7 @@ export default function Bookings() {
 
         {loading ? (
           <div className="admin-loading"><div className="spinner" /><p>Loading bookings...</p></div>
-        ) : bookings.length === 0 ? (
+        ) : !hasAnyBookings ? (
           <div className="empty-state">
             <div className="empty-state__icon">{'\u{1F4CB}'}</div>
             <h3 className="empty-state__title">No bookings yet</h3>
@@ -201,24 +216,45 @@ export default function Bookings() {
               <button
                 type="button"
                 className={`booking-summary__item${statusFilter === 'ALL' ? ' booking-summary__item--active' : ''}`}
-                onClick={() => { setStatusFilter('ALL'); setPage(0); }}
+                onClick={() => applyStatusFilter('ALL')}
               >
+                {statusFilter === 'ALL' && (
+                  <motion.span
+                    layoutId="booking-summary-active-pill"
+                    className="booking-summary__active-pill"
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  />
+                )}
                 <span className="booking-summary__label">Total Bookings</span>
                 <span className="booking-summary__value">{stats.total}</span>
               </button>
               <button
                 type="button"
                 className={`booking-summary__item${statusFilter === 'COMPLETED' ? ' booking-summary__item--active' : ''}`}
-                onClick={() => { setStatusFilter('COMPLETED'); setPage(0); }}
+                onClick={() => applyStatusFilter('COMPLETED')}
               >
+                {statusFilter === 'COMPLETED' && (
+                  <motion.span
+                    layoutId="booking-summary-active-pill"
+                    className="booking-summary__active-pill"
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  />
+                )}
                 <span className="booking-summary__label">Completed</span>
                 <span className="booking-summary__value">{stats.completed}</span>
               </button>
               <button
                 type="button"
                 className={`booking-summary__item${statusFilter === 'CANCELLED' ? ' booking-summary__item--active' : ''}`}
-                onClick={() => { setStatusFilter('CANCELLED'); setPage(0); }}
+                onClick={() => applyStatusFilter('CANCELLED')}
               >
+                {statusFilter === 'CANCELLED' && (
+                  <motion.span
+                    layoutId="booking-summary-active-pill"
+                    className="booking-summary__active-pill"
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  />
+                )}
                 <span className="booking-summary__label">Cancelled</span>
                 <span className="booking-summary__value">{stats.cancelled}</span>
               </button>
@@ -236,27 +272,43 @@ export default function Bookings() {
                     <th>Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredBookings.map((b, i) => (
-                    <motion.tr
-                      key={b.id}
-                      custom={i}
-                      variants={rowVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="booking-row"
-                      onClick={() => setSelected(b)}
-                    >
-                      <td style={{ fontWeight: 600 }}>#{b.id}</td>
-                      <td>{b.customerName || b.userEmail || b.userId || '-'}</td>
-                      <td>{b.stationName || b.stationId || '-'}</td>
-                      <td>{b.chargingPointId || '-'}</td>
-                      <td>{renderDateRange(b.startTime || b.bookingDate || b.date, getEffectiveEndTime(b), b.bookingDate || b.date)}</td>
-                      <td>{renderTimeRange(b.startTime, getEffectiveEndTime(b))}</td>
-                      <td><span className={`badge ${statusBadge(b.status)}`}>{b.status}</span></td>
-                    </motion.tr>
-                  ))}
-                </tbody>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.tbody
+                    key={tableTransitionKey}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {bookings.length === 0 ? (
+                      <tr>
+                        <td className="booking-table__empty" colSpan={7}>
+                          No {emptyFilterLabel} found.
+                        </td>
+                      </tr>
+                    ) : (
+                      bookings.map((b, i) => (
+                        <motion.tr
+                          key={b.id}
+                          custom={i}
+                          variants={rowVariants}
+                          initial="hidden"
+                          animate="visible"
+                          className="booking-row"
+                          onClick={() => setSelected(b)}
+                        >
+                          <td style={{ fontWeight: 600 }}>#{b.id}</td>
+                          <td>{b.customerName || b.userEmail || b.userId || '-'}</td>
+                          <td>{b.stationName || b.stationId || '-'}</td>
+                          <td>{b.chargingPointId || '-'}</td>
+                          <td>{renderDateRange(b.startTime || b.bookingDate || b.date, getEffectiveEndTime(b), b.bookingDate || b.date)}</td>
+                          <td>{renderTimeRange(b.startTime, getEffectiveEndTime(b))}</td>
+                          <td><span className={`badge ${statusBadge(b.status)}`}>{b.status}</span></td>
+                        </motion.tr>
+                      ))
+                    )}
+                  </motion.tbody>
+                </AnimatePresence>
               </table>
             </div>
 
