@@ -187,6 +187,7 @@ public class SessionService {
         BigDecimal estimateRate = null;
         String estimateRateType = null;
         BigDecimal estimatedAmount = null;
+        UserVehicle bookingVehicle = s.getBooking().getVehicle();
 
         if (s.getStatus() == SessionStatus.IN_PROGRESS) {
             Booking booking = s.getBooking();
@@ -207,6 +208,12 @@ public class SessionService {
             estimatedAmount = estimatedAmount.setScale(2, RoundingMode.HALF_UP);
         }
 
+        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : s.getCustomer().getVehicleMake();
+        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : s.getCustomer().getVehicleModel();
+        String vehicleRegistration = bookingVehicle != null
+                ? bookingVehicle.getVehicleRegistration()
+                : s.getCustomer().getVehicleRegistration();
+
         return SessionResponse.builder()
                 .id(s.getId())
                 .bookingId(s.getBooking().getId())
@@ -218,6 +225,10 @@ public class SessionService {
                 .customerId(s.getCustomer().getId())
                 .customerName(s.getCustomer().getFullName())
                 .stationName(s.getChargingPoint().getStation().getName())
+                .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
+                .vehicleMake(vehicleMake)
+                .vehicleModel(vehicleModel)
+                .vehicleRegistration(vehicleRegistration)
                 .startTime(s.getStartTime())
                 .endTime(s.getEndTime())
                 .energyDeliveredKwh(s.getEnergyDeliveredKwh())

@@ -1,10 +1,41 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { authApi } from '../../../api/auth';
 import { useAuth } from '../../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Profile.css';
+
+function normalizeRegistrationValue(value) {
+  return value.toUpperCase().replace(/[\s-]/g, '');
+}
+
+function formatVehicleTitle(vehicle, index) {
+  const make = vehicle?.vehicleMake?.trim() || '';
+  const model = vehicle?.vehicleModel?.trim() || '';
+  const label = `${make} ${model}`.trim();
+  return label || `Vehicle ${index + 1}`;
+}
+
+function hasVehicleAnyValue(vehicle) {
+  if (!vehicle) return false;
+  const make = (vehicle.vehicleMake || '').trim();
+  const model = (vehicle.vehicleModel || '').trim();
+  const registration = normalizeRegistrationValue(vehicle.vehicleRegistration || '');
+  return Boolean(make || model || registration);
+}
+
+function isVehicleComplete(vehicle) {
+  if (!vehicle) return false;
+  const make = (vehicle.vehicleMake || '').trim();
+  const model = (vehicle.vehicleModel || '').trim();
+  const registration = normalizeRegistrationValue(vehicle.vehicleRegistration || '');
+  return Boolean(make && model && registration);
+}
+
+function isPersistedVehicle(vehicle) {
+  return vehicle?.id != null;
+}
 
 export default function Profile() {
   const toast = useToast();
@@ -19,10 +50,14 @@ export default function Profile() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSecurityOptions, setShowSecurityOptions] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showVehiclesModal, setShowVehiclesModal] = useState(false);
+  const [pendingVehicleRemoval, setPendingVehicleRemoval] = useState(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const menuRef = useRef(null);
+  const vehicleCounterRef = useRef(0);
+
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -32,35 +67,83 @@ export default function Profile() {
     fullName: '',
     email: '',
     phone: '',
-    vehicleMake: '',
-    vehicleModel: '',
-    vehicleRegistration: '',
   });
+  const [vehicles, setVehicles] = useState([]);
+  const [activeVehicleKey, setActiveVehicleKey] = useState(null);
   const [registrationError, setRegistrationError] = useState('');
   const isPhoneLocked = Boolean(form.phone);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
-      try {
-        const res = await authApi.getProfile();
-        const data = res.data;
-        setProfile(data);
-        setForm({
-          fullName: data?.fullName ?? data?.name ?? '',
-          email: data?.email ?? '',
-          phone: data?.phone ?? '',
-          vehicleMake: data?.vehicleMake ?? data?.vehicle_make ?? '',
-          vehicleModel: data?.vehicleModel ?? data?.vehicle_model ?? '',
-          vehicleRegistration: data?.vehicleRegistration ?? data?.vehicle_registration ?? '',
-        });
-      } catch {
-        toast.error('Failed to load profile');
-      } finally {
-        setLoading(false);
-      }
+  const createVehicleState = (rawVehicle = {}) => {
+    const key = rawVehicle?.id != null ? `id-${rawVehicle.id}` : `tmp-${++vehicleCounterRef.current}`;
+    return {
+      key,
+      id: rawVehicle?.id ?? null,
+      vehicleMake: rawVehicle?.vehicleMake ?? rawVehicle?.vehicle_make ?? '',
+      vehicleModel: rawVehicle?.vehicleModel ?? rawVehicle?.vehicle_model ?? '',
+      vehicleRegistration: rawVehicle?.vehicleRegistration ?? rawVehicle?.vehicle_registration ?? '',
+      active: Boolean(rawVehicle?.active),
     };
-    fetchProfile();
+  };
+
+  const validateRegistration = (value) => {
+    const normalized = normalizeRegistrationValue(value || '');
+    if (!normalized) return '';
+    const isValid = /^[A-Z]{2}\d{2}[A-Z]{1,3}\d{4}$/.test(normalized);
+    return isValid ? '' : 'Enter valid registration.';
+  };
+
+  const fetchProfile = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    try {
+      const res = await authApi.getProfile();
+      const data = res.data;
+      setProfile(data);
+      setForm({
+        fullName: data?.fullName ?? data?.name ?? '',
+        email: data?.email ?? '',
+        phone: data?.phone ?? '',
+      });
+
+      const backendVehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+      let mappedVehicles = backendVehicles.map((vehicle) => createVehicleState(vehicle));
+
+      if (mappedVehicles.length === 0) {
+        const hasLegacyVehicle =
+          data?.vehicleMake || data?.vehicleModel || data?.vehicleRegistration ||
+          data?.vehicle_make || data?.vehicle_model || data?.vehicle_registration;
+        if (hasLegacyVehicle) {
+          mappedVehicles = [
+            createVehicleState({
+              id: null,
+              vehicleMake: data?.vehicleMake ?? data?.vehicle_make ?? '',
+              vehicleModel: data?.vehicleModel ?? data?.vehicle_model ?? '',
+              vehicleRegistration: data?.vehicleRegistration ?? data?.vehicle_registration ?? '',
+              active: true,
+            }),
+          ];
+        }
+      }
+
+      setVehicles(mappedVehicles);
+
+      let resolvedActiveKey =
+        mappedVehicles.find((vehicle) => vehicle.id != null && vehicle.id === data?.activeVehicleId)?.key || null;
+
+      if (!resolvedActiveKey) {
+        resolvedActiveKey = mappedVehicles.find((vehicle) => vehicle.active)?.key || mappedVehicles[0]?.key || null;
+      }
+
+      setActiveVehicleKey(resolvedActiveKey);
+      setRegistrationError('');
+    } catch {
+      toast.error('Failed to load profile');
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile(true);
   }, []);
 
   useEffect(() => {
@@ -75,19 +158,95 @@ export default function Profile() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showSecurityOptions]);
 
+  useEffect(() => {
+    if (vehicles.length === 0) {
+      if (activeVehicleKey !== null) {
+        setActiveVehicleKey(null);
+      }
+      return;
+    }
+    const hasActive = vehicles.some((vehicle) => vehicle.key === activeVehicleKey);
+    if (!hasActive) {
+      setActiveVehicleKey(vehicles[0].key);
+    }
+  }, [vehicles, activeVehicleKey]);
+
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey) ?? vehicles[0] ?? null;
+  const selectedVehicleHasValue = hasVehicleAnyValue(selectedVehicle);
+  const selectedVehicleIsComplete = isVehicleComplete(selectedVehicle);
+  const visibleVehicles = vehicles.filter((vehicle) => isPersistedVehicle(vehicle));
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleVehicleChange = (e) => {
+    const { name, value } = e.target;
+    if (!activeVehicleKey) return;
+    setVehicles((prev) =>
+      prev.map((vehicle) => (vehicle.key === activeVehicleKey ? { ...vehicle, [name]: value } : vehicle))
+    );
     if (name === 'vehicleRegistration' && registrationError) {
       setRegistrationError(validateRegistration(value));
     }
   };
 
-  const validateRegistration = (value) => {
-    const normalized = value.toUpperCase().replace(/[\s-]/g, '');
-    if (!normalized) return '';
-    const isValid = /^[A-Z]{2}\d{2}[A-Z]{1,3}\d{4}$/.test(normalized);
-    return isValid ? '' : 'Enter valid registration.';
+  const handleSwitchVehicle = (vehicleKey) => {
+    setVehicles((prev) => {
+      const activeVehicle = prev.find((vehicle) => vehicle.key === activeVehicleKey);
+      if (activeVehicle && !isPersistedVehicle(activeVehicle) && !isVehicleComplete(activeVehicle)) {
+        return prev.filter((vehicle) => vehicle.key !== activeVehicle.key);
+      }
+      return prev;
+    });
+    setActiveVehicleKey(vehicleKey);
+    const nextVehicle = vehicles.find((vehicle) => vehicle.key === vehicleKey);
+    setRegistrationError(validateRegistration(nextVehicle?.vehicleRegistration || ''));
+  };
+
+  const handleAddVehicle = () => {
+    const activeVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey);
+    if (activeVehicle && !isPersistedVehicle(activeVehicle) && !isVehicleComplete(activeVehicle)) {
+      setActiveVehicleKey(activeVehicle.key);
+      toast.error('Fill all vehicle details before adding another vehicle');
+      return;
+    }
+
+    const created = {
+      key: `tmp-${++vehicleCounterRef.current}`,
+      id: null,
+      vehicleMake: '',
+      vehicleModel: '',
+      vehicleRegistration: '',
+      active: false,
+    };
+    setVehicles((prev) => [...prev, created]);
+    setActiveVehicleKey(created.key);
+    setRegistrationError('');
+  };
+
+  const requestRemoveVehicle = (vehicleKey) => {
+    const vehicleToRemove = vehicles.find((vehicle) => vehicle.key === vehicleKey);
+    if (!vehicleToRemove) return;
+
+    const vehicleIndex = vehicles.findIndex((vehicle) => vehicle.key === vehicleKey);
+    const vehicleName = formatVehicleTitle(vehicleToRemove, vehicleIndex >= 0 ? vehicleIndex : 0);
+    setPendingVehicleRemoval({ key: vehicleKey, name: vehicleName });
+  };
+
+  const handleRemoveVehicle = () => {
+    if (!pendingVehicleRemoval?.key) return;
+    const vehicleKey = pendingVehicleRemoval.key;
+    setVehicles((prev) => {
+      const next = prev.filter((vehicle) => vehicle.key !== vehicleKey);
+      if (vehicleKey === activeVehicleKey) {
+        setActiveVehicleKey(next[0]?.key ?? null);
+      }
+      return next;
+    });
+    setRegistrationError('');
+    setPendingVehicleRemoval(null);
   };
 
   const handlePasswordChangeInput = (e) => {
@@ -104,20 +263,70 @@ export default function Profile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const nextRegError = validateRegistration(form.vehicleRegistration);
-    if (nextRegError) {
-      setRegistrationError(nextRegError);
-      return;
+
+    const normalizedVehicles = vehicles.map((vehicle) => ({
+      ...vehicle,
+      vehicleMake: (vehicle.vehicleMake || '').trim(),
+      vehicleModel: (vehicle.vehicleModel || '').trim(),
+      vehicleRegistration: normalizeRegistrationValue(vehicle.vehicleRegistration || ''),
+    }));
+
+    const seenRegistrations = new Set();
+    for (const vehicle of normalizedVehicles) {
+      const hasAnyValue =
+        Boolean(vehicle.vehicleMake) || Boolean(vehicle.vehicleModel) || Boolean(vehicle.vehicleRegistration);
+      if (!hasAnyValue) {
+        continue;
+      }
+
+      if (!vehicle.vehicleMake || !vehicle.vehicleModel || !vehicle.vehicleRegistration) {
+        setActiveVehicleKey(vehicle.key);
+        toast.error('Fill make, model and registration for each vehicle');
+        return;
+      }
+
+      const nextRegError = validateRegistration(vehicle.vehicleRegistration);
+      if (nextRegError) {
+        setActiveVehicleKey(vehicle.key);
+        setRegistrationError(nextRegError);
+        return;
+      }
+
+      if (seenRegistrations.has(vehicle.vehicleRegistration)) {
+        setActiveVehicleKey(vehicle.key);
+        toast.error(`Duplicate registration: ${vehicle.vehicleRegistration}`);
+        return;
+      }
+      seenRegistrations.add(vehicle.vehicleRegistration);
     }
+
+    const nonEmptyVehicles = normalizedVehicles.filter(
+      (vehicle) => vehicle.vehicleMake && vehicle.vehicleModel && vehicle.vehicleRegistration
+    );
+
+    const resolvedActiveKey =
+      (nonEmptyVehicles.find((vehicle) => vehicle.key === activeVehicleKey)?.key || nonEmptyVehicles[0]?.key || null);
+    const activeVehicle = nonEmptyVehicles.find((vehicle) => vehicle.key === resolvedActiveKey) ?? null;
+    const payloadVehicles = nonEmptyVehicles.map((vehicle) => ({
+      id: vehicle.id,
+      vehicleMake: vehicle.vehicleMake,
+      vehicleModel: vehicle.vehicleModel,
+      vehicleRegistration: vehicle.vehicleRegistration,
+      active: vehicle.key === resolvedActiveKey,
+    }));
+
     setSaving(true);
     try {
       await authApi.updateProfile({
         fullName: form.fullName,
         phone: form.phone,
-        vehicleMake: form.vehicleMake,
-        vehicleModel: form.vehicleModel,
-        vehicleRegistration: form.vehicleRegistration,
+        vehicleMake: activeVehicle?.vehicleMake || '',
+        vehicleModel: activeVehicle?.vehicleModel || '',
+        vehicleRegistration: activeVehicle?.vehicleRegistration || '',
+        vehicles: payloadVehicles,
+        activeVehicleId: activeVehicle?.id ?? null,
       });
+      await fetchProfile(false);
       toast.success('Profile updated');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update profile');
@@ -198,7 +407,7 @@ export default function Profile() {
       <motion.main className="profile page-wrapper" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="container page-content">
           <div className="empty-state">
-            <div className="empty-state__icon">⏳</div>
+            <div className="empty-state__icon">...</div>
             <h2 className="empty-state__title">Loading...</h2>
           </div>
         </div>
@@ -301,72 +510,119 @@ export default function Profile() {
                   />
                   <span className="profile__readonly-hint">Email cannot be changed</span>
                 </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="phone">
-                Mobile Number
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                className={`form-input ${isPhoneLocked ? 'profile__input--readonly' : ''}`}
-                value={form.phone}
-                onChange={handleChange}
-                readOnly={isPhoneLocked}
-              />
-              {isPhoneLocked && <span className="profile__readonly-hint">Mobile number cannot be changed</span>}
-            </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="phone">
+                    Mobile Number
+                  </label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    className={`form-input ${isPhoneLocked ? 'profile__input--readonly' : ''}`}
+                    value={form.phone}
+                    onChange={handleChange}
+                    readOnly={isPhoneLocked}
+                  />
+                  {isPhoneLocked && <span className="profile__readonly-hint">Mobile number cannot be changed</span>}
+                </div>
               </div>
             </div>
 
             <div className="profile__column">
               <div className="profile__card card">
-                <h3 className="profile__section-title">Vehicle Details</h3>
-                <div className="profile__form">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="vehicleMake">
-                      Vehicle Make
-                    </label>
-                  <input
-                    id="vehicleMake"
-                    name="vehicleMake"
-                    type="text"
-                    className="form-input"
-                    value={form.vehicleMake}
-                    onChange={handleChange}
-                  />
+                <div className="profile__vehicle-header">
+                  <h3 className="profile__section-title">Vehicle Details</h3>
+                  <div className="profile__vehicle-header-actions">
+                    <button type="button" className="btn btn--accent btn--sm" onClick={handleAddVehicle}>
+                      Add Vehicle
+                    </button>
+                    <button type="button" className="btn btn--accent btn--sm" onClick={() => setShowVehiclesModal(true)}>
+                      Show Vehicles
+                    </button>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="vehicleModel">
-                      Vehicle Model
-                    </label>
-                  <input
-                    id="vehicleModel"
-                    name="vehicleModel"
-                    type="text"
-                    className="form-input"
-                    value={form.vehicleModel}
-                    onChange={handleChange}
-                  />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="vehicleRegistration">
-                      Registration
-                    </label>
-                  <input
-                    id="vehicleRegistration"
-                    name="vehicleRegistration"
-                    type="text"
-                    className="form-input"
-                    value={form.vehicleRegistration}
-                    onChange={handleChange}
-                    onBlur={(e) => setRegistrationError(validateRegistration(e.target.value))}
-                    aria-invalid={Boolean(registrationError)}
-                  />
-                  {registrationError && <span className="form-error">{registrationError}</span>}
                 </div>
+                <p className="profile__vehicle-note">
+                  Set active vehicle in Show Vehicles. New charging bookings will use that active vehicle.
+                </p>
+
+                {selectedVehicle ? (
+                  <div className="profile__active-vehicle">
+                    {selectedVehicleHasValue ? (
+                      <>
+                        <span className="profile__vehicle-active-pill">Active</span>
+                        <div>
+                          <p className="profile__active-vehicle-title">{formatVehicleTitle(selectedVehicle, 0)}</p>
+                          <p className="profile__active-vehicle-subtitle">
+                            {selectedVehicle.vehicleRegistration || 'No registration'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <p className="profile__active-vehicle-title">New vehicle draft</p>
+                        <p className="profile__active-vehicle-subtitle">
+                          Fill make, model and registration, then click Save Changes to store it.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="profile__vehicle-empty">No vehicles added yet.</p>
+                )}
+
+                {selectedVehicle && (
+                  <div className="profile__form">
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="vehicleMake">
+                        Vehicle Make
+                      </label>
+                      <input
+                        id="vehicleMake"
+                        name="vehicleMake"
+                        type="text"
+                        className="form-input"
+                        value={selectedVehicle.vehicleMake}
+                        onChange={handleVehicleChange}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="vehicleModel">
+                        Vehicle Model
+                      </label>
+                      <input
+                        id="vehicleModel"
+                        name="vehicleModel"
+                        type="text"
+                        className="form-input"
+                        value={selectedVehicle.vehicleModel}
+                        onChange={handleVehicleChange}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="vehicleRegistration">
+                        Registration
+                      </label>
+                      <input
+                        id="vehicleRegistration"
+                        name="vehicleRegistration"
+                        type="text"
+                        className="form-input"
+                        value={selectedVehicle.vehicleRegistration}
+                        onChange={handleVehicleChange}
+                        onBlur={(e) => setRegistrationError(validateRegistration(e.target.value))}
+                        aria-invalid={Boolean(registrationError)}
+                        required
+                      />
+                      {registrationError && <span className="form-error">{registrationError}</span>}
+                    </div>
+                    {!selectedVehicleIsComplete && selectedVehicleHasValue && (
+                      <span className="profile__readonly-hint">All vehicle fields are required before saving.</span>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
               <div className="profile__actions profile__actions--column">
                 <button type="submit" className="btn btn--accent" disabled={saving}>
                   {saving ? 'Saving...' : 'Save Changes'}
@@ -375,6 +631,87 @@ export default function Profile() {
             </div>
           </div>
         </motion.form>
+
+        {showVehiclesModal && (
+          <div className="modal-overlay" onClick={() => setShowVehiclesModal(false)}>
+            <div className="modal card profile__vehicles-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 className="modal__title">Manage Vehicles</h3>
+
+              {visibleVehicles.length === 0 ? (
+                <p className="profile__vehicle-empty">No saved vehicles yet.</p>
+              ) : (
+                <div className="profile__vehicle-list profile__vehicle-list--modal">
+                  {visibleVehicles.map((vehicle, index) => (
+                    <div
+                      key={vehicle.key}
+                      className={`profile__vehicle-item${vehicle.key === activeVehicleKey ? ' profile__vehicle-item--active' : ''}`}
+                    >
+                      <div className="profile__vehicle-select">
+                        <span className="profile__vehicle-title">{formatVehicleTitle(vehicle, index)}</span>
+                        <span className="profile__vehicle-subtitle">{vehicle.vehicleRegistration || 'No registration'}</span>
+                      </div>
+                      <div className="profile__vehicle-actions">
+                        {vehicle.key === activeVehicleKey ? (
+                          <span className="profile__vehicle-active-pill">Active</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn--outline btn--sm profile__vehicle-active-btn"
+                            onClick={() => handleSwitchVehicle(vehicle.key)}
+                            disabled={saving}
+                          >
+                            Set Active
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="profile__vehicle-remove"
+                          onClick={() => requestRemoveVehicle(vehicle.key)}
+                          aria-label={`Remove vehicle ${index + 1}`}
+                          disabled={saving}
+                        >
+                          x
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="modal__actions">
+                <button type="button" className="btn btn--outline" onClick={handleAddVehicle} disabled={saving}>
+                  Add Vehicle
+                </button>
+                <button type="button" className="btn btn--accent" onClick={() => setShowVehiclesModal(false)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingVehicleRemoval && (
+          <div className="modal-overlay" onClick={() => setPendingVehicleRemoval(null)}>
+            <div className="modal card profile__confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 className="modal__title">Remove Vehicle</h3>
+              <p className="profile__danger-text">
+                Are you sure you want to remove <strong>{pendingVehicleRemoval.name}</strong>?
+              </p>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setPendingVehicleRemoval(null)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button type="button" className="btn btn--danger" onClick={handleRemoveVehicle} disabled={saving}>
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showPasswordModal && (
           <div className="modal-overlay" onClick={closePasswordModal}>
@@ -549,3 +886,4 @@ export default function Profile() {
     </motion.main>
   );
 }
+

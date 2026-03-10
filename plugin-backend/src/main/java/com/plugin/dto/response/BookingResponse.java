@@ -16,6 +16,10 @@ public class BookingResponse {
     private Long chargingPointId;
     private String chargingPointIdentifier;
     private String pointType;
+    private Long vehicleId;
+    private String vehicleMake;
+    private String vehicleModel;
+    private String vehicleRegistration;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal lockedRatePerUnit;

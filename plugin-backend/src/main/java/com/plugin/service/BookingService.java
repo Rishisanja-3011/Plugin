@@ -31,6 +31,7 @@ public class BookingService {
     private final StationRepository stationRepository;
     private final ChargingPointRepository cpRepository;
     private final UserRepository userRepository;
+    private final UserVehicleRepository userVehicleRepository;
     private final PricingSnapshotService pricingSnapshotService;
     private final AuditService auditService;
     private final NotificationService notificationService;
@@ -39,6 +40,7 @@ public class BookingService {
     public BookingResponse createBooking(BookingRequest request, String customerEmail) {
         User customer = userRepository.findByEmail(customerEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        UserVehicle activeVehicle = resolveActiveVehicle(customer);
 
         Station station = stationRepository.findById(request.getStationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
@@ -93,6 +95,7 @@ public class BookingService {
                 .customer(customer)
                 .station(station)
                 .chargingPoint(chargingPoint)
+                .vehicle(activeVehicle)
                 .startTime(startTime)
                 .endTime(endTime)
                 .lockedRatePerUnit(lockedPricing.ratePerUnit())
@@ -362,6 +365,13 @@ public class BookingService {
     }
 
     private BookingResponse toResponse(Booking b) {
+        UserVehicle bookingVehicle = b.getVehicle();
+        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : b.getCustomer().getVehicleMake();
+        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : b.getCustomer().getVehicleModel();
+        String vehicleRegistration = bookingVehicle != null
+                ? bookingVehicle.getVehicleRegistration()
+                : b.getCustomer().getVehicleRegistration();
+
         return BookingResponse.builder()
                 .id(b.getId())
                 .referenceId(b.getReferenceId())
@@ -372,6 +382,10 @@ public class BookingService {
                 .chargingPointId(b.getChargingPoint().getId())
                 .chargingPointIdentifier(b.getChargingPoint().getIdentifier())
                 .pointType(b.getChargingPoint().getPointType().name())
+                .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
+                .vehicleMake(vehicleMake)
+                .vehicleModel(vehicleModel)
+                .vehicleRegistration(vehicleRegistration)
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
@@ -380,5 +394,51 @@ public class BookingService {
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .build();
+    }
+
+    private UserVehicle resolveActiveVehicle(User customer) {
+        UserVehicle activeVehicle = userVehicleRepository.findFirstByUserIdAndActiveTrue(customer.getId()).orElse(null);
+        if (activeVehicle != null) {
+            return activeVehicle;
+        }
+
+        List<UserVehicle> vehicles = userVehicleRepository.findByUserIdOrderByActiveDescCreatedAtDesc(customer.getId());
+        if (!vehicles.isEmpty()) {
+            UserVehicle first = vehicles.get(0);
+            first.setActive(true);
+            return userVehicleRepository.save(first);
+        }
+
+        if (!hasVehicleDetails(customer)) {
+            return null;
+        }
+
+        UserVehicle created = UserVehicle.builder()
+                .user(customer)
+                .vehicleMake(normalizeText(customer.getVehicleMake()))
+                .vehicleModel(normalizeText(customer.getVehicleModel()))
+                .vehicleRegistration(normalizeRegistration(customer.getVehicleRegistration()))
+                .active(true)
+                .build();
+
+        return userVehicleRepository.save(created);
+    }
+
+    private boolean hasVehicleDetails(User user) {
+        return normalizeText(user.getVehicleMake()) != null
+                && normalizeText(user.getVehicleModel()) != null
+                && normalizeRegistration(user.getVehicleRegistration()) != null;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeRegistration(String value) {
+        if (value == null) return null;
+        String normalized = value.toUpperCase().replaceAll("[\\s-]", "").trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

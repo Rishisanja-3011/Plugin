@@ -104,6 +104,21 @@ export default function Bookings() {
     return new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   };
 
+  const formatVehicleName = (item) => {
+    const make = (item?.vehicleMake || '').trim();
+    const model = (item?.vehicleModel || '').trim();
+    const name = `${make} ${model}`.trim();
+    return name || '-';
+  };
+
+  const formatVehicleWithRegistration = (item) => {
+    const name = formatVehicleName(item);
+    const registration = (item?.vehicleRegistration || '').trim();
+    if (!registration) return name;
+    if (name === '-') return registration;
+    return `${name} (${registration})`;
+  };
+
   const formatDateTime = (value) => {
     if (!value) return '-';
     const parsed = new Date(value);
@@ -356,6 +371,10 @@ export default function Bookings() {
                       <div className="booking-detail-item">
                         <span className="booking-detail-label">Point Type</span>
                         <span className="booking-detail-value">{selected.pointType || '-'}</span>
+                      </div>
+                      <div className="booking-detail-item">
+                        <span className="booking-detail-label">Vehicle</span>
+                        <span className="booking-detail-value">{formatVehicleWithRegistration(selected)}</span>
                       </div>
                       <div className="booking-detail-item">
                         <span className="booking-detail-label">Start Time</span>

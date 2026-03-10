@@ -108,6 +108,13 @@ export default function Sessions() {
     return new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   };
 
+  const formatVehicleName = (session) => {
+    const make = (session?.vehicleMake || '').trim();
+    const model = (session?.vehicleModel || '').trim();
+    const name = `${make} ${model}`.trim();
+    return name || '-';
+  };
+
   return (
     <div className="admin-layout">
       <AdminSidebar />
@@ -137,6 +144,7 @@ export default function Sessions() {
                   <tr>
                     <th>ID</th>
                     <th>Customer</th>
+                    <th>Vehicle</th>
                     <th>Station</th>
                     <th>Point</th>
                     <th>Started</th>
@@ -151,6 +159,7 @@ export default function Sessions() {
                     <motion.tr key={s.id} custom={i} variants={rowVariants} initial="hidden" animate="visible">
                       <td style={{ fontWeight: 600 }}>#{s.id}</td>
                       <td>{s.customerName || s.userEmail || s.userId || '-'}</td>
+                      <td>{formatVehicleName(s)}</td>
                       <td>{s.stationName || s.stationId || '-'}</td>
                       <td>{s.chargingPointId || '-'}</td>
                       <td>{formatDate(s.startTime || s.startedAt)}</td>

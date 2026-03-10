@@ -17,6 +17,10 @@ public class SessionResponse {
     private Long customerId;
     private String customerName;
     private String stationName;
+    private Long vehicleId;
+    private String vehicleMake;
+    private String vehicleModel;
+    private String vehicleRegistration;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal energyDeliveredKwh;

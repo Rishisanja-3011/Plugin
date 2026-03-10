@@ -2,7 +2,9 @@ package com.plugin.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data @Builder
 public class UserResponse {
@@ -14,5 +16,7 @@ public class UserResponse {
     private String vehicleMake;
     private String vehicleModel;
     private String vehicleRegistration;
+    private List<ProfileVehicleResponse> vehicles;
+    private Long activeVehicleId;
     private LocalDateTime createdAt;
 }

@@ -20,6 +20,21 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_users_active (active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS user_vehicles (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    vehicle_make VARCHAR(50) NOT NULL,
+    vehicle_model VARCHAR(50) NOT NULL,
+    vehicle_registration VARCHAR(20) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_vehicle_registration (user_id, vehicle_registration),
+    INDEX idx_vehicle_user (user_id),
+    INDEX idx_vehicle_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS stations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
@@ -185,6 +200,33 @@ ALTER TABLE bookings
 
 ALTER TABLE users
     ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE bookings
+    ADD COLUMN vehicle_id BIGINT;
+
+ALTER TABLE bookings
+    ADD CONSTRAINT fk_booking_vehicle FOREIGN KEY (vehicle_id) REFERENCES user_vehicles(id);
+
+CREATE INDEX idx_booking_vehicle ON bookings(vehicle_id);
+
+INSERT INTO user_vehicles (user_id, vehicle_make, vehicle_model, vehicle_registration, active, created_at, updated_at)
+SELECT u.id,
+       u.vehicle_make,
+       u.vehicle_model,
+       UPPER(REPLACE(REPLACE(u.vehicle_registration, ' ', ''), '-', '')),
+       TRUE,
+       COALESCE(u.created_at, NOW()),
+       u.updated_at
+FROM users u
+WHERE u.vehicle_make IS NOT NULL
+  AND u.vehicle_model IS NOT NULL
+  AND u.vehicle_registration IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM user_vehicles uv
+      WHERE uv.user_id = u.id
+        AND uv.vehicle_registration = UPPER(REPLACE(REPLACE(u.vehicle_registration, ' ', ''), '-', ''))
+  );
 
 UPDATE pricing
 SET pricing_model = 'PER_KWH'

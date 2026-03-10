@@ -32,6 +32,10 @@ public class Booking {
     @JoinColumn(name = "charging_point_id", nullable = false)
     private ChargingPoint chargingPoint;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id")
+    private UserVehicle vehicle;
+
     @Column(nullable = false)
     private LocalDateTime startTime;
 

@@ -101,6 +101,18 @@ function formatCurrency(value) {
   return `\u20B9${amount.toFixed(2)}`;
 }
 
+function formatVehicleLabel(session) {
+  const make = (session?.vehicleMake ?? '').trim();
+  const model = (session?.vehicleModel ?? '').trim();
+  const registration = (session?.vehicleRegistration ?? '').trim();
+  const modelName = `${make} ${model}`.trim();
+
+  if (modelName && registration) return `${modelName} (${registration})`;
+  if (modelName) return modelName;
+  if (registration) return registration;
+  return '';
+}
+
 async function fetchAllPages(fetchPage) {
   let page = 0;
   let totalPages = 1;
@@ -393,6 +405,8 @@ export default function SessionStatus() {
                       {pagedHistory.map((session) => {
                         const bill = billsBySessionId[session.id];
                         const energy = session.energyDeliveredKwh ?? bill?.energyKwh;
+                        const pointLabel = session.chargingPointIdentifier ? ` \u2022 ${session.chargingPointIdentifier}` : '';
+                        const vehicleLabel = formatVehicleLabel(session);
 
                         return (
                           <div key={session.id} className="session-status__history-row">
@@ -400,7 +414,8 @@ export default function SessionStatus() {
                               <strong>{formatDateTime(session.startTime)}</strong>
                               <span>
                                 {session.stationName ?? 'Station'}
-                                {session.chargingPointIdentifier ? ` \u2022 ${session.chargingPointIdentifier}` : ''}
+                                {pointLabel}
+                                {vehicleLabel ? ` \u2022 ${vehicleLabel}` : ''}
                               </span>
                             </div>
                             <div>{formatDurationBetween(session.startTime, session.endTime)}</div>
@@ -524,6 +539,10 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
         <div className="session-status__active-meta-item">
           <span>Point ID</span>
           <strong>{session.chargingPointIdentifier ?? '\u2014'}</strong>
+        </div>
+        <div className="session-status__active-meta-item">
+          <span>Vehicle</span>
+          <strong>{formatVehicleLabel(session) || '\u2014'}</strong>
         </div>
       </div>
 
