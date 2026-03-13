@@ -76,8 +76,23 @@
 }
 
 .quick-action-card__icon {
-  font-size: 1.5rem;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.11), rgba(var(--color-accent-rgb), 0.04));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.16);
+  color: var(--color-accent);
+  transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
   flex-shrink: 0;
+}
+
+.quick-action-card:hover .quick-action-card__icon {
+  transform: translateY(-1px);
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.16), rgba(var(--color-accent-rgb), 0.06));
+  border-color: rgba(var(--color-accent-rgb), 0.24);
 }
 
 .quick-action-card__label {

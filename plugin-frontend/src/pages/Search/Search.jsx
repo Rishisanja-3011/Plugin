@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { stationsApi } from '../../api/stations';
 import { SkeletonCard } from '../../components/SkeletonLoader/SkeletonLoader';
+import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import './Search.css';
 
 const CHARGER_FILTERS = ['All', 'Fast', 'Slow'];
@@ -194,7 +195,7 @@ export default function Search() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.4 }}
                 >
-                  <div className="empty-state__icon">🔌</div>
+                  <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
                   <h2 className="empty-state__title">
                     {isIncompletePincode ? 'Enter full pincode' : 'No stations found'}
                   </h2>
@@ -233,15 +234,15 @@ export default function Search() {
                               </span>
                             </div>
                             <p className="search__card-address">
-                              {station.address ?? station.stationAddress ?? '—'}
+                              {station.address ?? station.stationAddress ?? '-'}
                             </p>
                             <p className="search__card-city">
-                              {station.city ?? station.area ?? '—'}
+                              {station.city ?? station.area ?? '-'}
                             </p>
                             {station.pricing && (
                               <p className="search__card-pricing">
                                 {typeof station.pricing === 'object'
-                                  ? `₹${station.pricing.ratePerUnit ?? station.pricing.rate_per_unit ?? '—'}/kWh`
+                                  ? `₹${station.pricing.ratePerUnit ?? station.pricing.rate_per_unit ?? '-'}/kWh`
                                   : String(station.pricing)}
                               </p>
                             )}
@@ -283,3 +284,4 @@ export default function Search() {
     </motion.main>
   );
 }
+

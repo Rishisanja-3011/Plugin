@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import './ChargingPoints.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -27,7 +28,7 @@ function AdminSidebar() {
       <nav>
         {sidebarLinks.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -161,7 +162,7 @@ export default function ChargingPoints() {
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <Link to="/admin/dashboard" className="page-back">
-              <span className="page-back__icon">←</span>
+              <span className="page-back__icon">&larr;</span>
               Back
             </Link>
             <h1 className="page-header__title">Charging Points</h1>
@@ -183,7 +184,7 @@ export default function ChargingPoints() {
           <div className="admin-loading"><div className="spinner" /><p>Loading charging points...</p></div>
         ) : points.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u{1F50C}'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
             <h3 className="empty-state__title">No charging points</h3>
             <p className="empty-state__text">Add a charging point to this station.</p>
           </div>
@@ -251,3 +252,4 @@ export default function ChargingPoints() {
     </div>
   );
 }
+

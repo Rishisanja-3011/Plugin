@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../api/axios';
+import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import './EmailInbox.css';
 
 export default function EmailInbox() {
@@ -41,7 +42,7 @@ export default function EmailInbox() {
     >
       <div className="container page-content">
         <div className="ei-header">
-          <div className="ei-header__icon">📧</div>
+          <div className="ei-header__icon"><IconGlyph glyph={'\u{1F4E7}'} className="mono-icon mono-icon--lg" /></div>
           <h1 className="ei-header__title">Email Inbox</h1>
           <p className="ei-header__subtitle">
             Check your OTP messages here. Enter the email you used on the forgot password page.
@@ -84,7 +85,7 @@ export default function EmailInbox() {
 
               {messages.length === 0 ? (
                 <div className="ei-empty">
-                  <div className="ei-empty__icon">📭</div>
+                  <div className="ei-empty__icon"><IconGlyph glyph={'\u{1F4ED}'} className="mono-icon mono-icon--lg" /></div>
                   <h3 className="ei-empty__title">No messages</h3>
                   <p className="ei-empty__text">
                     No OTP has been sent to this email yet. Go to the forgot password page and request one first.
@@ -127,3 +128,4 @@ export default function EmailInbox() {
     </motion.main>
   );
 }
+

@@ -6,6 +6,53 @@ import { bookingsApi, sessionsApi } from '../../../api/bookings';
 import { billsApi } from '../../../api/bookings';
 import './Dashboard.css';
 
+const CalendarIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="3.5" y="4.5" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M8 2.8v3.4M16 2.8v3.4M3.5 9.2h17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="8.2" cy="13.2" r="1" fill="currentColor" />
+    <circle cx="12" cy="13.2" r="1" fill="currentColor" />
+    <circle cx="15.8" cy="13.2" r="1" fill="currentColor" />
+  </svg>
+);
+
+const BoltIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path fill="currentColor" d="M13 2 5 13.2h5.3L9.2 22 19 10.5h-5.3z" />
+  </svg>
+);
+
+const WalletIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="3.5" y="6.5" width="17" height="11.8" rx="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M3.5 10h17" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <circle cx="16.8" cy="14.4" r="1" fill="currentColor" />
+  </svg>
+);
+
+const BatteryIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="4.5" y="6.8" width="14.5" height="10.4" rx="2.1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <rect x="19.1" y="10" width="1.9" height="4" rx="0.8" fill="currentColor" />
+    <rect x="6.5" y="8.8" width="5.2" height="6.4" rx="0.8" fill="currentColor" />
+  </svg>
+);
+
+const PlugIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path d="M9 3.2v4.2M15 3.2v4.2M7.4 7.4h9.2v1.7a4.6 4.6 0 0 1-4.6 4.6h0a4.6 4.6 0 0 1-4.6-4.6V7.4z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M12 13.7V20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const CardIcon = ({ className = 'dashboard__icon-svg' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="3.5" y="6.5" width="17" height="11" rx="2.1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M3.5 10.2h17" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <rect x="6.2" y="13" width="5.5" height="2.1" rx="0.6" fill="currentColor" />
+  </svg>
+);
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [activeSessions, setActiveSessions] = useState([]);
@@ -78,10 +125,10 @@ export default function Dashboard() {
   const activeCount = activeSessions.length;
 
   const quickActions = [
-    { label: 'Book Now', to: '/search', icon: '🔌' },
-    { label: 'My Bookings', to: '/customer/bookings', icon: '📅' },
-    { label: 'Sessions', to: '/customer/sessions', icon: '⚡' },
-    { label: 'Billing', to: '/customer/billing', icon: '💳' },
+    { label: 'Book Now', to: '/search', Icon: PlugIcon },
+    { label: 'My Bookings', to: '/customer/bookings', Icon: CalendarIcon },
+    { label: 'Sessions', to: '/customer/sessions', Icon: BoltIcon },
+    { label: 'Billing', to: '/customer/billing', Icon: CardIcon },
   ];
 
   const containerVariants = {
@@ -129,22 +176,22 @@ export default function Dashboard() {
           animate="visible"
         >
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
-            <span className="stat-card__icon dashboard__stat-icon">📅</span>
+            <span className="stat-card__icon dashboard__stat-icon"><CalendarIcon /></span>
             <span className="stat-card__label">Upcoming Bookings</span>
             <span className="stat-card__value">{upcomingCount}</span>
           </motion.div>
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
-            <span className="stat-card__icon dashboard__stat-icon">⚡</span>
+            <span className="stat-card__icon dashboard__stat-icon"><BoltIcon /></span>
             <span className="stat-card__label">Active Sessions</span>
             <span className="stat-card__value">{activeCount}</span>
           </motion.div>
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
-            <span className="stat-card__icon dashboard__stat-icon">💰</span>
+            <span className="stat-card__icon dashboard__stat-icon"><WalletIcon /></span>
             <span className="stat-card__label">Total Spent</span>
             <span className="stat-card__value">₹{totalSpent.toFixed(0)}</span>
           </motion.div>
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
-            <span className="stat-card__icon dashboard__stat-icon">🔋</span>
+            <span className="stat-card__icon dashboard__stat-icon"><BatteryIcon /></span>
             <span className="stat-card__label">Total Energy</span>
             <span className="stat-card__value">{totalEnergy.toFixed(1)} kWh</span>
           </motion.div>
@@ -161,7 +208,7 @@ export default function Dashboard() {
             {quickActions.map((action) => (
               <motion.div key={action.to} variants={itemVariants}>
                 <Link to={action.to} className="dashboard__action-card card">
-                  <span className="dashboard__action-icon">{action.icon}</span>
+                  <span className="dashboard__action-icon"><action.Icon /></span>
                   <span className="dashboard__action-label">{action.label}</span>
                 </Link>
               </motion.div>
@@ -182,7 +229,7 @@ export default function Dashboard() {
             <p className="dashboard__loading">Loading...</p>
           ) : activeSessions.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state__icon">⚡</div>
+              <div className="empty-state__icon"><BoltIcon className="dashboard__empty-icon-svg" /></div>
               <h3 className="empty-state__title">No active sessions</h3>
               <p className="empty-state__text">
                 Start a session from your bookings to begin charging.
@@ -222,7 +269,7 @@ export default function Dashboard() {
             <p className="dashboard__loading">Loading...</p>
           ) : upcomingBookings.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state__icon">📅</div>
+              <div className="empty-state__icon"><CalendarIcon className="dashboard__empty-icon-svg" /></div>
               <h3 className="empty-state__title">No upcoming bookings</h3>
               <p className="empty-state__text">
                 Book a charging slot to get started.

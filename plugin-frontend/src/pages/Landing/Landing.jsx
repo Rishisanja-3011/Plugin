@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { motion, useInView } from 'framer-motion';
+import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { useRef } from 'react';
 import './Landing.css';
 
@@ -18,26 +18,60 @@ const stagger = {
   },
 };
 
+const UltraFastIcon = () => (
+  <svg viewBox="0 0 24 24" className="landing__card-icon-svg" aria-hidden="true">
+    <path fill="currentColor" d="M13 2 5 13.2h5.3L9.2 22 19 10.5h-5.3z" />
+  </svg>
+);
+
+const SmartBookingIcon = () => (
+  <svg viewBox="0 0 24 24" className="landing__card-icon-svg" aria-hidden="true">
+    <rect x="3.5" y="4.5" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M8 2.8v3.4M16 2.8v3.4M3.5 9.2h17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="8.2" cy="13.2" r="1" fill="currentColor" />
+    <circle cx="12" cy="13.2" r="1" fill="currentColor" />
+    <circle cx="15.8" cy="13.2" r="1" fill="currentColor" />
+  </svg>
+);
+
+const RealTimeTrackingIcon = () => (
+  <svg viewBox="0 0 24 24" className="landing__card-icon-svg" aria-hidden="true">
+    <path d="M4 19.5h16M6.5 16.5l4-4 3 2.6L18 10.8" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="6.5" cy="16.5" r="1.1" fill="currentColor" />
+    <circle cx="10.5" cy="12.5" r="1.1" fill="currentColor" />
+    <circle cx="13.5" cy="15.1" r="1.1" fill="currentColor" />
+    <circle cx="18" cy="10.8" r="1.1" fill="currentColor" />
+  </svg>
+);
+
+const TransparentBillingIcon = () => (
+  <svg viewBox="0 0 24 24" className="landing__card-icon-svg" aria-hidden="true">
+    <rect x="3.5" y="6" width="17" height="12" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M3.5 10h17" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <rect x="6.3" y="13.2" width="5.2" height="2.4" rx="1" fill="currentColor" />
+  </svg>
+);
+
 const features = [
   {
     title: 'Ultra-Fast Charging',
     description: 'Up to 250kW charging speeds. Get from 10% to 80% in under 25 minutes and get back on the road faster.',
-    icon: '\u26A1\uFE0E',
+    icon: UltraFastIcon,
   },
   {
     title: 'Smart Booking',
     description: 'Reserve your slot ahead of time. No more waiting—your spot is guaranteed when you arrive.',
-    icon: '\u{1F4C5}\uFE0E',
+    icon: SmartBookingIcon,
   },
   {
     title: 'Real-Time Tracking',
     description: 'Monitor your charging session live. See power delivery, time remaining, and cost in real time.',
-    icon: '\u{1F4CA}\uFE0E',
+    icon: RealTimeTrackingIcon,
   },
   {
     title: 'Transparent Billing',
     description: 'Clear pricing, no hidden fees. Pay only for what you use with detailed session breakdowns.',
-    icon: '\u{1F4B0}\uFE0E',
+    icon: TransparentBillingIcon,
   },
 ];
 
@@ -70,6 +104,7 @@ const floatingVariants = (delay = 0, y = 0) => ({
 export default function Landing() {
   const featuresRef = useRef(null);
   const stepsRef = useRef(null);
+  const prefersReducedMotion = useReducedMotion();
   const featuresInView = useInView(featuresRef, { once: true, margin: '-100px' });
   const stepsInView = useInView(stepsRef, { once: true, margin: '-80px' });
 
@@ -90,9 +125,10 @@ export default function Landing() {
             <motion.div
               key={i}
               className={`landing__float-dot landing__float-dot--${i % 4}`}
-              variants={floatingVariants(i * 0.3, (i % 2 === 0 ? 1 : -1) * 15)}
-              initial="initial"
-              animate="animate"
+              variants={prefersReducedMotion ? undefined : floatingVariants(i * 0.3, (i % 2 === 0 ? 1 : -1) * 15)}
+              initial={prefersReducedMotion ? { opacity: 0.15 } : 'initial'}
+              animate={prefersReducedMotion ? { opacity: 0.15, y: 0 } : 'animate'}
+              transition={prefersReducedMotion ? { duration: 0 } : undefined}
             />
           ))}
         </div>
@@ -122,7 +158,7 @@ export default function Landing() {
             className="landing__hero-cta"
             variants={fadeInUp}
           >
-            <Link to="/search" className="landing__btn landing__btn--accent">
+            <Link to="/search" className="landing__btn landing__btn--accent landing__btn--no-hover">
               Find Stations
             </Link>
             <button
@@ -142,12 +178,13 @@ export default function Landing() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.1, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          {stats.map((stat, i) => (
+          {stats.map((stat) => (
             <div key={stat.label} className="landing__stat-item">
               <span className="landing__stat-value">{stat.value}</span>
               <span className="landing__stat-label">{stat.label}</span>
             </div>
           ))}
+          <p className="landing__hero-stats-note">Stats as of March 2026</p>
         </motion.div>
       </section>
 
@@ -174,18 +211,9 @@ export default function Landing() {
                 animate={featuresInView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.7, delay: i * 0.12, ease: [0.16, 1, 0.3, 1] }}
               >
-                {typeof feature.icon === 'string' && (feature.icon.endsWith('.png') || feature.icon.endsWith('.svg')) ? (
-                  <img
-                    src={feature.icon}
-                    alt=""
-                    className={`landing__card-icon landing__card-icon-img${feature.title === 'Ultra-Fast Charging' ? ' landing__card-icon--bold' : ''}`}
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <span className={`landing__card-icon${feature.title === 'Ultra-Fast Charging' ? ' landing__card-icon--bold' : ''}`}>
-                    {feature.icon}
-                  </span>
-                )}
+                <span className="landing__card-icon" aria-hidden="true">
+                  <feature.icon />
+                </span>
                 <h3 className="landing__card-title">{feature.title}</h3>
                 <p className="landing__card-desc">{feature.description}</p>
               </motion.article>

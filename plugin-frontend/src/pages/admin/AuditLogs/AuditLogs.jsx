@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
 import './AuditLogs.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -26,7 +27,7 @@ function AdminSidebar() {
       <nav>
         {sidebarLinks.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -83,7 +84,7 @@ export default function AuditLogs() {
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header">
           <Link to="/admin/dashboard" className="page-back">
-            <span className="page-back__icon">←</span>
+            <span className="page-back__icon">&larr;</span>
             Back
           </Link>
           <h1 className="page-header__title">Audit Logs</h1>
@@ -102,7 +103,7 @@ export default function AuditLogs() {
           <div className="admin-loading"><div className="spinner" /><p>Loading audit logs...</p></div>
         ) : logs.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u{1F4DD}'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F4DD}'} className="mono-icon mono-icon--lg" /></div>
             <h3 className="empty-state__title">No audit logs</h3>
             <p className="empty-state__text">System activity will be recorded here.</p>
           </div>
@@ -148,3 +149,4 @@ export default function AuditLogs() {
     </div>
   );
 }
+

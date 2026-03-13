@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
 import { bookingsApi, sessionsApi } from '../../../api/bookings';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import './MyBookings.css';
 
 const STATUS_BADGE_MAP = {
@@ -129,12 +130,12 @@ export default function MyBookings() {
 
         {loading ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u23F3'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={"\u23F3"} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Loading...</h2>
           </div>
         ) : bookings.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u{1F4DD}'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={"\u{1F4DD}"} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">No bookings yet</h2>
             <p className="empty-state__text">Book a charging slot to get started.</p>
             <Link to="/search" className="btn btn--accent" style={{ marginTop: 'var(--space-md)' }}>
@@ -315,4 +316,5 @@ export default function MyBookings() {
     </motion.main>
   );
 }
+
 

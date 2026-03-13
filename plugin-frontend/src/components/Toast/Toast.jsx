@@ -1,8 +1,16 @@
-import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useState, createContext, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import IconGlyph from '../IconGlyph/IconGlyph';
 import './Toast.css';
 
 const ToastContext = createContext(null);
+
+const toastTypeIcon = {
+  success: 'success',
+  error: 'error',
+  info: 'info',
+  warning: 'warning',
+};
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -37,10 +45,7 @@ export function ToastProvider({ children }) {
               transition={{ duration: 0.25 }}
             >
               <span className="toast__icon">
-                {t.type === 'success' && '✓'}
-                {t.type === 'error' && '✕'}
-                {t.type === 'info' && 'ℹ'}
-                {t.type === 'warning' && '⚠'}
+                <IconGlyph glyph={toastTypeIcon[t.type] ?? 'info'} className="mono-icon mono-icon--md" />
               </span>
               <span className="toast__message">{t.message}</span>
             </motion.div>

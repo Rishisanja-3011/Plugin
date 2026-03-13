@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/Toast/Toast';
 import { authApi } from '../../api/auth';
+import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import './ForgotPassword.css';
 
 const STEPS = ['Email', 'Delivery', 'Verify OTP', 'New Password'];
@@ -319,7 +320,7 @@ export default function ForgotPassword() {
                     <label
                       className="fp-delivery-option fp-delivery-option--selected"
                     >
-                      <span className="fp-delivery-option__icon">📧</span>
+                      <span className="fp-delivery-option__icon"><IconGlyph glyph={'\u{1F4E7}'} className="mono-icon mono-icon--md" /></span>
                       <span className="fp-delivery-option__text">
                         <strong>Email</strong>
                         <small>{maskedEmail}</small>
@@ -449,3 +450,4 @@ export default function ForgotPassword() {
     </motion.main>
   );
 }
+

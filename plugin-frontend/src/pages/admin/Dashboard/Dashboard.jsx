@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
 import './Dashboard.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -30,7 +31,7 @@ function AdminSidebar() {
             to={link.to}
             className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}
           >
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -116,7 +117,7 @@ export default function Dashboard() {
                   initial="hidden"
                   animate="visible"
                 >
-                  <div className="stat-card__icon">{s.icon}</div>
+                  <div className="stat-card__icon"><IconGlyph glyph={s.icon} className="mono-icon mono-icon--lg" /></div>
                   <div className="stat-card__label">{s.label}</div>
                   <div className="stat-card__value">{s.value}</div>
                 </motion.div>
@@ -135,7 +136,7 @@ export default function Dashboard() {
                     animate="visible"
                   >
                     <Link to={a.to} className="quick-action-card">
-                      <span className="quick-action-card__icon">{a.icon}</span>
+                      <span className="quick-action-card__icon"><IconGlyph glyph={a.icon} className="mono-icon mono-icon--md" /></span>
                       <span className="quick-action-card__label">{a.label}</span>
                       <span className="quick-action-card__arrow">{'\u2192'}</span>
                     </Link>
@@ -150,3 +151,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

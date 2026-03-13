@@ -1,8 +1,9 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
 import { billsApi, sessionsApi } from '../../../api/bookings';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import './SessionStatus.css';
 
 const HISTORY_PAGE_SIZE = 10;
@@ -386,7 +387,7 @@ export default function SessionStatus() {
               >
                 {pagedHistory.length === 0 ? (
                   <div className="empty-state">
-                    <div className="empty-state__icon">{'\u26A1'}</div>
+                    <div className="empty-state__icon"><IconGlyph glyph={"\u26A1"} className="mono-icon mono-icon--lg" /></div>
                     <h3 className="empty-state__title">No sessions found</h3>
                     <p className="empty-state__text">Try a different filter or complete an active session.</p>
                   </div>
@@ -557,3 +558,4 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
     </motion.div>
   );
 }
+

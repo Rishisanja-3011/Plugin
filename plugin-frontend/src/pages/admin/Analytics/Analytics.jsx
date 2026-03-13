@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
 import './Analytics.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -26,7 +27,7 @@ function AdminSidebar() {
       <nav>
         {sidebarLinks.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -67,7 +68,7 @@ export default function Analytics() {
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header">
           <Link to="/admin/dashboard" className="page-back">
-            <span className="page-back__icon">←</span>
+            <span className="page-back__icon">&larr;</span>
             Back
           </Link>
           <h1 className="page-header__title">Analytics</h1>
@@ -81,7 +82,7 @@ export default function Analytics() {
             <div className="stat-grid">
               {stats.map((s, i) => (
                 <motion.div key={s.label} className="stat-card" custom={i} variants={cardVariants} initial="hidden" animate="visible">
-                  <div className="stat-card__icon">{s.icon}</div>
+                  <div className="stat-card__icon"><IconGlyph glyph={s.icon} className="mono-icon mono-icon--lg" /></div>
                   <div className="stat-card__label">{s.label}</div>
                   <div className="stat-card__value">{s.value}</div>
                 </motion.div>
@@ -93,4 +94,5 @@ export default function Analytics() {
     </div>
   );
 }
+
 

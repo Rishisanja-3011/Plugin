@@ -26,10 +26,7 @@
 
 /* ===== USER FOOTER (REFERENCE STYLE) ===== */
 .footer--user {
-  background:
-    radial-gradient(1000px 400px at 8% 15%, rgba(0, 122, 255, 0.12), transparent 60%),
-    radial-gradient(900px 360px at 88% 70%, rgba(28, 163, 109, 0.1), transparent 60%),
-    linear-gradient(180deg, #070b14 0%, #060810 55%, #05070d 100%);
+  background: #000;
 }
 
 .footer-user__glow {

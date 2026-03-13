@@ -158,9 +158,17 @@
 }
 
 .booking-flow__point-icon {
-  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.1), rgba(var(--color-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-accent);
   margin-bottom: var(--space-sm);
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .booking-flow__point-name {

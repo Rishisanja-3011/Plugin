@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import './Bookings.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -27,7 +28,7 @@ function AdminSidebar() {
       <nav>
         {sidebarLinks.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -144,7 +145,7 @@ export default function Bookings() {
     const startDate = formatDateOnly(start);
     const endDate = formatDateOnly(end);
     if (startDate && endDate && startDate !== endDate) {
-      return `${startDate} – ${endDate}`;
+      return `${startDate} - ${endDate}`;
     }
     return startDate || endDate || formatDateOnly(fallback) || '-';
   };
@@ -153,7 +154,7 @@ export default function Bookings() {
     const startTime = formatTimeOnly(start);
     const endTime = formatTimeOnly(end);
     if (!startTime && !endTime) return '-';
-    if (startTime && endTime) return `${startTime} – ${endTime}`;
+    if (startTime && endTime) return `${startTime} - ${endTime}`;
     return startTime || endTime || '-';
   };
 
@@ -210,7 +211,7 @@ export default function Bookings() {
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header">
           <Link to="/admin/dashboard" className="page-back">
-            <span className="page-back__icon">←</span>
+            <span className="page-back__icon">&larr;</span>
             Back
           </Link>
           <h1 className="page-header__title">Bookings</h1>
@@ -221,7 +222,7 @@ export default function Bookings() {
           <div className="admin-loading"><div className="spinner" /><p>Loading bookings...</p></div>
         ) : !hasAnyBookings ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u{1F4CB}'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F4CB}'} className="mono-icon mono-icon--lg" /></div>
             <h3 className="empty-state__title">No bookings yet</h3>
             <p className="empty-state__text">Bookings will appear here once customers start reserving.</p>
           </div>
@@ -417,3 +418,4 @@ export default function Bookings() {
     </div>
   );
 }
+

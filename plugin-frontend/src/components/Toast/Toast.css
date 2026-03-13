@@ -62,6 +62,10 @@
   border-radius: 50%;
 }
 
+.toast__icon .mono-icon {
+  color: currentColor;
+}
+
 .toast--success .toast__icon { background: rgba(39, 174, 96, 0.15); }
 .toast--error .toast__icon { background: rgba(231, 76, 60, 0.15); }
 .toast--info .toast__icon { background: rgba(52, 152, 219, 0.15); }

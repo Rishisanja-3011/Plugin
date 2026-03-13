@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { stationsApi } from '../../api/stations';
+import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import './StationDetails.css';
 
 const STATUS_CONFIG = {
@@ -123,7 +124,7 @@ export default function StationDetails() {
       >
         <div className="container page-content">
           <div className="empty-state">
-            <div className="empty-state__icon">⚠️</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u26A0'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Station not found</h2>
             <p className="empty-state__text">{error || 'This charging station could not be loaded.'}</p>
             <Link to="/search" className="btn btn--primary" style={{ marginTop: 'var(--space-lg)' }}>
@@ -138,11 +139,11 @@ export default function StationDetails() {
   const stationName = station.name ?? station.stationName ?? 'Unnamed Station';
   const city = station.city ?? station.location ?? station.area ?? '';
   const isActive = station.isActive ?? station.active ?? (station.status !== 'INACTIVE');
-  const address = station.address ?? station.stationAddress ?? '—';
+  const address = station.address ?? station.stationAddress ?? '-';
   const hours = station.openingTime && station.closingTime
-    ? `${station.openingTime} – ${station.closingTime}`
-    : station.operatingHours ?? station.operating_hours ?? station.hours ?? '—';
-  const contact = station.contactPhone ?? station.contact ?? station.phone ?? station.contactNumber ?? '—';
+    ? `${station.openingTime} - ${station.closingTime}`
+    : station.operatingHours ?? station.operating_hours ?? station.hours ?? '-';
+  const contact = station.contactPhone ?? station.contact ?? station.phone ?? station.contactNumber ?? '-';
   const coordinates = station.latitude != null && station.longitude != null
     ? `${station.latitude}, ${station.longitude}`
     : station.coordinates ?? null;
@@ -178,7 +179,7 @@ export default function StationDetails() {
     >
       <div className="container page-content">
         <Link to="/search" className="station-details__back">
-          <span className="station-details__back-arrow">←</span>
+          <span className="station-details__back-arrow">&larr;</span>
           Back to Search
         </Link>
 
@@ -193,23 +194,23 @@ export default function StationDetails() {
 
         <motion.div className="station-details__info-grid" variants={itemVariants}>
           <div className="station-details__info-card">
-            <div className="station-details__info-icon">📍</div>
+            <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F4CD}'} className="mono-icon mono-icon--md" /></div>
             <h3 className="station-details__info-label">Address</h3>
             <p className="station-details__info-value">{address}</p>
           </div>
           <div className="station-details__info-card">
-            <div className="station-details__info-icon">🕐</div>
+            <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F550}'} className="mono-icon mono-icon--md" /></div>
             <h3 className="station-details__info-label">Operating Hours</h3>
             <p className="station-details__info-value">{hours}</p>
           </div>
           <div className="station-details__info-card">
-            <div className="station-details__info-icon">📞</div>
+            <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F4DE}'} className="mono-icon mono-icon--md" /></div>
             <h3 className="station-details__info-label">Contact</h3>
             <p className="station-details__info-value">{contact}</p>
           </div>
           {coordinates && (
             <div className="station-details__info-card">
-              <div className="station-details__info-icon">🌐</div>
+              <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F310}'} className="mono-icon mono-icon--md" /></div>
               <h3 className="station-details__info-label">Coordinates</h3>
               <p className="station-details__info-value station-details__info-value--mono">{coordinates}</p>
             </div>
@@ -226,9 +227,9 @@ export default function StationDetails() {
                 const displayStatus = isActive ? point.status : 'UNAVAILABLE';
                 const statusConfig = getStatusConfig(displayStatus);
                 const pointName = point.identifier ?? point.name ?? point.pointName ?? `Point ${i + 1}`;
-                const pointType = (point.pointType ?? point.type ?? point.chargerType ?? '—').toUpperCase();
+                const pointType = (point.pointType ?? point.type ?? point.chargerType ?? '-').toUpperCase();
                 const power = point.maxPowerKw ?? point.power ?? point.powerKw ?? point.power_kw;
-                const connector = point.connectorType ?? point.connector ?? point.connector_type ?? '—';
+                const connector = point.connectorType ?? point.connector ?? point.connector_type ?? '-';
                 return (
                   <motion.div
                     key={point.id ?? i}
@@ -238,7 +239,7 @@ export default function StationDetails() {
                   >
                     <div className="station-details__point-header">
                       <span className="station-details__point-type-icon">
-                        {pointType.includes('FAST') ? '⚡' : '🔌'}
+                        <IconGlyph glyph={pointType.includes('FAST') ? '\u26A1' : '\u{1F50C}'} className="mono-icon mono-icon--md" />
                       </span>
                       <span className={`station-details__point-badge ${statusConfig.class}`}>
                         <span className="station-details__point-dot" />
@@ -318,3 +319,5 @@ export default function StationDetails() {
     </motion.main>
   );
 }
+
+

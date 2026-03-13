@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { billsApi } from '../../../api/bookings';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import './Billing.css';
 
 export default function Billing() {
@@ -96,11 +97,11 @@ export default function Billing() {
     return `${mins} min ${secs} sec`;
   };
 
-  const formatMoney = (value) => (value != null ? `₹${value}` : '—');
+  const formatMoney = (value) => (value != null ? `?${value}` : '—');
 
   const formatRate = (rate, rateType) => {
     if (rate == null && !rateType) return '—';
-    const amount = rate != null ? `₹${rate}` : '—';
+    const amount = rate != null ? `?${rate}` : '—';
     return rateType ? `${amount} / ${rateType}` : amount;
   };
 
@@ -139,12 +140,12 @@ export default function Billing() {
 
         {loading ? (
           <div className="empty-state">
-            <div className="empty-state__icon">⏳</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u23F3'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Loading...</h2>
           </div>
         ) : bills.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">💳</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F4B3}'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">No bills yet</h2>
             <p className="empty-state__text">
               Your billing history will appear here after charging sessions.
@@ -284,7 +285,7 @@ export default function Billing() {
                       <td>{b.stationName ?? b.station?.name ?? '—'}</td>
                       <td>{b.energyKwh != null ? `${b.energyKwh} kWh` : '—'}</td>
                       <td>{formatDuration(b.durationMinutes, b.durationSeconds)}</td>
-                      <td>{b.totalAmount != null ? `₹${b.totalAmount}` : '—'}</td>
+                      <td>{b.totalAmount != null ? `?${b.totalAmount}` : '—'}</td>
                       <td>
                         <span className={`badge ${getStatusBadge(b.paymentStatus)}`}>
                           {b.paymentStatus ?? 'UNPAID'}
@@ -343,6 +344,7 @@ export default function Billing() {
     </motion.main>
   );
 }
+
 
 
 

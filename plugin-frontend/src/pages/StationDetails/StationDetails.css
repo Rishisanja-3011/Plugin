@@ -129,9 +129,17 @@
 }
 
 .station-details__info-icon {
-  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.1), rgba(var(--color-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-accent);
   margin-bottom: var(--space-sm);
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .station-details__info-label {
@@ -204,7 +212,15 @@
 }
 
 .station-details__point-type-icon {
-  font-size: 1.25rem;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.09), rgba(var(--color-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-accent);
 }
 
 .station-details__point-badge {

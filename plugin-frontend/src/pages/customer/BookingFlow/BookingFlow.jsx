@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { bookingsApi } from '../../../api/bookings';
 import { stationsApi } from '../../../api/stations';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import './BookingFlow.css';
 
 const DURATION_OPTIONS = [
@@ -152,7 +153,7 @@ export default function BookingFlow() {
       <motion.main key="loading" className="booking-flow page-wrapper" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="container page-content">
           <div className="empty-state">
-            <div className="empty-state__icon">⏳</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u23F3'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Loading...</h2>
             <p className="empty-state__text">Fetching station details</p>
           </div>
@@ -181,7 +182,7 @@ export default function BookingFlow() {
       <div className="container page-content">
         <div className="page-header">
           <Link to={`/stations/${stationId}`} className="booking-flow__back">
-            ← Back to station
+            &larr; Back to station
           </Link>
           <h1 className="page-header__title">Book at {stationName}</h1>
           <p className="page-header__subtitle">Complete your charging reservation</p>
@@ -223,7 +224,7 @@ export default function BookingFlow() {
               <h2 className="booking-flow__content-title">Select charging point</h2>
               {availablePoints.length === 0 ? (
                 <div className="empty-state">
-                  <div className="empty-state__icon">🔌</div>
+                  <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
                   <h3 className="empty-state__title">No available points</h3>
                   <p className="empty-state__text">All charging points are currently occupied.</p>
                 </div>
@@ -238,7 +239,7 @@ export default function BookingFlow() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                     >
-                      <span className="booking-flow__point-icon">🔌</span>
+                      <span className="booking-flow__point-icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--md" /></span>
                       <span className="booking-flow__point-name">
                         {point.identifier ?? point.name ?? `Point ${i + 1}`}
                       </span>
@@ -246,10 +247,10 @@ export default function BookingFlow() {
                         {point.pointType ?? point.type ?? 'AC/DC'}
                       </span>
                       <span className="booking-flow__point-power">
-                        {point.maxPowerKw ? `${point.maxPowerKw} kW` : '—'}
+                        {point.maxPowerKw ? `${point.maxPowerKw} kW` : '-'}
                       </span>
                       <span className="booking-flow__point-connector">
-                        {point.connectorType ?? '—'}
+                        {point.connectorType ?? '-'}
                       </span>
                     </motion.button>
                   ))}
@@ -362,7 +363,7 @@ export default function BookingFlow() {
                 <div className="booking-flow__summary-row">
                   <span className="booking-flow__summary-label">Charging point</span>
                   <span className="booking-flow__summary-value">
-                    {selectedPoint?.identifier ?? selectedPoint?.name ?? '—'}
+                    {selectedPoint?.identifier ?? selectedPoint?.name ?? '-'}
                   </span>
                 </div>
                 <div className="booking-flow__summary-row">
@@ -413,3 +414,4 @@ export default function BookingFlow() {
     </motion.main>
   );
 }
+

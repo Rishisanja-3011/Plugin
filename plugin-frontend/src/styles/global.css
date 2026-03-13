@@ -487,6 +487,66 @@ ul, ol { list-style: none; }
 .stat-card__icon {
   font-size: 1.5rem;
   margin-bottom: var(--space-sm);
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.1), rgba(var(--color-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.12);
+}
+
+/* ===== MONO ICON SYSTEM ===== */
+.mono-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+  color: var(--color-accent);
+}
+
+.mono-icon--sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+.mono-icon--md {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.mono-icon--lg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.admin-sidebar__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+  opacity: 0.9;
+}
+
+.admin-sidebar__icon .mono-icon {
+  color: currentColor;
+}
+
+.stat-card__icon .mono-icon,
+.quick-action-card__icon .mono-icon,
+.dashboard__action-icon .mono-icon,
+.station-details__info-icon .mono-icon,
+.station-details__point-type-icon .mono-icon,
+.booking-flow__point-icon .mono-icon,
+.fp-delivery-option__icon .mono-icon,
+.ei-header__icon .mono-icon,
+.ei-empty__icon .mono-icon,
+.empty-state__icon .mono-icon {
+  color: var(--color-accent);
 }
 
 .stat-card__label {
@@ -578,8 +638,22 @@ ul, ol { list-style: none; }
 
 .empty-state__icon {
   font-size: 4rem;
-  margin-bottom: var(--space-lg);
+  width: 74px;
+  height: 74px;
+  margin: 0 auto var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.1);
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.1), rgba(var(--color-accent-rgb), 0.03));
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   animation: float 3s ease-in-out infinite;
+}
+
+.empty-state__icon .mono-icon {
+  width: 2rem;
+  height: 2rem;
 }
 
 .empty-state__title {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { notificationsApi } from '../../../api/bookings';
 import './Notifications.css';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
@@ -27,7 +28,7 @@ function AdminSidebar() {
       <nav>
         {sidebarLinks.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
-            <span>{link.icon}</span>
+            <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
           </Link>
         ))}
@@ -97,7 +98,7 @@ export default function Notifications() {
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <Link to="/admin/dashboard" className="page-back">
-              <span className="page-back__icon">←</span>
+              <span className="page-back__icon">&larr;</span>
               Back
             </Link>
             <h1 className="page-header__title">Notifications</h1>
@@ -114,7 +115,7 @@ export default function Notifications() {
           <div className="admin-loading"><div className="spinner" /><p>Loading notifications...</p></div>
         ) : notifications.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">{'\u{1F514}'}</div>
+            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F514}'} className="mono-icon mono-icon--lg" /></div>
             <h3 className="empty-state__title">No notifications</h3>
             <p className="empty-state__text">You're all caught up! Notifications will appear here.</p>
           </div>
@@ -161,3 +162,4 @@ export default function Notifications() {
     </div>
   );
 }
+
