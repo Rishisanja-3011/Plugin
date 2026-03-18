@@ -97,11 +97,11 @@ export default function Billing() {
     return `${mins} min ${secs} sec`;
   };
 
-  const formatMoney = (value) => (value != null ? `?${value}` : '—');
+  const formatMoney = (value) => (value != null ? `\u20B9${value}` : '—');
 
   const formatRate = (rate, rateType) => {
     if (rate == null && !rateType) return '—';
-    const amount = rate != null ? `?${rate}` : '—';
+    const amount = rate != null ? `\u20B9${rate}` : '—';
     return rateType ? `${amount} / ${rateType}` : amount;
   };
 
@@ -285,7 +285,7 @@ export default function Billing() {
                       <td>{b.stationName ?? b.station?.name ?? '—'}</td>
                       <td>{b.energyKwh != null ? `${b.energyKwh} kWh` : '—'}</td>
                       <td>{formatDuration(b.durationMinutes, b.durationSeconds)}</td>
-                      <td>{b.totalAmount != null ? `?${b.totalAmount}` : '—'}</td>
+                      <td>{formatMoney(b.totalAmount)}</td>
                       <td>
                         <span className={`badge ${getStatusBadge(b.paymentStatus)}`}>
                           {b.paymentStatus ?? 'UNPAID'}
