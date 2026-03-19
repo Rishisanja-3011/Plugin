@@ -12,6 +12,7 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.plugin.entity.Bill;
+import com.plugin.enums.PaymentStatus;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -447,6 +448,9 @@ public class InvoicePdfService {
     }
 
     private String formatStatus(Bill bill) {
+        if (bill.getPaymentStatus() == PaymentStatus.PAID || bill.getPaidAt() != null) {
+            return "Paid";
+        }
         if (bill.getPaymentStatus() == null) return "-";
         String raw = bill.getPaymentStatus().name().toLowerCase(Locale.ENGLISH);
         return Character.toUpperCase(raw.charAt(0)) + raw.substring(1);

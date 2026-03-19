@@ -13,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
@@ -106,8 +108,20 @@ public class BillService {
         }
         bill.setPaymentStatus(PaymentStatus.PAID);
         bill.setPaidAt(LocalDateTime.now());
-        bill = billRepository.save(bill);
-        invoiceEmailService.sendPaidInvoice(bill.getId());
+        bill = billRepository.saveAndFlush(bill);
+
+        final Long billId = bill.getId();
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    invoiceEmailService.sendPaidInvoice(billId);
+                }
+            });
+        } else {
+            invoiceEmailService.sendPaidInvoice(billId);
+        }
+
         return toResponse(bill);
     }
 
