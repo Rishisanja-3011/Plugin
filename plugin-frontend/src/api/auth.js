@@ -5,6 +5,7 @@ export const authApi = {
   register: (data) => api.post('/auth/register', data),
   getProfile: () => api.get('/profile'),
   updateProfile: (data) => api.put('/profile', data),
+  deleteVehicle: (id) => api.delete(`/profile/vehicles/${id}`),
   changePassword: (data) => api.post('/profile/change-password', data),
   deleteAccount: (password) => api.post('/profile/delete', { password }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),

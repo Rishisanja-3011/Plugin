@@ -12,5 +12,7 @@ public interface UserVehicleRepository extends JpaRepository<UserVehicle, Long> 
 
     Optional<UserVehicle> findFirstByUserIdAndActiveTrue(Long userId);
 
+    Optional<UserVehicle> findByIdAndUserId(Long id, Long userId);
+
     void deleteByUserId(Long userId);
 }

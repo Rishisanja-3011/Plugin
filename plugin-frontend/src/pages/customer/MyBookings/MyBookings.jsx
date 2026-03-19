@@ -18,6 +18,34 @@ function getStatusBadge(status) {
   return STATUS_BADGE_MAP[key] ?? 'badge--neutral';
 }
 
+function getBookingVehicleKey(booking) {
+  const registration = (booking?.vehicleRegistration ?? '').toUpperCase().replace(/[\s-]/g, '');
+  if (registration) return `reg-${registration}`;
+
+  const nickname = (booking?.vehicleNickname ?? '').trim().toUpperCase();
+  const make = (booking?.vehicleMake ?? '').trim().toUpperCase();
+  const model = (booking?.vehicleModel ?? '').trim().toUpperCase();
+  const label = [nickname, make, model].filter(Boolean).join('|');
+  if (label) return `label-${label}`;
+
+  if (booking?.vehicleId != null) return `id-${booking.vehicleId}`;
+  return 'unknown';
+}
+
+function getBookingVehicleLabel(booking) {
+  const nickname = (booking?.vehicleNickname ?? '').trim();
+  const make = (booking?.vehicleMake ?? '').trim();
+  const model = (booking?.vehicleModel ?? '').trim();
+  const registration = (booking?.vehicleRegistration ?? '').trim();
+  const makeModel = `${make} ${model}`.trim();
+
+  if (nickname && registration) return `${nickname} - ${registration}`;
+  if (nickname && makeModel) return `${nickname} - ${makeModel}`;
+  if (nickname) return nickname;
+  if (makeModel && registration) return `${makeModel} - ${registration}`;
+  return makeModel || registration || 'Vehicle not set';
+}
+
 export default function MyBookings() {
   const toast = useToast();
   const navigate = useNavigate();
@@ -29,6 +57,7 @@ export default function MyBookings() {
   const [cancelModal, setCancelModal] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [vehicleFilter, setVehicleFilter] = useState('ALL');
   const size = 10;
 
   const fetchBookings = async (showLoading = true) => {
@@ -64,6 +93,14 @@ export default function MyBookings() {
     return () => clearInterval(pollInterval);
   }, [page]);
 
+  useEffect(() => {
+    if (vehicleFilter === 'ALL') return;
+    const hasMatch = bookings.some((booking) => getBookingVehicleKey(booking) === vehicleFilter);
+    if (!hasMatch) {
+      setVehicleFilter('ALL');
+    }
+  }, [bookings, vehicleFilter]);
+
   const handleCancel = async (id) => {
     setActionLoading(id);
     try {
@@ -97,6 +134,21 @@ export default function MyBookings() {
   const canStart = (b) =>
     b.status === 'CONFIRMED' &&
     new Date(b.startTime ?? b.bookingDate ?? b.date) <= new Date();
+  const vehicleOptions = Array.from(
+    bookings.reduce((map, booking) => {
+      const key = getBookingVehicleKey(booking);
+      if (!map.has(key)) {
+        map.set(key, {
+          value: key,
+          label: getBookingVehicleLabel(booking),
+        });
+      }
+      return map;
+    }, new Map()).values()
+  );
+  const displayedBookings = vehicleFilter === 'ALL'
+    ? bookings
+    : bookings.filter((booking) => getBookingVehicleKey(booking) === vehicleFilter);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -144,13 +196,45 @@ export default function MyBookings() {
           </div>
         ) : (
           <>
+            <div className="my-bookings__toolbar card">
+              <div>
+                <p className="my-bookings__toolbar-label">Filter by vehicle</p>
+                <h2 className="my-bookings__toolbar-title">Find bookings for a specific car</h2>
+              </div>
+              <label className="my-bookings__filter">
+                <span className="my-bookings__filter-text">Vehicle</span>
+                <select
+                  className="form-input my-bookings__filter-select"
+                  value={vehicleFilter}
+                  onChange={(e) => setVehicleFilter(e.target.value)}
+                >
+                  <option value="ALL">All Vehicles</option>
+                  {vehicleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {displayedBookings.length === 0 ? (
+              <div className="empty-state my-bookings__filtered-empty">
+                <div className="empty-state__icon"><IconGlyph glyph={"\u{1F50D}"} className="mono-icon mono-icon--lg" /></div>
+                <h2 className="empty-state__title">No bookings for this vehicle</h2>
+                <p className="empty-state__text">Choose another vehicle or switch back to all bookings.</p>
+                <button type="button" className="btn btn--outline" onClick={() => setVehicleFilter('ALL')}>
+                  Show All Bookings
+                </button>
+              </div>
+            ) : (
             <motion.div
               className="my-bookings__list"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
             >
-              {bookings.map((b, i) => (
+              {displayedBookings.map((b, i) => (
                 <motion.div
                   key={b.id ?? i}
                   className="my-bookings__item"
@@ -175,6 +259,7 @@ export default function MyBookings() {
                           ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
                           : '\u2014'}
                       </p>
+                      <p className="my-bookings__vehicle">Vehicle: {getBookingVehicleLabel(b)}</p>
                     </div>
 
                     <div className="my-bookings__card-controls">
@@ -243,6 +328,10 @@ export default function MyBookings() {
                               </span>
                             </div>
                             <div className="my-bookings__detail-item">
+                              <span className="my-bookings__detail-label">Vehicle</span>
+                              <span className="my-bookings__detail-value">{getBookingVehicleLabel(b)}</span>
+                            </div>
+                            <div className="my-bookings__detail-item">
                               <span className="my-bookings__detail-label">Status</span>
                               <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '\u2014'}</span>
                             </div>
@@ -260,6 +349,7 @@ export default function MyBookings() {
                 </motion.div>
               ))}
             </motion.div>
+            )}
 
             {totalPages > 1 && (
               <div className="pagination">
@@ -316,5 +406,6 @@ export default function MyBookings() {
     </motion.main>
   );
 }
+
 
 

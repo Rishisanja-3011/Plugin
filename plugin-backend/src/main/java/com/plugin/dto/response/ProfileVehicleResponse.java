@@ -7,6 +7,7 @@ import lombok.Data;
 @Builder
 public class ProfileVehicleResponse {
     private Long id;
+    private String vehicleNickname;
     private String vehicleMake;
     private String vehicleModel;
     private String vehicleRegistration;

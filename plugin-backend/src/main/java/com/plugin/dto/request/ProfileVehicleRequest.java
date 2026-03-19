@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class ProfileVehicleRequest {
     private Long id;
+    private String vehicleNickname;
     private String vehicleMake;
     private String vehicleModel;
     private String vehicleRegistration;

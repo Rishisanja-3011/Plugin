@@ -36,6 +36,9 @@ public class UserVehicle {
     @Column(name = "vehicle_registration", nullable = false, length = 20)
     private String vehicleRegistration;
 
+    @Column(name = "vehicle_nickname", length = 50)
+    private String vehicleNickname;
+
     @Column(nullable = false)
     private Boolean active;
 

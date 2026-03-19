@@ -1,28 +1,45 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { authApi } from '../../../api/auth';
+import { sessionsApi } from '../../../api/bookings';
+import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import { useAuth } from '../../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Profile.css';
+
+const MAX_VEHICLES = 3;
 
 function normalizeRegistrationValue(value) {
   return value.toUpperCase().replace(/[\s-]/g, '');
 }
 
 function formatVehicleTitle(vehicle, index) {
+  const nickname = vehicle?.vehicleNickname?.trim() || '';
   const make = vehicle?.vehicleMake?.trim() || '';
   const model = vehicle?.vehicleModel?.trim() || '';
   const label = `${make} ${model}`.trim();
+  if (nickname) return nickname;
   return label || `Vehicle ${index + 1}`;
+}
+
+function formatVehicleSubtitle(vehicle) {
+  const make = vehicle?.vehicleMake?.trim() || '';
+  const model = vehicle?.vehicleModel?.trim() || '';
+  const label = `${make} ${model}`.trim();
+  const registration = vehicle?.vehicleRegistration?.trim() || '';
+
+  if (label && registration) return `${label} - ${registration}`;
+  return label || registration || 'No registration';
 }
 
 function hasVehicleAnyValue(vehicle) {
   if (!vehicle) return false;
+  const nickname = (vehicle.vehicleNickname || '').trim();
   const make = (vehicle.vehicleMake || '').trim();
   const model = (vehicle.vehicleModel || '').trim();
   const registration = normalizeRegistrationValue(vehicle.vehicleRegistration || '');
-  return Boolean(make || model || registration);
+  return Boolean(nickname || make || model || registration);
 }
 
 function isVehicleComplete(vehicle) {
@@ -50,13 +67,21 @@ export default function Profile() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSecurityOptions, setShowSecurityOptions] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
   const [showVehiclesModal, setShowVehiclesModal] = useState(false);
   const [pendingVehicleRemoval, setPendingVehicleRemoval] = useState(null);
+  const [pendingSavePayload, setPendingSavePayload] = useState(null);
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [saveBanner, setSaveBanner] = useState('');
+  const [showLeaveDraftModal, setShowLeaveDraftModal] = useState(false);
+  const [pendingNavigationTarget, setPendingNavigationTarget] = useState(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const menuRef = useRef(null);
   const vehicleCounterRef = useRef(0);
+  const vehicleEditorRef = useRef(null);
+  const vehicleNicknameInputRef = useRef(null);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -71,13 +96,14 @@ export default function Profile() {
   const [vehicles, setVehicles] = useState([]);
   const [activeVehicleKey, setActiveVehicleKey] = useState(null);
   const [registrationError, setRegistrationError] = useState('');
-  const isPhoneLocked = Boolean(form.phone);
+  const isPhoneLocked = Boolean((profile?.phone || '').trim());
 
   const createVehicleState = (rawVehicle = {}) => {
     const key = rawVehicle?.id != null ? `id-${rawVehicle.id}` : `tmp-${++vehicleCounterRef.current}`;
     return {
       key,
       id: rawVehicle?.id ?? null,
+      vehicleNickname: rawVehicle?.vehicleNickname ?? rawVehicle?.vehicle_nickname ?? '',
       vehicleMake: rawVehicle?.vehicleMake ?? rawVehicle?.vehicle_make ?? '',
       vehicleModel: rawVehicle?.vehicleModel ?? rawVehicle?.vehicle_model ?? '',
       vehicleRegistration: rawVehicle?.vehicleRegistration ?? rawVehicle?.vehicle_registration ?? '',
@@ -92,49 +118,52 @@ export default function Profile() {
     return isValid ? '' : 'Enter valid registration.';
   };
 
+  const applyProfileState = (data) => {
+    setProfile(data);
+    setForm({
+      fullName: data?.fullName ?? data?.name ?? '',
+      email: data?.email ?? '',
+      phone: data?.phone ?? '',
+    });
+
+    const backendVehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+    let mappedVehicles = backendVehicles.map((vehicle) => createVehicleState(vehicle));
+
+    if (mappedVehicles.length === 0) {
+      const hasLegacyVehicle =
+        data?.vehicleMake || data?.vehicleModel || data?.vehicleRegistration ||
+        data?.vehicle_make || data?.vehicle_model || data?.vehicle_registration;
+      if (hasLegacyVehicle) {
+        mappedVehicles = [
+          createVehicleState({
+            id: null,
+            vehicleMake: data?.vehicleMake ?? data?.vehicle_make ?? '',
+            vehicleModel: data?.vehicleModel ?? data?.vehicle_model ?? '',
+            vehicleRegistration: data?.vehicleRegistration ?? data?.vehicle_registration ?? '',
+            active: true,
+          }),
+        ];
+      }
+    }
+
+    setVehicles(mappedVehicles);
+
+    let resolvedActiveKey =
+      mappedVehicles.find((vehicle) => vehicle.id != null && vehicle.id === data?.activeVehicleId)?.key || null;
+
+    if (!resolvedActiveKey) {
+      resolvedActiveKey = mappedVehicles.find((vehicle) => vehicle.active)?.key || mappedVehicles[0]?.key || null;
+    }
+
+    setActiveVehicleKey(resolvedActiveKey);
+    setRegistrationError('');
+  };
+
   const fetchProfile = async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
       const res = await authApi.getProfile();
-      const data = res.data;
-      setProfile(data);
-      setForm({
-        fullName: data?.fullName ?? data?.name ?? '',
-        email: data?.email ?? '',
-        phone: data?.phone ?? '',
-      });
-
-      const backendVehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
-      let mappedVehicles = backendVehicles.map((vehicle) => createVehicleState(vehicle));
-
-      if (mappedVehicles.length === 0) {
-        const hasLegacyVehicle =
-          data?.vehicleMake || data?.vehicleModel || data?.vehicleRegistration ||
-          data?.vehicle_make || data?.vehicle_model || data?.vehicle_registration;
-        if (hasLegacyVehicle) {
-          mappedVehicles = [
-            createVehicleState({
-              id: null,
-              vehicleMake: data?.vehicleMake ?? data?.vehicle_make ?? '',
-              vehicleModel: data?.vehicleModel ?? data?.vehicle_model ?? '',
-              vehicleRegistration: data?.vehicleRegistration ?? data?.vehicle_registration ?? '',
-              active: true,
-            }),
-          ];
-        }
-      }
-
-      setVehicles(mappedVehicles);
-
-      let resolvedActiveKey =
-        mappedVehicles.find((vehicle) => vehicle.id != null && vehicle.id === data?.activeVehicleId)?.key || null;
-
-      if (!resolvedActiveKey) {
-        resolvedActiveKey = mappedVehicles.find((vehicle) => vehicle.active)?.key || mappedVehicles[0]?.key || null;
-      }
-
-      setActiveVehicleKey(resolvedActiveKey);
-      setRegistrationError('');
+      applyProfileState(res.data);
     } catch {
       toast.error('Failed to load profile');
     } finally {
@@ -142,8 +171,25 @@ export default function Profile() {
     }
   };
 
+  const fetchActiveSessions = async () => {
+    try {
+      const res = await sessionsApi.getMyActive();
+      setActiveSessions(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setActiveSessions([]);
+    }
+  };
+
   useEffect(() => {
     fetchProfile(true);
+    fetchActiveSessions();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchActiveSessions();
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -171,23 +217,102 @@ export default function Profile() {
     }
   }, [vehicles, activeVehicleKey]);
 
+  useEffect(() => {
+    if (!saveBanner) return undefined;
+    const timer = window.setTimeout(() => setSaveBanner(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [saveBanner]);
+
   const selectedVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey) ?? vehicles[0] ?? null;
   const selectedVehicleHasValue = hasVehicleAnyValue(selectedVehicle);
   const selectedVehicleIsComplete = isVehicleComplete(selectedVehicle);
+  const isDraftVehicle = Boolean(selectedVehicle && !isPersistedVehicle(selectedVehicle));
   const visibleVehicles = vehicles.filter((vehicle) => isPersistedVehicle(vehicle));
+  const isFullNameLocked = Boolean((profile?.fullName ?? profile?.name ?? '').trim());
+  const isSelectedVehicleLocked = Boolean(selectedVehicle && isPersistedVehicle(selectedVehicle));
+  const hasOpenDraftVehicle = vehicles.some((vehicle) => !isPersistedVehicle(vehicle));
+  const hasTypedDraftVehicle = vehicles.some((vehicle) => !isPersistedVehicle(vehicle) && hasVehicleAnyValue(vehicle));
+  const hasReachedVehicleLimit = vehicles.length >= MAX_VEHICLES;
+  const activeSessionVehicleIds = new Set(
+    activeSessions.map((session) => session?.vehicleId).filter((vehicleId) => vehicleId != null)
+  );
+  const activeSessionVehicleRegistrations = new Set(
+    activeSessions
+      .map((session) => normalizeRegistrationValue(session?.vehicleRegistration || ''))
+      .filter(Boolean)
+  );
+  const isSelectedVehicleLockedBySession = Boolean(
+    selectedVehicle &&
+      selectedVehicle.key === activeVehicleKey &&
+      ((selectedVehicle.id != null && activeSessionVehicleIds.has(selectedVehicle.id)) ||
+        activeSessionVehicleRegistrations.has(normalizeRegistrationValue(selectedVehicle.vehicleRegistration || '')))
+  );
+  const vehicleActionHint = hasReachedVehicleLimit
+    ? `Maximum ${MAX_VEHICLES} vehicles allowed per account.`
+    : hasOpenDraftVehicle
+      ? 'Finish or cancel the current draft before adding another vehicle.'
+      : `${vehicles.length}/${MAX_VEHICLES} vehicle slots used.`;
+
+  useEffect(() => {
+    if (!hasTypedDraftVehicle || saving) return undefined;
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasTypedDraftVehicle, saving]);
+
+  useEffect(() => {
+    if (!hasTypedDraftVehicle || saving) return undefined;
+
+    const handleDocumentNavigation = (event) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      const anchor = event.target.closest?.('a[href]');
+      if (!anchor) return;
+
+      const rawHref = anchor.getAttribute('href');
+      if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:')) {
+        return;
+      }
+
+      if (anchor.target && anchor.target !== '_self') return;
+
+      const currentUrl = new URL(window.location.href);
+      const nextUrl = new URL(anchor.href, currentUrl.origin);
+      if (nextUrl.origin !== currentUrl.origin) return;
+
+      const currentPath = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+      const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      if (currentPath === nextPath) return;
+
+      event.preventDefault();
+      setPendingNavigationTarget(nextPath);
+      setShowLeaveDraftModal(true);
+    };
+
+    document.addEventListener('click', handleDocumentNavigation, true);
+    return () => document.removeEventListener('click', handleDocumentNavigation, true);
+  }, [hasTypedDraftVehicle, saving]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'fullName' && isFullNameLocked) return;
+    setSaveBanner('');
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleVehicleChange = (e) => {
     const { name, value } = e.target;
-    if (!activeVehicleKey) return;
+    const isEditingLockedField = isSelectedVehicleLocked && name !== 'vehicleNickname';
+    if (!activeVehicleKey || isEditingLockedField) return;
+    setSaveBanner('');
     setVehicles((prev) =>
       prev.map((vehicle) => (vehicle.key === activeVehicleKey ? { ...vehicle, [name]: value } : vehicle))
     );
-    if (name === 'vehicleRegistration' && registrationError) {
+    if (name === 'vehicleRegistration') {
       setRegistrationError(validateRegistration(value));
     }
   };
@@ -205,17 +330,40 @@ export default function Profile() {
     setRegistrationError(validateRegistration(nextVehicle?.vehicleRegistration || ''));
   };
 
-  const handleAddVehicle = () => {
+  const focusVehicleEditor = () => {
+    window.setTimeout(() => {
+      vehicleEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      vehicleNicknameInputRef.current?.focus();
+    }, 120);
+  };
+
+  const handleAddVehicle = (options = {}) => {
+    const { closeModal = false } = options;
     const activeVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey);
     if (activeVehicle && !isPersistedVehicle(activeVehicle) && !isVehicleComplete(activeVehicle)) {
       setActiveVehicleKey(activeVehicle.key);
+      if (closeModal) {
+        setShowVehiclesModal(false);
+        focusVehicleEditor();
+      }
       toast.error('Fill all vehicle details before adding another vehicle');
+      return;
+    }
+
+    if (hasReachedVehicleLimit) {
+      toast.error(`You can save up to ${MAX_VEHICLES} vehicles`);
+      return;
+    }
+
+    if (hasOpenDraftVehicle) {
+      toast.error('Finish or cancel the current draft before adding another vehicle');
       return;
     }
 
     const created = {
       key: `tmp-${++vehicleCounterRef.current}`,
       id: null,
+      vehicleNickname: '',
       vehicleMake: '',
       vehicleModel: '',
       vehicleRegistration: '',
@@ -224,20 +372,78 @@ export default function Profile() {
     setVehicles((prev) => [...prev, created]);
     setActiveVehicleKey(created.key);
     setRegistrationError('');
+    if (closeModal) {
+      setShowVehiclesModal(false);
+      focusVehicleEditor();
+    }
   };
 
   const requestRemoveVehicle = (vehicleKey) => {
     const vehicleToRemove = vehicles.find((vehicle) => vehicle.key === vehicleKey);
     if (!vehicleToRemove) return;
 
+    const normalizedRegistration = normalizeRegistrationValue(vehicleToRemove.vehicleRegistration || '');
+    const isProtectedBySession =
+      vehicleKey === activeVehicleKey &&
+      ((vehicleToRemove.id != null && activeSessionVehicleIds.has(vehicleToRemove.id)) ||
+        activeSessionVehicleRegistrations.has(normalizedRegistration));
+
+    if (isProtectedBySession) {
+      toast.error('Active vehicle cannot be deleted while a charging session is running');
+      return;
+    }
+
     const vehicleIndex = vehicles.findIndex((vehicle) => vehicle.key === vehicleKey);
     const vehicleName = formatVehicleTitle(vehicleToRemove, vehicleIndex >= 0 ? vehicleIndex : 0);
     setPendingVehicleRemoval({ key: vehicleKey, name: vehicleName });
   };
 
-  const handleRemoveVehicle = () => {
+  const handleRemoveVehicle = async () => {
     if (!pendingVehicleRemoval?.key) return;
+
     const vehicleKey = pendingVehicleRemoval.key;
+    const vehicleToRemove = vehicles.find((vehicle) => vehicle.key === vehicleKey);
+    if (!vehicleToRemove) {
+      setPendingVehicleRemoval(null);
+      return;
+    }
+
+    const nextVehicles = vehicles.filter((vehicle) => vehicle.key !== vehicleKey);
+    const nextActiveVehicleKey = vehicleKey === activeVehicleKey ? (nextVehicles[0]?.key ?? null) : activeVehicleKey;
+
+    setVehicles(nextVehicles);
+    setActiveVehicleKey(nextActiveVehicleKey);
+    setRegistrationError('');
+    setPendingVehicleRemoval(null);
+
+    if (!isPersistedVehicle(vehicleToRemove)) {
+      toast.success('Vehicle removed');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await authApi.deleteVehicle(vehicleToRemove.id);
+      applyProfileState(res.data);
+      await fetchActiveSessions();
+      toast.success('Vehicle removed');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove vehicle');
+      await fetchProfile(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePasswordChangeInput = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCancelVehicleDraft = () => {
+    if (!selectedVehicle || isPersistedVehicle(selectedVehicle)) return;
+
+    const vehicleKey = selectedVehicle.key;
     setVehicles((prev) => {
       const next = prev.filter((vehicle) => vehicle.key !== vehicleKey);
       if (vehicleKey === activeVehicleKey) {
@@ -246,12 +452,38 @@ export default function Profile() {
       return next;
     });
     setRegistrationError('');
-    setPendingVehicleRemoval(null);
   };
 
-  const handlePasswordChangeInput = (e) => {
-    const { name, value } = e.target;
-    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  const submitProfileUpdate = async (payload) => {
+    setSaving(true);
+    try {
+      const res = await authApi.updateProfile(payload);
+      applyProfileState(res.data);
+      await fetchActiveSessions();
+      setSaveBanner('Changes saved successfully. Saved profile and vehicle details are now locked from editing.');
+      toast.success('Profile updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmSaveChanges = async () => {
+    if (!pendingSavePayload) {
+      setShowSaveConfirmModal(false);
+      return;
+    }
+
+    const payload = pendingSavePayload;
+    setPendingSavePayload(null);
+    setShowSaveConfirmModal(false);
+    await submitProfileUpdate(payload);
+  };
+
+  const handleCancelSaveConfirmation = () => {
+    setPendingSavePayload(null);
+    setShowSaveConfirmModal(false);
   };
 
   const closePasswordModal = () => {
@@ -266,6 +498,7 @@ export default function Profile() {
 
     const normalizedVehicles = vehicles.map((vehicle) => ({
       ...vehicle,
+      vehicleNickname: (vehicle.vehicleNickname || '').trim(),
       vehicleMake: (vehicle.vehicleMake || '').trim(),
       vehicleModel: (vehicle.vehicleModel || '').trim(),
       vehicleRegistration: normalizeRegistrationValue(vehicle.vehicleRegistration || ''),
@@ -309,29 +542,43 @@ export default function Profile() {
     const activeVehicle = nonEmptyVehicles.find((vehicle) => vehicle.key === resolvedActiveKey) ?? null;
     const payloadVehicles = nonEmptyVehicles.map((vehicle) => ({
       id: vehicle.id,
+      vehicleNickname: vehicle.vehicleNickname,
       vehicleMake: vehicle.vehicleMake,
       vehicleModel: vehicle.vehicleModel,
       vehicleRegistration: vehicle.vehicleRegistration,
       active: vehicle.key === resolvedActiveKey,
     }));
+    const requestPayload = {
+      fullName: form.fullName,
+      phone: form.phone,
+      vehicleMake: activeVehicle?.vehicleMake || '',
+      vehicleModel: activeVehicle?.vehicleModel || '',
+      vehicleRegistration: activeVehicle?.vehicleRegistration || '',
+      vehicles: payloadVehicles,
+      activeVehicleId: activeVehicle?.id ?? null,
+    };
 
-    setSaving(true);
-    try {
-      await authApi.updateProfile({
-        fullName: form.fullName,
-        phone: form.phone,
-        vehicleMake: activeVehicle?.vehicleMake || '',
-        vehicleModel: activeVehicle?.vehicleModel || '',
-        vehicleRegistration: activeVehicle?.vehicleRegistration || '',
-        vehicles: payloadVehicles,
-        activeVehicleId: activeVehicle?.id ?? null,
-      });
-      await fetchProfile(false);
-      toast.success('Profile updated');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update profile');
-    } finally {
-      setSaving(false);
+    const hasNewVehicle = payloadVehicles.some((vehicle) => vehicle.id == null);
+    if (hasNewVehicle) {
+      setPendingSavePayload(requestPayload);
+      setShowSaveConfirmModal(true);
+      return;
+    }
+
+    await submitProfileUpdate(requestPayload);
+  };
+
+  const handleStayOnPage = () => {
+    setShowLeaveDraftModal(false);
+    setPendingNavigationTarget(null);
+  };
+
+  const handleLeaveWithDraft = () => {
+    const nextPath = pendingNavigationTarget;
+    setShowLeaveDraftModal(false);
+    setPendingNavigationTarget(null);
+    if (nextPath) {
+      navigate(nextPath);
     }
   };
 
@@ -464,6 +711,26 @@ export default function Profile() {
           </div>
         </div>
 
+        {saveBanner && (
+          <div className="profile__success-banner" role="status" aria-live="polite">
+            <div className="profile__success-banner-icon">
+              <IconGlyph glyph={'\u2713'} className="mono-icon" />
+            </div>
+            <div className="profile__success-banner-copy">
+              <strong>Saved successfully</strong>
+              <span>{saveBanner}</span>
+            </div>
+            <button
+              type="button"
+              className="profile__success-banner-close"
+              onClick={() => setSaveBanner('')}
+              aria-label="Dismiss success message"
+            >
+              x
+            </button>
+          </div>
+        )}
+
         <motion.form
           className="profile__form-grid"
           onSubmit={handleSubmit}
@@ -491,10 +758,12 @@ export default function Profile() {
                     id="fullName"
                     name="fullName"
                     type="text"
-                    className="form-input"
+                    className={`form-input ${isFullNameLocked ? 'profile__input--readonly' : ''}`}
                     value={form.fullName}
                     onChange={handleChange}
+                    readOnly={isFullNameLocked}
                   />
+                  {isFullNameLocked && <span className="profile__readonly-hint">Full name cannot be changed once saved</span>}
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="email">
@@ -533,7 +802,12 @@ export default function Profile() {
                 <div className="profile__vehicle-header">
                   <h3 className="profile__section-title">Vehicle Details</h3>
                   <div className="profile__vehicle-header-actions">
-                    <button type="button" className="btn btn--accent btn--sm" onClick={handleAddVehicle}>
+                    <button
+                      type="button"
+                      className="btn btn--accent btn--sm"
+                      onClick={handleAddVehicle}
+                      disabled={saving || hasOpenDraftVehicle || hasReachedVehicleLimit}
+                    >
                       Add Vehicle
                     </button>
                     <button type="button" className="btn btn--accent btn--sm" onClick={() => setShowVehiclesModal(true)}>
@@ -544,17 +818,16 @@ export default function Profile() {
                 <p className="profile__vehicle-note">
                   Set active vehicle in Show Vehicles. New charging bookings will use that active vehicle.
                 </p>
+                <p className="profile__vehicle-status-note">{vehicleActionHint}</p>
 
                 {selectedVehicle ? (
-                  <div className="profile__active-vehicle">
+                  <div className={`profile__active-vehicle${selectedVehicleHasValue ? ' profile__active-vehicle--highlight' : ''}`}>
                     {selectedVehicleHasValue ? (
                       <>
                         <span className="profile__vehicle-active-pill">Active</span>
                         <div>
                           <p className="profile__active-vehicle-title">{formatVehicleTitle(selectedVehicle, 0)}</p>
-                          <p className="profile__active-vehicle-subtitle">
-                            {selectedVehicle.vehicleRegistration || 'No registration'}
-                          </p>
+                          <p className="profile__active-vehicle-subtitle">{formatVehicleSubtitle(selectedVehicle)}</p>
                         </div>
                       </>
                     ) : (
@@ -567,11 +840,35 @@ export default function Profile() {
                     )}
                   </div>
                 ) : (
-                  <p className="profile__vehicle-empty">No vehicles added yet.</p>
+                  <div className="profile__vehicle-empty-state">
+                    <div className="profile__vehicle-empty-icon">
+                      <IconGlyph glyph={'\u{1F697}'} className="mono-icon mono-icon--lg" />
+                    </div>
+                    <h4 className="profile__vehicle-empty-title">No vehicles added yet</h4>
+                    <p className="profile__vehicle-empty">
+                      Add your first vehicle to speed up booking and billing.
+                    </p>
+                  </div>
                 )}
 
                 {selectedVehicle && (
-                  <div className="profile__form">
+                  <div className="profile__form" ref={vehicleEditorRef}>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="vehicleNickname">
+                        Vehicle Nickname
+                      </label>
+                      <input
+                        id="vehicleNickname"
+                        name="vehicleNickname"
+                        type="text"
+                        className="form-input"
+                        value={selectedVehicle.vehicleNickname || ''}
+                        onChange={handleVehicleChange}
+                        ref={vehicleNicknameInputRef}
+                        placeholder="Home Car, Office Car"
+                        maxLength={50}
+                      />
+                    </div>
                     <div className="form-group">
                       <label className="form-label" htmlFor="vehicleMake">
                         Vehicle Make
@@ -580,9 +877,10 @@ export default function Profile() {
                         id="vehicleMake"
                         name="vehicleMake"
                         type="text"
-                        className="form-input"
+                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
                         value={selectedVehicle.vehicleMake}
                         onChange={handleVehicleChange}
+                        readOnly={isSelectedVehicleLocked}
                         required
                       />
                     </div>
@@ -594,9 +892,10 @@ export default function Profile() {
                         id="vehicleModel"
                         name="vehicleModel"
                         type="text"
-                        className="form-input"
+                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
                         value={selectedVehicle.vehicleModel}
                         onChange={handleVehicleChange}
+                        readOnly={isSelectedVehicleLocked}
                         required
                       />
                     </div>
@@ -608,22 +907,43 @@ export default function Profile() {
                         id="vehicleRegistration"
                         name="vehicleRegistration"
                         type="text"
-                        className="form-input"
+                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
                         value={selectedVehicle.vehicleRegistration}
                         onChange={handleVehicleChange}
                         onBlur={(e) => setRegistrationError(validateRegistration(e.target.value))}
                         aria-invalid={Boolean(registrationError)}
+                        readOnly={isSelectedVehicleLocked}
                         required
                       />
                       {registrationError && <span className="form-error">{registrationError}</span>}
+                      {isSelectedVehicleLocked && (
+                        <span className="profile__readonly-hint">
+                          Saved vehicle make, model and registration cannot be edited. Only nickname can be changed later.
+                        </span>
+                      )}
                     </div>
                     {!selectedVehicleIsComplete && selectedVehicleHasValue && (
                       <span className="profile__readonly-hint">All vehicle fields are required before saving.</span>
                     )}
+                    {isSelectedVehicleLockedBySession && (
+                      <span className="profile__vehicle-session-lock">
+                        This active vehicle cannot be deleted while a charging session is running.
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
-              <div className="profile__actions profile__actions--column">
+              <div className={`profile__actions profile__actions--column${isDraftVehicle ? ' profile__actions--with-cancel' : ''}`}>
+                {isDraftVehicle && (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={handleCancelVehicleDraft}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button type="submit" className="btn btn--accent" disabled={saving}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -638,7 +958,15 @@ export default function Profile() {
               <h3 className="modal__title">Manage Vehicles</h3>
 
               {visibleVehicles.length === 0 ? (
-                <p className="profile__vehicle-empty">No saved vehicles yet.</p>
+                <div className="profile__vehicle-empty-state profile__vehicle-empty-state--modal">
+                  <div className="profile__vehicle-empty-icon">
+                    <IconGlyph glyph={'\u{1F698}'} className="mono-icon mono-icon--lg" />
+                  </div>
+                  <h4 className="profile__vehicle-empty-title">No saved vehicles yet</h4>
+                  <p className="profile__vehicle-empty">
+                    Save a vehicle once and it will appear here for active selection.
+                  </p>
+                </div>
               ) : (
                 <div className="profile__vehicle-list profile__vehicle-list--modal">
                   {visibleVehicles.map((vehicle, index) => (
@@ -648,7 +976,7 @@ export default function Profile() {
                     >
                       <div className="profile__vehicle-select">
                         <span className="profile__vehicle-title">{formatVehicleTitle(vehicle, index)}</span>
-                        <span className="profile__vehicle-subtitle">{vehicle.vehicleRegistration || 'No registration'}</span>
+                        <span className="profile__vehicle-subtitle">{formatVehicleSubtitle(vehicle)}</span>
                       </div>
                       <div className="profile__vehicle-actions">
                         {vehicle.key === activeVehicleKey ? (
@@ -668,7 +996,23 @@ export default function Profile() {
                           className="profile__vehicle-remove"
                           onClick={() => requestRemoveVehicle(vehicle.key)}
                           aria-label={`Remove vehicle ${index + 1}`}
-                          disabled={saving}
+                          disabled={
+                            saving ||
+                            (vehicle.key === activeVehicleKey &&
+                              ((vehicle.id != null && activeSessionVehicleIds.has(vehicle.id)) ||
+                                activeSessionVehicleRegistrations.has(
+                                  normalizeRegistrationValue(vehicle.vehicleRegistration || '')
+                                )))
+                          }
+                          title={
+                            vehicle.key === activeVehicleKey &&
+                            ((vehicle.id != null && activeSessionVehicleIds.has(vehicle.id)) ||
+                              activeSessionVehicleRegistrations.has(
+                                normalizeRegistrationValue(vehicle.vehicleRegistration || '')
+                              ))
+                              ? 'End the running charging session before removing this active vehicle'
+                              : 'Remove vehicle'
+                          }
                         >
                           x
                         </button>
@@ -677,8 +1021,18 @@ export default function Profile() {
                   ))}
                 </div>
               )}
+              {activeSessions.length > 0 && (
+                <p className="profile__vehicle-session-lock">
+                  Active vehicle removal is locked while a charging session is running.
+                </p>
+              )}
               <div className="modal__actions">
-                <button type="button" className="btn btn--outline" onClick={handleAddVehicle} disabled={saving}>
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={() => handleAddVehicle({ closeModal: true })}
+                  disabled={saving || hasOpenDraftVehicle || hasReachedVehicleLimit}
+                >
                   Add Vehicle
                 </button>
                 <button type="button" className="btn btn--accent" onClick={() => setShowVehiclesModal(false)}>
@@ -707,6 +1061,62 @@ export default function Profile() {
                 </button>
                 <button type="button" className="btn btn--danger" onClick={handleRemoveVehicle} disabled={saving}>
                   Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSaveConfirmModal && (
+          <div className="modal-overlay" onClick={handleCancelSaveConfirmation}>
+            <div className="modal card profile__confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 className="modal__title">Confirm Save</h3>
+              <p className="profile__danger-text">
+                Are you sure to save changes? After this, you can&apos;t edit your information.
+              </p>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={handleCancelSaveConfirmation}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--accent"
+                  onClick={handleConfirmSaveChanges}
+                  disabled={saving}
+                >
+                  Yes, Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showLeaveDraftModal && (
+          <div className="modal-overlay" onClick={handleStayOnPage}>
+            <div className="modal card profile__confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 className="modal__title">Leave this page?</h3>
+              <p className="profile__danger-text">
+                You have a new vehicle draft with unsaved details. If you leave now, those details will be lost.
+              </p>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={handleStayOnPage}
+                >
+                  Stay Here
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={handleLeaveWithDraft}
+                >
+                  Leave Page
                 </button>
               </div>
             </div>
@@ -886,4 +1296,5 @@ export default function Profile() {
     </motion.main>
   );
 }
+
 

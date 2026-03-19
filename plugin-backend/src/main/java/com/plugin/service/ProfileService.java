@@ -27,11 +27,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
+
+    private static final int MAX_VEHICLES = 3;
 
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
@@ -39,6 +42,7 @@ public class ProfileService {
     private final BillRepository billRepository;
     private final UserVehicleRepository userVehicleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     public UserResponse getProfile(String email) {
         User user = userRepository.findByEmail(email)
@@ -50,9 +54,32 @@ public class ProfileService {
     public UserResponse updateProfile(String email, ProfileUpdateRequest request) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String initialFullName = normalizeText(user.getFullName());
+        String initialPhone = normalizeText(user.getPhone());
+        List<UserVehicle> initialVehicles = userVehicleRepository.findByUserIdOrderByActiveDescCreatedAtDesc(user.getId());
+        Long initialActiveVehicleId = findActiveVehicleId(initialVehicles);
 
-        if (request.getFullName() != null) user.setFullName(request.getFullName());
-        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request.getFullName() != null) {
+            String currentFullName = normalizeText(user.getFullName());
+            String requestedFullName = normalizeText(request.getFullName());
+            if (!isBlank(currentFullName) && !currentFullName.equals(requestedFullName)) {
+                throw new BadRequestException("Full name cannot be edited once saved");
+            }
+            if (isBlank(currentFullName) && !isBlank(requestedFullName)) {
+                user.setFullName(requestedFullName);
+            }
+        }
+
+        if (request.getPhone() != null) {
+            String currentPhone = normalizeText(user.getPhone());
+            String requestedPhone = normalizeText(request.getPhone());
+            if (!isBlank(currentPhone) && !currentPhone.equals(requestedPhone)) {
+                throw new BadRequestException("Mobile number cannot be edited once saved");
+            }
+            if (isBlank(currentPhone) && !isBlank(requestedPhone)) {
+                user.setPhone(requestedPhone);
+            }
+        }
 
         if (request.getVehicles() != null) {
             syncVehicles(user, request.getVehicles(), request.getActiveVehicleId());
@@ -61,6 +88,70 @@ public class ProfileService {
         }
 
         user = userRepository.save(user);
+        UserResponse response = toResponse(user);
+        logProfileChanges(email, initialFullName, initialPhone, initialVehicles, initialActiveVehicleId, request, response);
+        return response;
+    }
+
+    @Transactional
+    public UserResponse deleteVehicle(String email, Long vehicleId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        UserVehicle vehicle = userVehicleRepository.findByIdAndUserId(vehicleId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
+
+        if (Boolean.TRUE.equals(vehicle.getActive())
+                && chargingSessionRepository.existsByCustomerIdAndStatusAndVehicleId(
+                        user.getId(), SessionStatus.IN_PROGRESS, vehicleId)) {
+            throw new BadRequestException("Cannot delete the active vehicle while a charging session is running");
+        }
+
+        if (bookingRepository.existsByVehicleId(vehicleId)) {
+            throw new BadRequestException("Cannot delete vehicle linked to bookings");
+        }
+
+        boolean removedActive = Boolean.TRUE.equals(vehicle.getActive());
+        String deletedVehicleLabel = formatVehicleDescription(
+                vehicle.getVehicleNickname(),
+                vehicle.getVehicleMake(),
+                vehicle.getVehicleModel(),
+                vehicle.getVehicleRegistration());
+        userVehicleRepository.delete(vehicle);
+
+        List<UserVehicle> remainingVehicles = userVehicleRepository.findByUserIdOrderByActiveDescCreatedAtDesc(user.getId());
+        if (remainingVehicles.isEmpty()) {
+            clearUserVehicle(user);
+        } else {
+            UserVehicle activeVehicle = remainingVehicles.stream()
+                    .filter(v -> Boolean.TRUE.equals(v.getActive()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (activeVehicle == null || removedActive) {
+                activeVehicle = remainingVehicles.get(0);
+            }
+
+            Long activeVehicleId = activeVehicle.getId();
+            boolean needsVehicleSave = false;
+            for (UserVehicle v : remainingVehicles) {
+                boolean shouldBeActive = v.getId() != null && v.getId().equals(activeVehicleId);
+                if (Boolean.TRUE.equals(v.getActive()) != shouldBeActive) {
+                    v.setActive(shouldBeActive);
+                    needsVehicleSave = true;
+                }
+            }
+
+            if (needsVehicleSave) {
+                userVehicleRepository.saveAll(remainingVehicles);
+            }
+
+            syncUserVehicleFromActive(user, activeVehicle);
+        }
+
+        user = userRepository.save(user);
+        auditService.log("DELETE_VEHICLE", "VEHICLE", vehicleId, email,
+                "Deleted vehicle: " + deletedVehicleLabel);
         return toResponse(user);
     }
 
@@ -118,6 +209,10 @@ public class ProfileService {
     }
 
     private void syncVehicles(User user, List<ProfileVehicleRequest> requestedVehicles, Long activeVehicleId) {
+        if (requestedVehicles.size() > MAX_VEHICLES) {
+            throw new BadRequestException("You can save up to " + MAX_VEHICLES + " vehicles");
+        }
+
         List<UserVehicle> existing = userVehicleRepository.findByUserIdOrderByActiveDescCreatedAtDesc(user.getId());
         Map<Long, UserVehicle> existingById = new HashMap<>();
         for (UserVehicle vehicle : existing) {
@@ -141,6 +236,7 @@ public class ProfileService {
                 throw new BadRequestException("Vehicle details are required");
             }
 
+            String nickname = normalizeText(req.getVehicleNickname());
             String make = normalizeText(req.getVehicleMake());
             String model = normalizeText(req.getVehicleModel());
             String registration = normalizeRegistration(req.getVehicleRegistration());
@@ -162,10 +258,20 @@ public class ProfileService {
                 if (!seenIds.add(req.getId())) {
                     throw new BadRequestException("Duplicate vehicle id: " + req.getId());
                 }
+
+                String currentMake = normalizeText(vehicle.getVehicleMake());
+                String currentModel = normalizeText(vehicle.getVehicleModel());
+                String currentRegistration = normalizeRegistration(vehicle.getVehicleRegistration());
+                if (!make.equals(currentMake)
+                        || !model.equals(currentModel)
+                        || !registration.equals(currentRegistration)) {
+                    throw new BadRequestException("Saved vehicle make, model and registration cannot be edited once saved");
+                }
             } else {
                 vehicle = UserVehicle.builder().user(user).build();
             }
 
+            vehicle.setVehicleNickname(nickname);
             vehicle.setVehicleMake(make);
             vehicle.setVehicleModel(model);
             vehicle.setVehicleRegistration(registration);
@@ -314,6 +420,7 @@ public class ProfileService {
             }
             vehicles.add(ProfileVehicleResponse.builder()
                     .id(vehicle.getId())
+                    .vehicleNickname(vehicle.getVehicleNickname())
                     .vehicleMake(vehicle.getVehicleMake())
                     .vehicleModel(vehicle.getVehicleModel())
                     .vehicleRegistration(vehicle.getVehicleRegistration())
@@ -328,6 +435,7 @@ public class ProfileService {
             vehicles = vehicles.stream()
                     .map(vehicle -> ProfileVehicleResponse.builder()
                             .id(vehicle.getId())
+                            .vehicleNickname(vehicle.getVehicleNickname())
                             .vehicleMake(vehicle.getVehicleMake())
                             .vehicleModel(vehicle.getVehicleModel())
                             .vehicleRegistration(vehicle.getVehicleRegistration())
@@ -339,6 +447,7 @@ public class ProfileService {
         if (vehicles.isEmpty() && !isBlank(user.getVehicleRegistration())) {
             vehicles = List.of(ProfileVehicleResponse.builder()
                     .id(null)
+                    .vehicleNickname(null)
                     .vehicleMake(user.getVehicleMake())
                     .vehicleModel(user.getVehicleModel())
                     .vehicleRegistration(user.getVehicleRegistration())
@@ -363,5 +472,129 @@ public class ProfileService {
                 .activeVehicleId(activeVehicleId)
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private Long findActiveVehicleId(List<UserVehicle> vehicles) {
+        return vehicles.stream()
+                .filter(vehicle -> Boolean.TRUE.equals(vehicle.getActive()))
+                .map(UserVehicle::getId)
+                .findFirst()
+                .orElseGet(() -> vehicles.isEmpty() ? null : vehicles.get(0).getId());
+    }
+
+    private void logProfileChanges(String email,
+                                   String initialFullName,
+                                   String initialPhone,
+                                   List<UserVehicle> initialVehicles,
+                                   Long initialActiveVehicleId,
+                                   ProfileUpdateRequest request,
+                                   UserResponse response) {
+        String currentFullName = normalizeText(response.getFullName());
+        String currentPhone = normalizeText(response.getPhone());
+        if (!Objects.equals(initialFullName, currentFullName) || !Objects.equals(initialPhone, currentPhone)) {
+            auditService.log("UPDATE_PROFILE", "PROFILE", response.getId(), email,
+                    "Profile updated. Full name: " + safeValue(currentFullName)
+                            + ", phone: " + safeValue(currentPhone));
+        }
+
+        if (request.getVehicles() == null) {
+            return;
+        }
+
+        Map<String, ProfileVehicleResponse> savedVehiclesByRegistration = new HashMap<>();
+        for (ProfileVehicleResponse vehicle : response.getVehicles()) {
+            String registration = normalizeRegistration(vehicle.getVehicleRegistration());
+            if (registration != null) {
+                savedVehiclesByRegistration.put(registration, vehicle);
+            }
+        }
+
+        for (ProfileVehicleRequest vehicle : request.getVehicles()) {
+            if (vehicle == null || vehicle.getId() != null) {
+                continue;
+            }
+            String registration = normalizeRegistration(vehicle.getVehicleRegistration());
+            ProfileVehicleResponse savedVehicle = registration != null
+                    ? savedVehiclesByRegistration.get(registration)
+                    : null;
+            auditService.log("ADD_VEHICLE", "VEHICLE", savedVehicle != null ? savedVehicle.getId() : null, email,
+                    "Added vehicle: " + formatVehicleDescription(
+                            vehicle.getVehicleNickname(),
+                            vehicle.getVehicleMake(),
+                            vehicle.getVehicleModel(),
+                            vehicle.getVehicleRegistration()));
+        }
+
+        Map<Long, UserVehicle> initialVehiclesById = new HashMap<>();
+        for (UserVehicle vehicle : initialVehicles) {
+            if (vehicle.getId() != null) {
+                initialVehiclesById.put(vehicle.getId(), vehicle);
+            }
+        }
+
+        for (ProfileVehicleRequest vehicle : request.getVehicles()) {
+            if (vehicle == null || vehicle.getId() == null) {
+                continue;
+            }
+
+            UserVehicle initialVehicle = initialVehiclesById.get(vehicle.getId());
+            if (initialVehicle == null) {
+                continue;
+            }
+
+            String previousNickname = normalizeText(initialVehicle.getVehicleNickname());
+            String nextNickname = normalizeText(vehicle.getVehicleNickname());
+            if (!Objects.equals(previousNickname, nextNickname)) {
+                auditService.log("UPDATE_VEHICLE_NICKNAME", "VEHICLE", vehicle.getId(), email,
+                        "Vehicle nickname changed from " + safeValue(previousNickname)
+                                + " to " + safeValue(nextNickname)
+                                + " for " + formatVehicleDescription(
+                                nextNickname,
+                                vehicle.getVehicleMake(),
+                                vehicle.getVehicleModel(),
+                                vehicle.getVehicleRegistration()));
+            }
+        }
+
+        if (!Objects.equals(initialActiveVehicleId, response.getActiveVehicleId()) && response.getActiveVehicleId() != null) {
+            ProfileVehicleResponse activeVehicle = response.getVehicles().stream()
+                    .filter(vehicle -> response.getActiveVehicleId().equals(vehicle.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (activeVehicle != null) {
+                auditService.log("SET_ACTIVE_VEHICLE", "VEHICLE", activeVehicle.getId(), email,
+                        "Active vehicle set to: " + formatVehicleDescription(
+                                activeVehicle.getVehicleNickname(),
+                                activeVehicle.getVehicleMake(),
+                                activeVehicle.getVehicleModel(),
+                                activeVehicle.getVehicleRegistration()));
+            }
+        }
+    }
+
+    private String formatVehicleDescription(String nickname, String make, String model, String registration) {
+        String nicknameText = normalizeText(nickname);
+        String makeText = normalizeText(make);
+        String modelText = normalizeText(model);
+        String registrationText = normalizeRegistration(registration);
+
+        String label = ((makeText == null ? "" : makeText) + " " + (modelText == null ? "" : modelText)).trim();
+        if (label.isEmpty()) {
+            label = "Vehicle";
+        }
+
+        if (nicknameText != null) {
+            label = nicknameText + " (" + label + ")";
+        }
+
+        if (registrationText != null) {
+            label = label + " [" + registrationText + "]";
+        }
+
+        return label;
+    }
+
+    private String safeValue(String value) {
+        return value == null ? "-" : value;
     }
 }

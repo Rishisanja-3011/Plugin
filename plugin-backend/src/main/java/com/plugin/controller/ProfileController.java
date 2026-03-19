@@ -30,6 +30,13 @@ public class ProfileController {
         return ResponseEntity.ok(profileService.updateProfile(auth.getName(), request));
     }
 
+    @DeleteMapping("/vehicles/{vehicleId}")
+    public ResponseEntity<UserResponse> deleteVehicle(
+            @PathVariable Long vehicleId,
+            Authentication auth) {
+        return ResponseEntity.ok(profileService.deleteVehicle(auth.getName(), vehicleId));
+    }
+
     @PostMapping("/delete")
     public ResponseEntity<java.util.Map<String, String>> deleteAccount(
             @RequestBody DeleteAccountRequest request,

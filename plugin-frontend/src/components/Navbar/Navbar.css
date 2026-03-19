@@ -149,16 +149,26 @@
 
 .navbar__user-details {
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .navbar__user-name {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
+  line-height: 1.2;
+}
+
+.navbar__user-vehicle {
+  max-width: 180px;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== LOGOUT MODAL ===== */
@@ -358,7 +368,8 @@
   }
 
   .navbar__user-details {
-    flex-direction: row;
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .navbar__actions .btn {

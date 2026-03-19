@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS user_vehicles (
     vehicle_make VARCHAR(50) NOT NULL,
     vehicle_model VARCHAR(50) NOT NULL,
     vehicle_registration VARCHAR(20) NOT NULL,
+    vehicle_nickname VARCHAR(50),
     active BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
@@ -208,6 +209,9 @@ ALTER TABLE bookings
     ADD CONSTRAINT fk_booking_vehicle FOREIGN KEY (vehicle_id) REFERENCES user_vehicles(id);
 
 CREATE INDEX idx_booking_vehicle ON bookings(vehicle_id);
+
+ALTER TABLE user_vehicles
+    ADD COLUMN vehicle_nickname VARCHAR(50);
 
 INSERT INTO user_vehicles (user_id, vehicle_make, vehicle_model, vehicle_registration, active, created_at, updated_at)
 SELECT u.id,

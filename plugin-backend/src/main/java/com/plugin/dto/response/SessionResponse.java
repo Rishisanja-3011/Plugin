@@ -18,6 +18,7 @@ public class SessionResponse {
     private String customerName;
     private String stationName;
     private Long vehicleId;
+    private String vehicleNickname;
     private String vehicleMake;
     private String vehicleModel;
     private String vehicleRegistration;

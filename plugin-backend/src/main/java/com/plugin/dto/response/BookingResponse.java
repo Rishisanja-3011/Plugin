@@ -17,6 +17,7 @@ public class BookingResponse {
     private String chargingPointIdentifier;
     private String pointType;
     private Long vehicleId;
+    private String vehicleNickname;
     private String vehicleMake;
     private String vehicleModel;
     private String vehicleRegistration;

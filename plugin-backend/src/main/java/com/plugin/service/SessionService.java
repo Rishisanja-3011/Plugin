@@ -210,6 +210,7 @@ public class SessionService {
 
         String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : s.getCustomer().getVehicleMake();
         String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : s.getCustomer().getVehicleModel();
+        String vehicleNickname = bookingVehicle != null ? bookingVehicle.getVehicleNickname() : null;
         String vehicleRegistration = bookingVehicle != null
                 ? bookingVehicle.getVehicleRegistration()
                 : s.getCustomer().getVehicleRegistration();
@@ -226,6 +227,7 @@ public class SessionService {
                 .customerName(s.getCustomer().getFullName())
                 .stationName(s.getChargingPoint().getStation().getName())
                 .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
+                .vehicleNickname(vehicleNickname)
                 .vehicleMake(vehicleMake)
                 .vehicleModel(vehicleModel)
                 .vehicleRegistration(vehicleRegistration)

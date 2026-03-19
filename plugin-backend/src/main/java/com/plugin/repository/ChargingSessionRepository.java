@@ -28,6 +28,13 @@ public interface ChargingSessionRepository extends JpaRepository<ChargingSession
 
     boolean existsByCustomerIdAndStatus(Long customerId, SessionStatus status);
 
+    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END " +
+           "FROM ChargingSession s WHERE s.customer.id = :customerId " +
+           "AND s.status = :status AND s.booking.vehicle.id = :vehicleId")
+    boolean existsByCustomerIdAndStatusAndVehicleId(@Param("customerId") Long customerId,
+                                                    @Param("status") SessionStatus status,
+                                                    @Param("vehicleId") Long vehicleId);
+
     void deleteByCustomerId(Long customerId);
 
     @Query("SELECT COALESCE(SUM(s.energyDeliveredKwh), 0) FROM ChargingSession s WHERE s.status = 'COMPLETED'")

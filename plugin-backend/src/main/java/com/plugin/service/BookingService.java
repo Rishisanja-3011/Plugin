@@ -366,6 +366,7 @@ public class BookingService {
 
     private BookingResponse toResponse(Booking b) {
         UserVehicle bookingVehicle = b.getVehicle();
+        String vehicleNickname = bookingVehicle != null ? bookingVehicle.getVehicleNickname() : null;
         String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : b.getCustomer().getVehicleMake();
         String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : b.getCustomer().getVehicleModel();
         String vehicleRegistration = bookingVehicle != null
@@ -383,6 +384,7 @@ public class BookingService {
                 .chargingPointIdentifier(b.getChargingPoint().getIdentifier())
                 .pointType(b.getChargingPoint().getPointType().name())
                 .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
+                .vehicleNickname(vehicleNickname)
                 .vehicleMake(vehicleMake)
                 .vehicleModel(vehicleModel)
                 .vehicleRegistration(vehicleRegistration)

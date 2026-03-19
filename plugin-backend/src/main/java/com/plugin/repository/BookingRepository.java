@@ -63,6 +63,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     long countByCustomerIdAndStatus(Long customerId, BookingStatus status);
 
     boolean existsByCustomerId(Long customerId);
+    boolean existsByVehicleId(Long vehicleId);
 
     @Query("SELECT b FROM Booking b WHERE b.station.id = :stationId ORDER BY b.createdAt DESC")
     Page<Booking> findByStationId(@Param("stationId") Long stationId, Pageable pageable);

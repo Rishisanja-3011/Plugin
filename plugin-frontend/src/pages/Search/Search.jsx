@@ -10,31 +10,6 @@ import './Search.css';
 const CHARGER_FILTERS = ['All', 'Fast', 'Slow'];
 const PAGE_SIZE = 12;
 
-const getRateNumber = (pricing) => {
-  if (pricing == null) return null;
-  if (typeof pricing === 'number') return pricing;
-  if (typeof pricing === 'string') {
-    const parsed = Number(pricing);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  const directRate = Number(
-    pricing.ratePerUnit ??
-    pricing.rate_per_unit ??
-    pricing.pricePerKwh ??
-    pricing.price
-  );
-  if (Number.isFinite(directRate)) return directRate;
-
-  if (Array.isArray(pricing)) {
-    const allRates = pricing
-      .map((item) => getRateNumber(item))
-      .filter((value) => Number.isFinite(value));
-    return allRates.length ? Math.min(...allRates) : null;
-  }
-  return null;
-};
-
 export default function Search() {
   const toast = useToast();
   const [query, setQuery] = useState('');
@@ -97,16 +72,11 @@ export default function Search() {
       const withDetails = await Promise.all(
         stationList.map(async (station) => {
           try {
-            const [cpRes, priceRes] = await Promise.all([
-              stationsApi.getChargingPoints(station.id),
-              stationsApi.getPricing(station.id),
-            ]);
+            const cpRes = await stationsApi.getChargingPoints(station.id);
             const points = Array.isArray(cpRes.data) ? cpRes.data : cpRes.data?.content ?? [];
-            const pricingList = Array.isArray(priceRes.data) ? priceRes.data : priceRes.data?.content ?? [];
-            const minimumRate = getRateNumber(pricingList);
-            return { ...station, chargingPoints: points, pricingList, minimumRate };
+            return { ...station, chargingPoints: points };
           } catch {
-            return { ...station, chargingPoints: [], pricingList: [], minimumRate: null };
+            return { ...station, chargingPoints: [] };
           }
         })
       );
@@ -278,11 +248,6 @@ export default function Search() {
                             <p className="search__card-city">
                               {station.city ?? station.area ?? '-'}
                             </p>
-                            {Number.isFinite(station.minimumRate) && (
-                              <p className="search__card-pricing">
-                                Rs{station.minimumRate}/kWh
-                              </p>
-                            )}
                           </div>
                         </Link>
                       </motion.div>
