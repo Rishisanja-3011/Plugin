@@ -30,6 +30,19 @@ export const billsApi = {
       Pragma: 'no-cache',
     },
   }),
+  downloadStatement: ({ from, to } = {}) => {
+    const query = new URLSearchParams();
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return api.get(`/bills/my/statement${suffix}`, {
+      responseType: 'blob',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
+  },
 };
 
 export const notificationsApi = {

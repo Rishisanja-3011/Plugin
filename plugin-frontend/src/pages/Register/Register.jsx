@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import './Register.css';
 
 const PHONE_PREFIX = '+91 ';
+const STRONG_PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -31,11 +32,13 @@ export default function Register() {
     if (!email.trim()) next.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = 'Enter a valid email';
     if (!password) next.password = 'Password is required';
-    else if (password.length < 8) next.password = 'Password must be at least 8 characters';
+    else if (!STRONG_PASSWORD_RULE.test(password)) next.password = 'Use 8+ chars with uppercase, lowercase, and number';
     if (!confirmPassword) next.confirmPassword = 'Confirm password is required';
     else if (confirmPassword !== password) next.confirmPassword = 'Passwords do not match';
     const phoneDigits = phone.replace(/\D/g, '');
-    if (phoneDigits.length <= 2) next.phone = 'Phone is required';
+    if (!phoneDigits.startsWith('91') || phoneDigits.length !== 12) {
+      next.phone = 'Enter a valid 10-digit mobile number';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -46,14 +49,17 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const data = await register(fullName, email, password, phone);
+      const data = await register(fullName.trim(), email.trim(), password, phone.trim());
       toast.success(data?.message || 'OTP sent to your email. Please confirm your account.');
       setErrors({});
       setOtp('');
       setResendCooldown(40);
       setStep(2);
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Registration failed';
+      const raw = err.response?.data?.message || err.message || 'Registration failed';
+      const msg = /network|failed to fetch|timeout/i.test(raw)
+        ? 'Unable to reach server. Please try again in a few seconds.'
+        : raw;
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -91,11 +97,10 @@ export default function Register() {
 
   const hasErrors = Object.keys(errors).length > 0;
   const handlePhoneChange = (e) => {
-    let next = e.target.value;
-    if (!next.startsWith(PHONE_PREFIX)) {
-      next = `${PHONE_PREFIX}${next.replace(/^\+?91\s*/, '')}`;
-    }
-    setPhone(next);
+    const rawDigits = e.target.value.replace(/\D/g, '');
+    const withoutCountry = rawDigits.startsWith('91') ? rawDigits.slice(2) : rawDigits;
+    const trimmed = withoutCountry.slice(0, 10);
+    setPhone(`${PHONE_PREFIX}${trimmed}`);
   };
 
   return (
@@ -200,6 +205,9 @@ export default function Register() {
                   </button>
                 </div>
                 {errors.password && <span className="register__error">{errors.password}</span>}
+                {!errors.password && (
+                  <span className="register__hint">Use 8+ chars with uppercase, lowercase, and number.</span>
+                )}
               </div>
 
               <div className="register__field">

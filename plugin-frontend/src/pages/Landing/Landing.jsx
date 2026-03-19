@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { stationsApi } from '../../api/stations';
 import './Landing.css';
 
 const fadeInUp = {
@@ -55,37 +56,64 @@ const TransparentBillingIcon = () => (
 const features = [
   {
     title: 'Ultra-Fast Charging',
-    description: 'Up to 250kW charging speeds. Get from 10% to 80% in under 25 minutes and get back on the road faster.',
+    description: 'Up to 250kW charging speeds so your stop stays short and predictable.',
     icon: UltraFastIcon,
   },
   {
     title: 'Smart Booking',
-    description: 'Reserve your slot ahead of time. No more waiting—your spot is guaranteed when you arrive.',
+    description: 'Reserve your slot ahead of time with clear availability before you drive.',
     icon: SmartBookingIcon,
   },
   {
     title: 'Real-Time Tracking',
-    description: 'Monitor your charging session live. See power delivery, time remaining, and cost in real time.',
+    description: 'Monitor active sessions live with energy delivered, time left, and billing details.',
     icon: RealTimeTrackingIcon,
   },
   {
     title: 'Transparent Billing',
-    description: 'Clear pricing, no hidden fees. Pay only for what you use with detailed session breakdowns.',
+    description: 'Every charge is itemized with no hidden charges and clear invoice history.',
     icon: TransparentBillingIcon,
   },
 ];
 
-const stats = [
+const baseStats = [
   { value: '500+', label: 'Stations' },
   { value: '50K+', label: 'Drivers' },
   { value: '2M+', label: 'kWh Delivered' },
   { value: '99.9%', label: 'Uptime' },
 ];
 
+const statusCards = [
+  { key: 'available', title: 'Available', subtitle: 'Ready right now' },
+  { key: 'busy', title: 'Busy', subtitle: 'In use right now' },
+  { key: 'outOfService', title: 'Out of Service', subtitle: 'Maintenance mode' },
+];
+
 const steps = [
   { num: 1, title: 'Search', desc: 'Find available stations near you' },
   { num: 2, title: 'Book', desc: 'Reserve your charging slot' },
   { num: 3, title: 'Charge', desc: 'Plug in and power up' },
+];
+
+const testimonials = [
+  {
+    quote: 'I book in advance, arrive, and charge without waiting. It saves me every week.',
+    author: 'Ananya R, Daily commuter',
+  },
+  {
+    quote: 'The billing details are super clear. I can track all sessions in one place.',
+    author: 'Rohit K, Fleet operator',
+  },
+  {
+    quote: 'Reliable network and fast support when needed. It feels production-grade.',
+    author: 'Meera S, EV owner',
+  },
+];
+
+const trustHighlights = [
+  { value: '99.9%', label: 'Network uptime' },
+  { value: '< 2 min', label: 'Average support response' },
+  { value: '24x7', label: 'Driver support' },
 ];
 
 const floatingVariants = (delay = 0, y = 0) => ({
@@ -101,25 +129,117 @@ const floatingVariants = (delay = 0, y = 0) => ({
   },
 });
 
+const normalizePointStatus = (point) => {
+  const raw = (point?.status ?? point?.availability ?? '').toString().toUpperCase().trim();
+  if (raw === 'AVAILABLE') return 'AVAILABLE';
+  if (!raw) return 'BUSY';
+  if (raw.includes('OUT') || raw.includes('SERVICE') || raw.includes('MAINTENANCE')) return 'OUT_OF_SERVICE';
+  return 'BUSY';
+};
+
 export default function Landing() {
   const featuresRef = useRef(null);
   const stepsRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
   const featuresInView = useInView(featuresRef, { once: true, margin: '-100px' });
   const stepsInView = useInView(stepsRef, { once: true, margin: '-80px' });
+  const [statusSummary, setStatusSummary] = useState({
+    available: 0,
+    busy: 0,
+    outOfService: 0,
+    loading: true,
+    stationCount: 0,
+    lastUpdated: '',
+  });
 
-  const scrollToFeatures = () => {
-    featuresRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const heroStats = baseStats.map((stat) => {
+    if (stat.label !== 'Stations') return stat;
+    if (!statusSummary.stationCount) return stat;
+    return { ...stat, value: `${statusSummary.stationCount}+` };
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchStatus = async () => {
+      try {
+        const stationRes = await stationsApi.getAll(0, 40);
+        const payload = stationRes.data;
+        const stationList = payload?.content ?? payload?.stations ?? (Array.isArray(payload) ? payload : []);
+        const stationCount = payload?.totalElements ?? payload?.total ?? stationList.length;
+
+        const allPoints = (
+          await Promise.all(
+            stationList.map(async (station) => {
+              try {
+                const pointsRes = await stationsApi.getChargingPoints(station.id);
+                const pointsPayload = pointsRes.data;
+                return Array.isArray(pointsPayload)
+                  ? pointsPayload
+                  : pointsPayload?.content ?? pointsPayload?.points ?? [];
+              } catch {
+                return [];
+              }
+            })
+          )
+        ).flat();
+
+        let available = 0;
+        let busy = 0;
+        let outOfService = 0;
+
+        allPoints.forEach((point) => {
+          const normalized = normalizePointStatus(point);
+          if (normalized === 'AVAILABLE') {
+            available += 1;
+          } else if (normalized === 'OUT_OF_SERVICE') {
+            outOfService += 1;
+          } else {
+            busy += 1;
+          }
+        });
+
+        if (cancelled) return;
+        setStatusSummary({
+          available,
+          busy,
+          outOfService,
+          loading: false,
+          stationCount,
+          lastUpdated: new Date().toISOString(),
+        });
+      } catch {
+        if (cancelled) return;
+        setStatusSummary((prev) => ({
+          ...prev,
+          loading: false,
+          lastUpdated: '',
+        }));
+      }
+    };
+
+    fetchStatus();
+    const pollInterval = setInterval(fetchStatus, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(pollInterval);
+    };
+  }, []);
+
+  const statusUpdatedLabel = statusSummary.lastUpdated
+    ? `Updated ${new Date(statusSummary.lastUpdated).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })}`
+    : 'Live status refreshes every 30 seconds';
 
   return (
     <main className="landing">
-      {/* Hero Section */}
       <section
         className="landing__hero"
         style={{ background: 'var(--gradient-hero)' }}
       >
-        {/* Floating decorative elements */}
         <div className="landing__hero-float" aria-hidden="true">
           {[...Array(12)].map((_, i) => (
             <motion.div
@@ -139,6 +259,9 @@ export default function Landing() {
           initial="initial"
           animate="animate"
         >
+          <motion.p className="landing__hero-eyebrow" variants={fadeInUp}>
+            Fast EV charging, without guesswork.
+          </motion.p>
           <motion.h1
             className="landing__hero-title"
             variants={fadeInUp}
@@ -152,7 +275,7 @@ export default function Landing() {
             className="landing__hero-subtitle"
             variants={fadeInUp}
           >
-            Intelligent charging management for the modern driver. Find stations, book ahead, and charge with confidence.
+            Intelligent charging management for modern drivers. Find stations, reserve confidently, and track every session in real time.
           </motion.p>
           <motion.div
             className="landing__hero-cta"
@@ -161,24 +284,19 @@ export default function Landing() {
             <Link to="/search" className="landing__btn landing__btn--accent landing__btn--no-hover">
               Find Stations
             </Link>
-            <button
-              type="button"
-              className="landing__btn landing__btn--outline"
-              onClick={scrollToFeatures}
-            >
-              Learn More
-            </button>
+            <Link to="/login" className="landing__btn landing__btn--outline">
+              Login
+            </Link>
           </motion.div>
         </motion.div>
 
-        {/* Stats bar */}
         <motion.div
           className="landing__hero-stats"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.1, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          {stats.map((stat) => (
+          {heroStats.map((stat) => (
             <div key={stat.label} className="landing__stat-item">
               <span className="landing__stat-value">{stat.value}</span>
               <span className="landing__stat-label">{stat.label}</span>
@@ -188,7 +306,32 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* Features Section */}
+      <section className="landing__network">
+        <div className="landing__section-inner">
+          <h2 className="landing__section-title">Live Station Status</h2>
+          <p className="landing__section-subtitle">A quick live snapshot of charger availability across the network.</p>
+          <div className="landing__status-grid">
+            {statusCards.map((card, i) => (
+              <motion.article
+                key={card.key}
+                className={`landing__status-card landing__status-card--${card.key}`}
+                initial={{ opacity: 0, y: 28 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-60px' }}
+                transition={{ duration: 0.55, delay: i * 0.1 }}
+              >
+                <p className="landing__status-title">{card.title}</p>
+                <p className="landing__status-value">
+                  {statusSummary.loading ? '--' : statusSummary[card.key]}
+                </p>
+                <p className="landing__status-subtitle">{card.subtitle}</p>
+              </motion.article>
+            ))}
+          </div>
+          <p className="landing__status-note">{statusUpdatedLabel}</p>
+        </div>
+      </section>
+
       <section className="landing__features" ref={featuresRef}>
         <div className="landing__section-inner">
           <motion.h2
@@ -200,7 +343,7 @@ export default function Landing() {
             Why Choose PLUGIN?
           </motion.h2>
           <p className="landing__section-subtitle">
-            Built for drivers who demand the best charging experience
+            Built for drivers who demand speed, visibility, and reliability.
           </p>
           <div className="landing__cards">
             {features.map((feature, i) => (
@@ -222,7 +365,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How It Works Section */}
       <section className="landing__how" ref={stepsRef}>
         <div className="landing__section-inner">
           <motion.h2
@@ -253,7 +395,43 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      <section className="landing__trust">
+        <div className="landing__section-inner">
+          <h2 className="landing__section-title">Trusted by EV Drivers</h2>
+          <p className="landing__section-subtitle">
+            Built for reliability at scale with transparent support and measurable uptime.
+          </p>
+          <div className="landing__trust-grid">
+            {testimonials.map((item, i) => (
+              <motion.article
+                key={item.author}
+                className="landing__trust-card"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-70px' }}
+                transition={{ duration: 0.55, delay: i * 0.1 }}
+              >
+                <p className="landing__trust-quote">"{item.quote}"</p>
+                <p className="landing__trust-author">{item.author}</p>
+              </motion.article>
+            ))}
+          </div>
+
+          <div className="landing__trust-highlights">
+            {trustHighlights.map((highlight) => (
+              <div key={highlight.label} className="landing__trust-kpi">
+                <p className="landing__trust-kpi-value">{highlight.value}</p>
+                <p className="landing__trust-kpi-label">{highlight.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="landing__trust-support">
+            Need help? Reach us anytime at <a href="mailto:plugin.onservice@gmail.com">plugin.onservice@gmail.com</a>.
+          </p>
+        </div>
+      </section>
+
       <section className="landing__cta">
         <motion.div
           className="landing__cta-inner"

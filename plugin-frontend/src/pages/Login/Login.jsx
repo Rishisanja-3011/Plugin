@@ -17,9 +17,12 @@ export default function Login() {
 
   const validate = () => {
     const next = {};
-    if (!email.trim()) next.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = 'Enter a valid email';
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) next.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) next.email = 'Enter a valid email';
+
     if (!password) next.password = 'Password is required';
+
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -30,7 +33,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const data = await login(email, password);
+      const data = await login(email.trim(), password);
       toast.success('Welcome back!');
 
       const role = data.role || data.user?.role;
@@ -40,7 +43,15 @@ export default function Login() {
         navigate('/customer/dashboard', { replace: true });
       }
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Login failed';
+      const status = err.response?.status;
+      const raw = err.response?.data?.message || err.message || 'Login failed';
+      if (status === 401 || status === 403) {
+        setErrors({ password: 'Incorrect email or password' });
+        return;
+      }
+      const msg = /network|failed to fetch|timeout/i.test(raw)
+        ? 'Unable to reach server. Please try again in a few seconds.'
+        : raw;
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -58,7 +69,6 @@ export default function Login() {
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       <div className="login__split">
-        {/* Left: Video panel */}
         <motion.div
           className="login__panel login__panel--brand"
           initial={{ opacity: 0, x: -24 }}
@@ -75,7 +85,6 @@ export default function Login() {
           />
         </motion.div>
 
-        {/* Right: Form */}
         <motion.div
           className="login__panel login__panel--form"
           initial={{ opacity: 0, x: 24 }}
@@ -100,7 +109,12 @@ export default function Login() {
                   className="login__input"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email || errors.password) {
+                      setErrors((prev) => ({ ...prev, email: '', password: '' }));
+                    }
+                  }}
                   autoComplete="email"
                 />
                 {errors.email && <span className="login__error">{errors.email}</span>}
@@ -115,34 +129,39 @@ export default function Login() {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                   </span>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  className="login__input login__input--with-icon login__input--with-toggle"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="login__toggle"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                      <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
-                      <path d="M3 3l18 18" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    className="login__input login__input--with-icon login__input--with-toggle"
+                    placeholder="********"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errors.password) {
+                        setErrors((prev) => ({ ...prev, password: '' }));
+                      }
+                    }}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="login__toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                        <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
+                        <path d="M3 3l18 18" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
                 {errors.password && <span className="login__error">{errors.password}</span>}
               </div>

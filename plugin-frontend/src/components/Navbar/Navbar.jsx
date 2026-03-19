@@ -6,6 +6,33 @@ import { useBillingLock } from '../BillingLock/BillingLock';
 import { sessionsApi } from '../../api/bookings';
 import './Navbar.css';
 
+const HomeIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3.5 10.2 12 3l8.5 7.2V20h-5.8v-5.4H9.3V20H3.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="m20 20-3.8-3.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3.5" y="4.5" width="17" height="16" rx="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M8 2.9v3.4M16 2.9v3.4M3.5 9.4h17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const ProfileIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="8.2" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M5.4 20c.8-3.2 3.4-5 6.6-5s5.8 1.8 6.6 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
 export default function Navbar() {
   const { user, logout, isAdmin, isCustomer } = useAuth();
   const { hasUnpaid } = useBillingLock();
@@ -184,6 +211,39 @@ export default function Navbar() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isCustomer && (
+        <div className="navbar__mobile-tabs">
+          <Link
+            to="/customer/dashboard"
+            className={`navbar__mobile-tab ${isActive('/customer/dashboard') ? 'navbar__mobile-tab--active' : ''}`}
+          >
+            <span className="navbar__mobile-tab-icon"><HomeIcon /></span>
+            <span>Home</span>
+          </Link>
+          <Link
+            to="/search"
+            className={`navbar__mobile-tab ${isActive('/search') ? 'navbar__mobile-tab--active' : ''}`}
+          >
+            <span className="navbar__mobile-tab-icon"><SearchIcon /></span>
+            <span>Search</span>
+          </Link>
+          <Link
+            to="/customer/bookings"
+            className={`navbar__mobile-tab ${isActive('/customer/bookings') ? 'navbar__mobile-tab--active' : ''}`}
+          >
+            <span className="navbar__mobile-tab-icon"><CalendarIcon /></span>
+            <span>Bookings</span>
+          </Link>
+          <Link
+            to="/customer/profile"
+            className={`navbar__mobile-tab ${isActive('/customer/profile') ? 'navbar__mobile-tab--active' : ''}`}
+          >
+            <span className="navbar__mobile-tab-icon"><ProfileIcon /></span>
+            <span>Profile</span>
+          </Link>
         </div>
       )}
     </nav>

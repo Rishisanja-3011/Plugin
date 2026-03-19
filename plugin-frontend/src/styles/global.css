@@ -733,6 +733,7 @@ body.modal-open {
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
   .page-header__title { font-size: var(--font-size-2xl); }
   .page-content { padding: var(--space-xl) 0; }
+  .page-wrapper { padding-bottom: 84px; }
   .table th, .table td { padding: 10px 14px; }
 }
 

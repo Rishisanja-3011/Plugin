@@ -14,9 +14,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +32,10 @@ public class BillService {
     private final InvoiceEmailService invoiceEmailService;
 
     public record InvoiceFile(byte[] data, String filename) {}
+    public record StatementFile(byte[] data, String filename, int rowCount) {}
+
+    private static final DateTimeFormatter STATEMENT_DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
 
     public Page<BillResponse> getMyBills(String email, Pageable pageable) {
         User customer = userRepository.findByEmail(email)
@@ -72,6 +80,21 @@ public class BillService {
                 .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
         byte[] pdf = invoicePdfService.generateInvoice(bill);
         return new InvoiceFile(pdf, buildFileName(bill));
+    }
+
+    @Transactional(readOnly = true)
+    public StatementFile getStatementForCustomer(String email, LocalDate from, LocalDate to) {
+        validateStatementRange(from, to);
+        User customer = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        LocalDateTime start = from != null ? from.atStartOfDay() : null;
+        LocalDateTime endExclusive = to != null ? to.plusDays(1).atStartOfDay() : null;
+
+        List<Bill> bills = billRepository.findStatementBillsForCustomer(customer.getId(), start, endExclusive);
+        String csv = buildStatementCsv(bills);
+        String filename = buildStatementFileName(from, to);
+        return new StatementFile(csv.getBytes(StandardCharsets.UTF_8), filename, bills.size());
     }
 
     @Transactional
@@ -130,5 +153,70 @@ public class BillService {
         String base = bill.getInvoiceNumber() != null ? bill.getInvoiceNumber() : ("invoice-" + bill.getId());
         base = base.replaceAll("[^a-zA-Z0-9-_]", "_");
         return base + ".pdf";
+    }
+
+    private void validateStatementRange(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BadRequestException("From date cannot be after To date.");
+        }
+    }
+
+    private String buildStatementCsv(List<Bill> bills) {
+        StringBuilder csv = new StringBuilder();
+        csv.append("Invoice Number,Station,Session ID,Billed On,Energy (kWh),Duration,Rate,Amount,Payment Status\n");
+        for (Bill bill : bills) {
+            csv.append(csvEscape(bill.getInvoiceNumber())).append(',')
+                    .append(csvEscape(bill.getStation() != null ? bill.getStation().getName() : "-")).append(',')
+                    .append(csvEscape(bill.getSession() != null ? bill.getSession().getId() : "-")).append(',')
+                    .append(csvEscape(formatDateTime(bill.getCreatedAt()))).append(',')
+                    .append(csvEscape(formatDecimal(bill.getEnergyKwh()))).append(',')
+                    .append(csvEscape(formatDuration(bill))).append(',')
+                    .append(csvEscape(formatRate(bill))).append(',')
+                    .append(csvEscape(formatDecimal(bill.getTotalAmount()))).append(',')
+                    .append(csvEscape(bill.getPaymentStatus() != null ? bill.getPaymentStatus().name() : "UNPAID"))
+                    .append('\n');
+        }
+        return csv.toString();
+    }
+
+    private String buildStatementFileName(LocalDate from, LocalDate to) {
+        String fromLabel = from != null ? from.toString() : "start";
+        String toLabel = to != null ? to.toString() : "today";
+        return "billing-statement_" + fromLabel + "_to_" + toLabel + ".csv";
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? "-" : STATEMENT_DATE_TIME_FORMATTER.format(value);
+    }
+
+    private String formatDecimal(BigDecimal value) {
+        return value == null ? "" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String formatDuration(Bill bill) {
+        long seconds = 0;
+        if (bill.getSession() != null && bill.getSession().getStartTime() != null && bill.getSession().getEndTime() != null) {
+            seconds = Math.max(0, Duration.between(
+                    bill.getSession().getStartTime(),
+                    bill.getSession().getEndTime()
+            ).getSeconds());
+        } else if (bill.getDurationMinutes() != null) {
+            seconds = Math.max(0, bill.getDurationMinutes() * 60);
+        }
+        long mins = seconds / 60;
+        long rem = seconds % 60;
+        return mins + " min " + rem + " sec";
+    }
+
+    private String formatRate(Bill bill) {
+        String amount = bill.getRateApplied() != null ? formatDecimal(bill.getRateApplied()) : "-";
+        return bill.getRateType() != null && !bill.getRateType().isBlank()
+                ? amount + " / " + bill.getRateType()
+                : amount;
+    }
+
+    private String csvEscape(Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        return "\"" + text.replace("\"", "\"\"") + "\"";
     }
 }

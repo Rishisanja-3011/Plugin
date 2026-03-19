@@ -230,6 +230,11 @@
   font-weight: 500;
 }
 
+.register__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
 .register__submit {
   width: 100%;
   padding: 12px 20px;

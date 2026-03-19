@@ -234,6 +234,38 @@
   color: var(--color-text-primary);
 }
 
+.booking-flow__slots-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.booking-flow__success {
+  background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.08), rgba(var(--color-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--color-accent-rgb), 0.18);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.booking-flow__success-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.booking-flow__success-text {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.booking-flow__success-note {
+  margin-top: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .booking-flow__actions {
   display: flex;
   gap: var(--space-md);

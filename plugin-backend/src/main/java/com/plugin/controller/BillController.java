@@ -5,11 +5,13 @@ import com.plugin.service.BillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 import java.util.Map;
 
 @RestController
@@ -53,5 +55,21 @@ public class BillController {
                 .header(HttpHeaders.PRAGMA, "no-cache")
                 .header(HttpHeaders.EXPIRES, "0")
                 .body(invoice.data());
+    }
+
+    @GetMapping("/my/statement")
+    public ResponseEntity<byte[]> downloadMyStatement(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication auth) {
+        BillService.StatementFile statement = billService.getStatementForCustomer(auth.getName(), from, to);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + statement.filename() + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .header("X-Statement-Count", String.valueOf(statement.rowCount()))
+                .body(statement.data());
     }
 }

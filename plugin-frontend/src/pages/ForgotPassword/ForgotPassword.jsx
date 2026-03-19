@@ -7,6 +7,7 @@ import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import './ForgotPassword.css';
 
 const STEPS = ['Email', 'Delivery', 'Verify OTP', 'New Password'];
+const STRONG_PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 const parseJwt = (token) => {
   try {
@@ -104,7 +105,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     const next = {};
     if (!newPassword) next.newPassword = 'Password is required';
-    else if (newPassword.length < 6) next.newPassword = 'Password must be at least 6 characters';
+    else if (!STRONG_PASSWORD_RULE.test(newPassword)) next.newPassword = 'Use 8+ chars with uppercase, lowercase, and number';
     if (!confirmPassword) next.confirmPassword = 'Please confirm your password';
     else if (newPassword !== confirmPassword) next.confirmPassword = 'Passwords do not match';
     setErrors(next);
@@ -116,7 +117,11 @@ export default function ForgotPassword() {
       toast.success(res.data.message || 'Password reset successfully!');
       navigate('/login');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to reset password');
+      const raw = err.response?.data?.message || err.message || 'Failed to reset password';
+      const msg = /network|failed to fetch|timeout/i.test(raw)
+        ? 'Unable to reach server. Please try again in a few seconds.'
+        : raw;
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -415,7 +420,7 @@ export default function ForgotPassword() {
                       id="fp-new-pw"
                       type="password"
                       className="login__input"
-                      placeholder="Min 6 characters"
+                      placeholder="Use 8+ chars, Aa1 format"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       autoComplete="new-password"

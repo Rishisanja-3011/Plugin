@@ -14,7 +14,7 @@ const DURATION_OPTIONS = [
   { value: 180, label: '3 hr' },
 ];
 
-const STEPS = ['Select Point', 'Date & Time', 'Review'];
+const STEPS = ['Select Point', 'Schedule', 'Review', 'Complete'];
 
 export default function BookingFlow() {
   const { stationId } = useParams();
@@ -27,6 +27,7 @@ export default function BookingFlow() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [createdBookingId, setCreatedBookingId] = useState(null);
 
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [date, setDate] = useState('');
@@ -37,6 +38,7 @@ export default function BookingFlow() {
   useEffect(() => {
     if (!stationId) return;
     let cancelled = false;
+
     const fetchData = async (showLoading = true) => {
       if (showLoading) setLoading(true);
       try {
@@ -61,25 +63,28 @@ export default function BookingFlow() {
       } catch (err) {
         if (cancelled) return;
         if (showLoading) {
-          toast.error(err.response?.data?.message || 'Failed to load station');
+          toast.error(err.response?.data?.message || 'Failed to load station data.');
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
+
     fetchData(true);
     const pollInterval = setInterval(() => {
       fetchData(false);
     }, 500);
+
     return () => {
       cancelled = true;
       clearInterval(pollInterval);
     };
-  }, [stationId]);
+  }, [stationId, toast]);
 
   useEffect(() => {
     if (!(step === 2 && selectedPoint?.id && date)) return;
     let cancelled = false;
+
     const fetchSlots = async () => {
       try {
         const res = await bookingsApi.getAvailableSlots(stationId, selectedPoint.id, date);
@@ -91,6 +96,7 @@ export default function BookingFlow() {
         setAvailableSlots([]);
       }
     };
+
     fetchSlots();
     const pollInterval = setInterval(fetchSlots, 500);
     return () => {
@@ -123,26 +129,28 @@ export default function BookingFlow() {
 
   const handleSubmit = async () => {
     if (!selectedPoint || !date || !time) {
-      toast.error('Please complete all fields');
+      toast.error('Please complete all fields.');
       return;
     }
     if (!validateDateTime()) {
-      toast.error('Please select a future time');
+      toast.error('Please select a future time.');
       return;
     }
+
     setSubmitting(true);
     try {
       const startDateTime = `${date}T${time}:00`;
-      await bookingsApi.create({
+      const res = await bookingsApi.create({
         stationId,
         chargingPointId: selectedPoint.id,
         startTime: startDateTime,
         durationMinutes: duration,
       });
-      toast.success('Booking confirmed!');
-      navigate('/customer/bookings');
+      setCreatedBookingId(res.data?.id ?? null);
+      setStep(4);
+      toast.success('Booking confirmed. You can track payment in Billing.');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create booking');
+      toast.error(err.response?.data?.message || 'Failed to create booking.');
     } finally {
       setSubmitting(false);
     }
@@ -155,7 +163,7 @@ export default function BookingFlow() {
           <div className="empty-state">
             <div className="empty-state__icon"><IconGlyph glyph={'\u23F3'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Loading...</h2>
-            <p className="empty-state__text">Fetching station details</p>
+            <p className="empty-state__text">Fetching station details.</p>
           </div>
         </div>
       </motion.main>
@@ -198,7 +206,7 @@ export default function BookingFlow() {
                 className={`booking-flow__step ${i + 1 === step ? 'booking-flow__step--active' : ''} ${i + 1 < step ? 'booking-flow__step--done' : ''}`}
               >
                 <span className="booking-flow__step-circle">
-                  {i + 1 < step ? '✓' : i + 1}
+                  {i + 1 < step ? '\u2713' : i + 1}
                 </span>
                 <span className="booking-flow__step-label">{label}</span>
               </div>
@@ -323,6 +331,13 @@ export default function BookingFlow() {
                   </select>
                 </div>
               </div>
+
+              {availableSlots.length > 0 && (
+                <p className="booking-flow__slots-hint">
+                  {availableSlots.length} slots found for this date.
+                </p>
+              )}
+
               <div className="booking-flow__actions">
                 <button type="button" className="btn btn--outline" onClick={() => setStep(1)}>
                   Back
@@ -333,7 +348,7 @@ export default function BookingFlow() {
                   disabled={!date || !time || !!dateTimeError}
                   onClick={() => {
                     if (!validateDateTime()) {
-                      toast.error('Please select a future time');
+                      toast.error('Please select a future time.');
                       return;
                     }
                     setStep(3);
@@ -354,7 +369,7 @@ export default function BookingFlow() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <h2 className="booking-flow__content-title">Review & confirm</h2>
+              <h2 className="booking-flow__content-title">Review and confirm</h2>
               <div className="booking-flow__summary card">
                 <div className="booking-flow__summary-row">
                   <span className="booking-flow__summary-label">Station</span>
@@ -404,7 +419,48 @@ export default function BookingFlow() {
                   disabled={submitting}
                   onClick={handleSubmit}
                 >
-                  {submitting ? 'Confirming...' : 'Confirm'}
+                  {submitting ? 'Confirming...' : 'Confirm Booking'}
+                </button>
+              </div>
+            </motion.section>
+          )}
+
+          {step === 4 && (
+            <motion.section
+              key="step4"
+              className="booking-flow__content card"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h2 className="booking-flow__content-title">Booking completed</h2>
+              <div className="booking-flow__success">
+                <p className="booking-flow__success-title">Your charging slot is reserved.</p>
+                <p className="booking-flow__success-text">
+                  Arrive on time and start charging from My Bookings.
+                </p>
+                <p className="booking-flow__success-text">
+                  {createdBookingId ? `Booking ID: #${createdBookingId}` : 'Booking reference generated successfully.'}
+                </p>
+                <p className="booking-flow__success-note">
+                  Billing will be available after your charging session is completed.
+                </p>
+              </div>
+              <div className="booking-flow__actions">
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={() => navigate('/search')}
+                >
+                  Book Another
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--accent"
+                  onClick={() => navigate('/customer/bookings')}
+                >
+                  View My Bookings
                 </button>
               </div>
             </motion.section>
@@ -414,4 +470,3 @@ export default function BookingFlow() {
     </motion.main>
   );
 }
-

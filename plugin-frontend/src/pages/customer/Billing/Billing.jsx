@@ -6,6 +6,47 @@ import { billsApi } from '../../../api/bookings';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import './Billing.css';
 
+const PAGE_SIZE = 10;
+const STATEMENT_STORAGE_KEY = 'plugin_billing_statement_filters_v1';
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+const toDateInputValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const loadStoredStatementFilters = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STATEMENT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      preset: typeof parsed.preset === 'string' ? parsed.preset : '30d',
+      from: typeof parsed.from === 'string' ? parsed.from : '',
+      to: typeof parsed.to === 'string' ? parsed.to : '',
+    };
+  } catch {
+    return null;
+  }
+};
+
 export default function Billing() {
   const toast = useToast();
   const location = useLocation();
@@ -15,13 +56,18 @@ export default function Billing() {
   const [totalPages, setTotalPages] = useState(0);
   const [payLoading, setPayLoading] = useState(null);
   const [downloadLoading, setDownloadLoading] = useState(null);
-  const size = 10;
+  const [statementLoading, setStatementLoading] = useState(false);
+  const [showStatementPanel, setShowStatementPanel] = useState(false);
+  const [statementPreset, setStatementPreset] = useState(() => loadStoredStatementFilters()?.preset ?? '30d');
+  const [statementFrom, setStatementFrom] = useState(() => loadStoredStatementFilters()?.from ?? toDateInputValue(addDays(new Date(), -29)));
+  const [statementTo, setStatementTo] = useState(() => loadStoredStatementFilters()?.to ?? toDateInputValue(new Date()));
+  const [lastStatementCount, setLastStatementCount] = useState(null);
   const sessionIdFromNav = location.state?.sessionId;
 
   const fetchBills = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await billsApi.getMy(page, size);
+      const res = await billsApi.getMy(page, PAGE_SIZE);
       const data = res.data;
       const list = data?.content ?? (Array.isArray(data) ? data : []);
       setBills(list);
@@ -45,6 +91,22 @@ export default function Billing() {
     return () => clearInterval(pollInterval);
   }, [page]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        STATEMENT_STORAGE_KEY,
+        JSON.stringify({
+          preset: statementPreset,
+          from: statementFrom,
+          to: statementTo,
+        })
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [statementPreset, statementFrom, statementTo]);
+
   const handlePay = async (id) => {
     setPayLoading(id);
     try {
@@ -59,7 +121,7 @@ export default function Billing() {
     }
   };
 
-  const handleDownload = async (bill) => {
+  const handleDownloadInvoice = async (bill) => {
     if (!bill?.id) return;
     setDownloadLoading(bill.id);
     try {
@@ -74,7 +136,7 @@ export default function Billing() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch {
       toast.error('Failed to download invoice');
     } finally {
       setDownloadLoading(null);
@@ -82,13 +144,12 @@ export default function Billing() {
   };
 
   const isPaid = (status) => (status ?? 'UNPAID').toUpperCase() === 'PAID';
-
   const getStatusBadge = (status) => (isPaid(status) ? 'badge--success' : 'badge--danger');
 
   const formatDuration = (minutes, seconds) => {
     const hasSeconds = seconds != null && !Number.isNaN(Number(seconds));
     const hasMinutes = minutes != null && !Number.isNaN(Number(minutes));
-    if (!hasSeconds && !hasMinutes) return '—';
+    if (!hasSeconds && !hasMinutes) return '-';
     const totalSeconds = hasSeconds
       ? Math.max(0, Math.round(Number(seconds)))
       : Math.max(0, Math.round(Number(minutes) * 60));
@@ -97,25 +158,119 @@ export default function Billing() {
     return `${mins} min ${secs} sec`;
   };
 
-  const formatMoney = (value) => (value != null ? `\u20B9${value}` : '—');
+  const formatCurrency = (value) => Number(value).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const formatMoney = (value) => (value != null ? `Rs ${formatCurrency(value)}` : '-');
 
   const formatRate = (rate, rateType) => {
-    if (rate == null && !rateType) return '—';
-    const amount = rate != null ? `\u20B9${rate}` : '—';
+    if (rate == null && !rateType) return '-';
+    const amount = rate != null ? `Rs ${formatCurrency(rate)}` : '-';
     return rateType ? `${amount} / ${rateType}` : amount;
   };
 
   const formatDateTime = (value) => {
-    if (!value) return '—';
+    if (!value) return '-';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return String(value);
-    return parsed.toLocaleString();
+    return DATE_TIME_FORMATTER
+      .format(parsed)
+      .replace(' am', ' AM')
+      .replace(' pm', ' PM');
   };
 
-  const unpaidBills = bills.filter((b) => !isPaid(b.paymentStatus));
+  const getFileNameFromContentDisposition = (headerValue, fallbackName) => {
+    if (!headerValue) return fallbackName;
+    const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+    const basicMatch = headerValue.match(/filename="?([^";]+)"?/i);
+    return basicMatch?.[1] ?? fallbackName;
+  };
+
+  const handleStatementPreset = (preset) => {
+    setStatementPreset(preset);
+    const today = new Date();
+
+    if (preset === '30d') {
+      setStatementFrom(toDateInputValue(addDays(today, -29)));
+      setStatementTo(toDateInputValue(today));
+      return;
+    }
+    if (preset === '90d') {
+      setStatementFrom(toDateInputValue(addDays(today, -89)));
+      setStatementTo(toDateInputValue(today));
+      return;
+    }
+    if (preset === 'thisMonth') {
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      setStatementFrom(toDateInputValue(firstOfMonth));
+      setStatementTo(toDateInputValue(today));
+      return;
+    }
+    if (preset === 'all') {
+      setStatementFrom('');
+      setStatementTo(toDateInputValue(today));
+      return;
+    }
+  };
+
+  const handleDownloadStatement = async () => {
+    if (hasInvalidRange) {
+      toast.error('From date cannot be after To date.');
+      return;
+    }
+
+    setStatementLoading(true);
+    try {
+      const res = await billsApi.downloadStatement({
+        from: statementFrom || undefined,
+        to: statementTo || undefined,
+      });
+      const rowCountHeader = res.headers?.['x-statement-count'];
+      const rowCount = rowCountHeader != null ? Number(rowCountHeader) : Number.NaN;
+      if (Number.isFinite(rowCount)) {
+        setLastStatementCount(rowCount);
+      }
+
+      if (Number.isFinite(rowCount) && rowCount === 0) {
+        toast.info('No bills found for the selected period.');
+        return;
+      }
+
+      const fallbackName = `billing-statement_${statementFrom || 'start'}_to_${statementTo || 'today'}.csv`;
+      const fileName = getFileNameFromContentDisposition(
+        res.headers?.['content-disposition'],
+        fallbackName
+      );
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Statement downloaded successfully.');
+    } catch {
+      toast.error('Failed to download statement.');
+    } finally {
+      setStatementLoading(false);
+    }
+  };
+
+  const unpaidBills = bills.filter((bill) => !isPaid(bill.paymentStatus));
   const hasUnpaid = unpaidBills.length > 0;
+  const hasInvalidRange = statementFrom && statementTo && new Date(statementFrom) > new Date(statementTo);
   const sessionBill = sessionIdFromNav != null
-    ? bills.find((b) => b.sessionId === sessionIdFromNav)
+    ? bills.find((bill) => bill.sessionId === sessionIdFromNav)
     : null;
   const focusedBill = hasUnpaid
     ? (sessionBill && !isPaid(sessionBill.paymentStatus) ? sessionBill : unpaidBills[0])
@@ -137,6 +292,106 @@ export default function Billing() {
           <h1 className="page-header__title">Billing</h1>
           <p className="page-header__subtitle">View and pay your invoices</p>
         </div>
+
+        {!loading && bills.length > 0 && (
+          <>
+            <section className="billing__statement-toggle card">
+              <div>
+                <h2 className="billing__statement-title">Billing Statement</h2>
+                <p className="billing__statement-subtitle">
+                  Download your statement for a selected date range.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn--outline billing__statement-toggle-btn"
+                onClick={() => setShowStatementPanel((prev) => !prev)}
+              >
+                {showStatementPanel ? 'Hide Options' : 'Download Statement'}
+              </button>
+            </section>
+
+            {showStatementPanel && (
+              <section className="billing__statement card">
+                <div className="billing__statement-presets">
+                  <button
+                    type="button"
+                    className={`billing__statement-preset ${statementPreset === '30d' ? 'billing__statement-preset--active' : ''}`}
+                    onClick={() => handleStatementPreset('30d')}
+                  >
+                    Last 30 days
+                  </button>
+                  <button
+                    type="button"
+                    className={`billing__statement-preset ${statementPreset === '90d' ? 'billing__statement-preset--active' : ''}`}
+                    onClick={() => handleStatementPreset('90d')}
+                  >
+                    Last 90 days
+                  </button>
+                  <button
+                    type="button"
+                    className={`billing__statement-preset ${statementPreset === 'thisMonth' ? 'billing__statement-preset--active' : ''}`}
+                    onClick={() => handleStatementPreset('thisMonth')}
+                  >
+                    This month
+                  </button>
+                  <button
+                    type="button"
+                    className={`billing__statement-preset ${statementPreset === 'all' ? 'billing__statement-preset--active' : ''}`}
+                    onClick={() => handleStatementPreset('all')}
+                  >
+                    All time
+                  </button>
+                </div>
+
+                <div className="billing__statement-controls">
+                  <label className="billing__statement-field">
+                    <span>From</span>
+                    <input
+                      type="date"
+                      value={statementFrom}
+                      onChange={(e) => {
+                        setStatementPreset('custom');
+                        setStatementFrom(e.target.value);
+                      }}
+                      className="billing__statement-input"
+                    />
+                  </label>
+
+                  <label className="billing__statement-field">
+                    <span>To</span>
+                    <input
+                      type="date"
+                      value={statementTo}
+                      onChange={(e) => {
+                        setStatementPreset('custom');
+                        setStatementTo(e.target.value);
+                      }}
+                      className="billing__statement-input"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="btn btn--outline billing__statement-download"
+                    onClick={handleDownloadStatement}
+                    disabled={statementLoading || hasInvalidRange}
+                  >
+                    {statementLoading ? 'Preparing...' : 'Download Statement'}
+                  </button>
+                </div>
+                <p className={`billing__statement-helper ${hasInvalidRange ? 'billing__statement-helper--error' : ''}`}>
+                  From date must be before To date.
+                </p>
+                <p className={`billing__statement-meta ${lastStatementCount === 0 ? 'billing__statement-meta--warning' : ''}`}>
+                  {lastStatementCount == null
+                    ? 'Statement file is generated securely by the server.'
+                    : `Last statement had ${lastStatementCount} invoice${lastStatementCount > 1 ? 's' : ''}.`}
+                </p>
+              </section>
+            )}
+          </>
+        )}
 
         {loading ? (
           <div className="empty-state">
@@ -180,25 +435,25 @@ export default function Billing() {
                 <div className="billing__invoice-field">
                   <span className="billing__invoice-label">Invoice #</span>
                   <span className="billing__invoice-value">
-                    {focusedBill.invoiceNumber ?? focusedBill.invoiceId ?? focusedBill.id ?? '—'}
+                    {focusedBill.invoiceNumber ?? focusedBill.invoiceId ?? focusedBill.id ?? '-'}
                   </span>
                 </div>
                 <div className="billing__invoice-field">
                   <span className="billing__invoice-label">Station</span>
                   <span className="billing__invoice-value">
-                    {focusedBill.stationName ?? focusedBill.station?.name ?? '—'}
+                    {focusedBill.stationName ?? focusedBill.station?.name ?? '-'}
                   </span>
                 </div>
                 <div className="billing__invoice-field">
                   <span className="billing__invoice-label">Session ID</span>
                   <span className="billing__invoice-value">
-                    {focusedBill.sessionId ?? '—'}
+                    {focusedBill.sessionId ?? '-'}
                   </span>
                 </div>
                 <div className="billing__invoice-field">
                   <span className="billing__invoice-label">Customer</span>
                   <span className="billing__invoice-value">
-                    {focusedBill.customerName ?? '—'}
+                    {focusedBill.customerName ?? '-'}
                   </span>
                 </div>
                 <div className="billing__invoice-field">
@@ -210,7 +465,7 @@ export default function Billing() {
                 <div className="billing__invoice-field">
                   <span className="billing__invoice-label">Energy</span>
                   <span className="billing__invoice-value">
-                    {focusedBill.energyKwh != null ? `${focusedBill.energyKwh} kWh` : '—'}
+                    {focusedBill.energyKwh != null ? `${focusedBill.energyKwh} kWh` : '-'}
                   </span>
                 </div>
                 <div className="billing__invoice-field">
@@ -243,9 +498,9 @@ export default function Billing() {
                 <button
                   className="btn btn--outline btn--lg"
                   disabled={downloadLoading === focusedBill.id}
-                  onClick={() => handleDownload(focusedBill)}
+                  onClick={() => handleDownloadInvoice(focusedBill)}
                 >
-                  {downloadLoading === focusedBill.id ? 'Preparing PDF...' : 'Download PDF'}
+                  {downloadLoading === focusedBill.id ? 'Preparing PDF...' : 'Invoice PDF'}
                 </button>
                 <p className="billing__invoice-note">
                   After payment, your complete billing history will be available.
@@ -274,40 +529,40 @@ export default function Billing() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bills.map((b, i) => (
+                  {bills.map((bill, i) => (
                     <motion.tr
-                      key={b.id ?? i}
+                      key={bill.id ?? i}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.03 }}
                     >
-                      <td>{b.invoiceNumber ?? b.invoiceId ?? b.id ?? '—'}</td>
-                      <td>{b.stationName ?? b.station?.name ?? '—'}</td>
-                      <td>{b.energyKwh != null ? `${b.energyKwh} kWh` : '—'}</td>
-                      <td>{formatDuration(b.durationMinutes, b.durationSeconds)}</td>
-                      <td>{formatMoney(b.totalAmount)}</td>
+                      <td>{bill.invoiceNumber ?? bill.invoiceId ?? bill.id ?? '-'}</td>
+                      <td>{bill.stationName ?? bill.station?.name ?? '-'}</td>
+                      <td>{bill.energyKwh != null ? `${bill.energyKwh} kWh` : '-'}</td>
+                      <td>{formatDuration(bill.durationMinutes, bill.durationSeconds)}</td>
+                      <td>{formatMoney(bill.totalAmount)}</td>
                       <td>
-                        <span className={`badge ${getStatusBadge(b.paymentStatus)}`}>
-                          {b.paymentStatus ?? 'UNPAID'}
+                        <span className={`badge ${getStatusBadge(bill.paymentStatus)}`}>
+                          {bill.paymentStatus ?? 'UNPAID'}
                         </span>
                       </td>
                       <td>
                         <div className="billing__table-actions">
-                          {!isPaid(b.paymentStatus) && (
+                          {!isPaid(bill.paymentStatus) && (
                             <button
                               className="btn btn--accent btn--sm"
                               disabled={!!payLoading}
-                              onClick={() => handlePay(b.id)}
+                              onClick={() => handlePay(bill.id)}
                             >
-                              {payLoading === b.id ? 'Paying...' : 'Pay'}
+                              {payLoading === bill.id ? 'Paying...' : 'Pay'}
                             </button>
                           )}
                           <button
                             className="btn btn--outline btn--sm"
-                            disabled={downloadLoading === b.id}
-                            onClick={() => handleDownload(b)}
+                            disabled={downloadLoading === bill.id}
+                            onClick={() => handleDownloadInvoice(bill)}
                           >
-                            {downloadLoading === b.id ? 'Preparing...' : 'Download'}
+                            {downloadLoading === bill.id ? 'Preparing PDF...' : 'Invoice PDF'}
                           </button>
                         </div>
                       </td>
@@ -322,7 +577,7 @@ export default function Billing() {
                 <button
                   className="pagination__btn"
                   disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
                 >
                   Previous
                 </button>
@@ -332,7 +587,7 @@ export default function Billing() {
                 <button
                   className="pagination__btn"
                   disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => setPage((prev) => prev + 1)}
                 >
                   Next
                 </button>
@@ -344,7 +599,3 @@ export default function Billing() {
     </motion.main>
   );
 }
-
-
-
-

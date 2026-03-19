@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface BillRepository extends JpaRepository<Bill, Long> {
@@ -18,6 +19,14 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     Page<Bill> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     Optional<Bill> findByIdAndCustomerId(Long id, Long customerId);
+
+    @Query("SELECT b FROM Bill b WHERE b.customer.id = :customerId " +
+           "AND (:start IS NULL OR b.createdAt >= :start) " +
+           "AND (:endExclusive IS NULL OR b.createdAt < :endExclusive) " +
+           "ORDER BY b.createdAt DESC")
+    List<Bill> findStatementBillsForCustomer(@Param("customerId") Long customerId,
+                                             @Param("start") LocalDateTime start,
+                                             @Param("endExclusive") LocalDateTime endExclusive);
 
     @Query("SELECT b FROM Bill b WHERE (:stationId IS NULL OR b.station.id = :stationId) " +
            "AND (:start IS NULL OR b.createdAt >= :start) AND (:end IS NULL OR b.createdAt < :end)")

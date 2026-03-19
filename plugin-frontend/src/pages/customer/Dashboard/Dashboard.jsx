@@ -1,9 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../../context/AuthContext';
 import { bookingsApi, sessionsApi } from '../../../api/bookings';
 import { billsApi } from '../../../api/bookings';
+import { useToast } from '../../../components/Toast/Toast';
+import { SkeletonCard } from '../../../components/SkeletonLoader/SkeletonLoader';
 import './Dashboard.css';
 
 const CalendarIcon = ({ className = 'dashboard__icon-svg' }) => (
@@ -53,74 +55,85 @@ const CardIcon = ({ className = 'dashboard__icon-svg' }) => (
   </svg>
 );
 
+const isPaid = (status) => (status ?? 'UNPAID').toUpperCase() === 'PAID';
+const formatRs = (amount) => `Rs ${new Intl.NumberFormat('en-IN').format(Math.round(amount ?? 0))}`;
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const toast = useToast();
   const [activeSessions, setActiveSessions] = useState([]);
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [totalSpent, setTotalSpent] = useState(0);
   const [totalEnergy, setTotalEnergy] = useState(0);
+  const [unpaidCount, setUnpaidCount] = useState(0);
+  const [unpaidAmount, setUnpaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const userName = user?.fullName ?? user?.name ?? user?.email ?? 'Guest';
-  const dash = '\u2014';
+  const dash = '-';
   const bullet = '\u2022';
 
   useEffect(() => {
-    const fetchActiveSessions = async () => {
-      try {
-        const res = await sessionsApi.getMyActive();
-        const data = res.data;
-        setActiveSessions(Array.isArray(data) ? data : data?.content ?? []);
-      } catch {
-        setActiveSessions([]);
-      }
-    };
+    let cancelled = false;
 
-    const fetchUpcomingBookings = async () => {
+    const loadDashboard = async (showLoading = true) => {
+      if (showLoading) setLoading(true);
       try {
-        const res = await bookingsApi.getMy(0, 5);
-        const data = res.data;
-        const list = data?.content ?? (Array.isArray(data) ? data : []);
-        setUpcomingBookings(list);
-      } catch {
-        setUpcomingBookings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchStats = async () => {
-      try {
-        const [sessionsRes, billsRes] = await Promise.all([
+        const [activeRes, bookingsRes, sessionsRes, billsRes] = await Promise.all([
+          sessionsApi.getMyActive(),
+          bookingsApi.getMy(0, 5),
           sessionsApi.getMy(0, 100),
           billsApi.getMy(0, 100),
         ]);
-        const sessions = sessionsRes.data?.content ?? (Array.isArray(sessionsRes.data) ? sessionsRes.data : []);
-        const bills = billsRes.data?.content ?? (Array.isArray(billsRes.data) ? billsRes.data : []);
-        const energy = sessions.reduce((acc, s) => acc + (s.energyDeliveredKwh ?? s.energyDelivered ?? 0), 0);
-        const spent = bills.reduce((acc, b) => acc + (b.totalAmount ?? b.amount ?? 0), 0);
+
+        if (cancelled) return;
+
+        const activeList = Array.isArray(activeRes.data) ? activeRes.data : activeRes.data?.content ?? [];
+        const bookingsData = bookingsRes.data;
+        const bookingsList = bookingsData?.content ?? (Array.isArray(bookingsData) ? bookingsData : []);
+        const sessionsList = sessionsRes.data?.content ?? (Array.isArray(sessionsRes.data) ? sessionsRes.data : []);
+        const billsList = billsRes.data?.content ?? (Array.isArray(billsRes.data) ? billsRes.data : []);
+
+        const energy = sessionsList.reduce((acc, session) => acc + (session.energyDeliveredKwh ?? session.energyDelivered ?? 0), 0);
+        const spent = billsList.reduce((acc, bill) => acc + (bill.totalAmount ?? bill.amount ?? 0), 0);
+        const pendingBills = billsList.filter((bill) => !isPaid(bill.paymentStatus));
+        const pendingAmount = pendingBills.reduce((acc, bill) => acc + (bill.totalAmount ?? bill.amount ?? 0), 0);
+
+        setActiveSessions(activeList);
+        setUpcomingBookings(bookingsList);
         setTotalEnergy(energy);
         setTotalSpent(spent);
+        setUnpaidCount(pendingBills.length);
+        setUnpaidAmount(pendingAmount);
       } catch {
+        if (cancelled) return;
+        if (showLoading) {
+          toast.error('Unable to load dashboard data. Please refresh.');
+        }
+        setActiveSessions([]);
+        setUpcomingBookings([]);
         setTotalEnergy(0);
         setTotalSpent(0);
+        setUnpaidCount(0);
+        setUnpaidAmount(0);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchActiveSessions();
-    fetchUpcomingBookings();
-    fetchStats();
-
+    loadDashboard(true);
     const pollInterval = setInterval(() => {
-      fetchActiveSessions();
-      fetchUpcomingBookings();
-      fetchStats();
+      loadDashboard(false);
     }, 5000);
-    return () => clearInterval(pollInterval);
+
+    return () => {
+      cancelled = true;
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const upcomingCount = upcomingBookings.filter(
-    (b) => ['PENDING', 'CONFIRMED'].includes(b.status ?? '')
+    (booking) => ['PENDING', 'CONFIRMED'].includes(booking.status ?? '')
   ).length;
   const activeCount = activeSessions.length;
 
@@ -129,6 +142,12 @@ export default function Dashboard() {
     { label: 'My Bookings', to: '/customer/bookings', Icon: CalendarIcon },
     { label: 'Sessions', to: '/customer/sessions', Icon: BoltIcon },
     { label: 'Billing', to: '/customer/billing', Icon: CardIcon },
+  ];
+
+  const summaryCards = [
+    { label: 'Upcoming Booking', value: upcomingCount, sub: 'Next scheduled slots' },
+    { label: 'Active Session', value: activeCount, sub: 'Charging in progress' },
+    { label: 'Unpaid Bill', value: unpaidCount, sub: `Pending ${formatRs(unpaidAmount)}` },
   ];
 
   const containerVariants = {
@@ -169,6 +188,27 @@ export default function Dashboard() {
       </div>
 
       <div className="container page-content">
+        <section className="dashboard__summary-strip">
+          <h2 className="dashboard__section-title">Today Summary</h2>
+          {loading ? (
+            <div className="dashboard__summary-grid dashboard__summary-grid--loading">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : (
+            <div className="dashboard__summary-grid">
+              {summaryCards.map((card) => (
+                <article key={card.label} className="dashboard__summary-card">
+                  <p className="dashboard__summary-label">{card.label}</p>
+                  <p className="dashboard__summary-value">{card.value}</p>
+                  <p className="dashboard__summary-sub">{card.sub}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         <motion.div
           className="stat-grid"
           variants={containerVariants}
@@ -188,7 +228,7 @@ export default function Dashboard() {
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
             <span className="stat-card__icon dashboard__stat-icon"><WalletIcon /></span>
             <span className="stat-card__label">Total Spent</span>
-            <span className="stat-card__value">₹{totalSpent.toFixed(0)}</span>
+            <span className="stat-card__value">{formatRs(totalSpent)}</span>
           </motion.div>
           <motion.div className="stat-card dashboard__stat-card" variants={itemVariants}>
             <span className="stat-card__icon dashboard__stat-icon"><BatteryIcon /></span>
@@ -226,7 +266,10 @@ export default function Dashboard() {
             )}
           </h2>
           {loading ? (
-            <p className="dashboard__loading">Loading...</p>
+            <div className="dashboard__list-loading">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
           ) : activeSessions.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state__icon"><BoltIcon className="dashboard__empty-icon-svg" /></div>
@@ -240,16 +283,16 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="dashboard__session-list">
-              {activeSessions.map((s, i) => (
+              {activeSessions.map((session, i) => (
                 <motion.div
-                  key={s.id ?? i}
+                  key={session.id ?? i}
                   className="dashboard__session-item"
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.05 }}
                 >
                   <div>
-                    <strong>{s.stationName ?? s.station?.name ?? 'Station'}</strong>
+                    <strong>{session.stationName ?? session.station?.name ?? 'Station'}</strong>
                     <span className="badge badge--info" style={{ marginLeft: 'var(--space-sm)' }}>
                       Active
                     </span>
@@ -266,7 +309,10 @@ export default function Dashboard() {
         <section className="dashboard__bookings card">
           <h2 className="dashboard__section-title">Recent Bookings</h2>
           {loading ? (
-            <p className="dashboard__loading">Loading...</p>
+            <div className="dashboard__list-loading">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
           ) : upcomingBookings.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state__icon"><CalendarIcon className="dashboard__empty-icon-svg" /></div>
@@ -280,29 +326,29 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="dashboard__booking-list">
-              {upcomingBookings.slice(0, 5).map((b, i) => (
+              {upcomingBookings.slice(0, 5).map((booking, i) => (
                 <motion.div
-                  key={b.id ?? i}
+                  key={booking.id ?? i}
                   className="dashboard__booking-item"
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.05 }}
                 >
                   <div>
-                    <strong>{b.stationName ?? b.station?.name ?? 'Station'}</strong>
+                    <strong>{booking.stationName ?? booking.station?.name ?? 'Station'}</strong>
                     <span
-                      className={`badge badge--${b.status === 'CONFIRMED' ? 'success' : b.status === 'PENDING' ? 'warning' : 'neutral'}`}
+                      className={`badge badge--${booking.status === 'CONFIRMED' ? 'success' : booking.status === 'PENDING' ? 'warning' : 'neutral'}`}
                       style={{ marginLeft: 'var(--space-sm)' }}
                     >
-                      {b.status ?? dash}
+                      {booking.status ?? dash}
                     </span>
                   </div>
                   <span className="dashboard__booking-meta">
-                    {b.startTime
-                      ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-                      : b.bookingDate ?? dash}
+                    {booking.startTime
+                      ? new Date(booking.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                      : booking.bookingDate ?? dash}
                     {' '}{bullet}{' '}
-                    {b.chargingPointIdentifier ?? b.chargingPointName ?? dash}
+                    {booking.chargingPointIdentifier ?? booking.chargingPointName ?? dash}
                   </span>
                   <Link to="/customer/bookings" className="btn btn--outline btn--sm">
                     View

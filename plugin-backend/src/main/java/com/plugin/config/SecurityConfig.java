@@ -53,6 +53,7 @@ public class SecurityConfig {
                 ));
                 config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                 config.setAllowedHeaders(java.util.List.of("*"));
+                config.setExposedHeaders(java.util.List.of("Content-Disposition", "X-Statement-Count"));
                 config.setAllowCredentials(true);
                 config.setMaxAge(3600L);
                 return config;
