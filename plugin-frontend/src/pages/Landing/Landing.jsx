@@ -84,9 +84,24 @@ const baseStats = [
 ];
 
 const statusCards = [
-  { key: 'available', title: 'Available', subtitle: 'Ready right now' },
-  { key: 'busy', title: 'Busy', subtitle: 'In use right now' },
-  { key: 'outOfService', title: 'Out of Service', subtitle: 'Maintenance mode' },
+  {
+    key: 'available',
+    title: 'Available',
+    subtitle: 'Ready right now',
+    helper: 'Open connectors ready for booking.',
+  },
+  {
+    key: 'busy',
+    title: 'Busy',
+    subtitle: 'In use right now',
+    helper: 'Actively charging at this moment.',
+  },
+  {
+    key: 'outOfService',
+    title: 'Out of Service',
+    subtitle: 'Maintenance mode',
+    helper: 'Temporarily unavailable for safety checks.',
+  },
 ];
 
 const steps = [
@@ -129,14 +144,6 @@ const floatingVariants = (delay = 0, y = 0) => ({
   },
 });
 
-const normalizePointStatus = (point) => {
-  const raw = (point?.status ?? point?.availability ?? '').toString().toUpperCase().trim();
-  if (raw === 'AVAILABLE') return 'AVAILABLE';
-  if (!raw) return 'BUSY';
-  if (raw.includes('OUT') || raw.includes('SERVICE') || raw.includes('MAINTENANCE')) return 'OUT_OF_SERVICE';
-  return 'BUSY';
-};
-
 export default function Landing() {
   const featuresRef = useRef(null);
   const stepsRef = useRef(null);
@@ -147,9 +154,11 @@ export default function Landing() {
     available: 0,
     busy: 0,
     outOfService: 0,
+    connectorCount: 0,
     loading: true,
     stationCount: 0,
     lastUpdated: '',
+    refreshedAt: '',
   });
 
   const heroStats = baseStats.map((stat) => {
@@ -160,66 +169,44 @@ export default function Landing() {
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
 
     const fetchStatus = async () => {
+      if (inFlight || cancelled) return;
+      inFlight = true;
       try {
-        const stationRes = await stationsApi.getAll(0, 40);
-        const payload = stationRes.data;
-        const stationList = payload?.content ?? payload?.stations ?? (Array.isArray(payload) ? payload : []);
-        const stationCount = payload?.totalElements ?? payload?.total ?? stationList.length;
-
-        const allPoints = (
-          await Promise.all(
-            stationList.map(async (station) => {
-              try {
-                const pointsRes = await stationsApi.getChargingPoints(station.id);
-                const pointsPayload = pointsRes.data;
-                return Array.isArray(pointsPayload)
-                  ? pointsPayload
-                  : pointsPayload?.content ?? pointsPayload?.points ?? [];
-              } catch {
-                return [];
-              }
-            })
-          )
-        ).flat();
-
-        let available = 0;
-        let busy = 0;
-        let outOfService = 0;
-
-        allPoints.forEach((point) => {
-          const normalized = normalizePointStatus(point);
-          if (normalized === 'AVAILABLE') {
-            available += 1;
-          } else if (normalized === 'OUT_OF_SERVICE') {
-            outOfService += 1;
-          } else {
-            busy += 1;
-          }
-        });
+        const summaryRes = await stationsApi.getLiveSummary();
+        const summary = summaryRes.data ?? {};
+        const available = Number(summary.available ?? 0);
+        const busy = Number(summary.busy ?? 0);
+        const outOfService = Number(summary.outOfService ?? 0);
+        const connectorCount = Number(summary.connectorCount ?? (available + busy + outOfService));
 
         if (cancelled) return;
         setStatusSummary({
           available,
           busy,
           outOfService,
+          connectorCount,
           loading: false,
-          stationCount,
-          lastUpdated: new Date().toISOString(),
+          stationCount: Number(summary.stationCount ?? 0),
+          lastUpdated: summary.lastUpdated || '',
+          refreshedAt: summary.refreshedAt || new Date().toISOString(),
         });
       } catch {
         if (cancelled) return;
         setStatusSummary((prev) => ({
           ...prev,
           loading: false,
-          lastUpdated: '',
+          refreshedAt: new Date().toISOString(),
         }));
+      } finally {
+        inFlight = false;
       }
     };
 
     fetchStatus();
-    const pollInterval = setInterval(fetchStatus, 30000);
+    const pollInterval = setInterval(fetchStatus, 800);
 
     return () => {
       cancelled = true;
@@ -232,7 +219,19 @@ export default function Landing() {
       dateStyle: 'medium',
       timeStyle: 'short',
     })}`
-    : 'Live status refreshes every 30 seconds';
+    : statusSummary.refreshedAt
+      ? `Live refresh ${new Date(statusSummary.refreshedAt).toLocaleTimeString('en-IN', {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+      })}`
+      : 'Live status updates every second';
+  const totalConnectors = statusSummary.connectorCount || (statusSummary.available + statusSummary.busy + statusSummary.outOfService);
+  const getStatusShare = (key) => {
+    if (!totalConnectors) return 0;
+    return Math.round((statusSummary[key] / totalConnectors) * 100);
+  };
+  const availabilityPercent = getStatusShare('available');
 
   return (
     <main className="landing">
@@ -308,8 +307,18 @@ export default function Landing() {
 
       <section className="landing__network">
         <div className="landing__section-inner">
-          <h2 className="landing__section-title">Live Station Status</h2>
-          <p className="landing__section-subtitle">A quick live snapshot of charger availability across the network.</p>
+          <div className="landing__network-header">
+            <div>
+              <p className="landing__network-kicker">Network Monitor</p>
+              <h2 className="landing__section-title">Live Station Status</h2>
+              <p className="landing__section-subtitle">A quick live snapshot of charger availability across the network.</p>
+            </div>
+            <div className="landing__network-live">
+              <span className="landing__network-live-dot" aria-hidden="true" />
+              <span>{statusSummary.loading ? 'Syncing live status...' : `${totalConnectors} connectors tracked`}</span>
+            </div>
+          </div>
+
           <div className="landing__status-grid">
             {statusCards.map((card, i) => (
               <motion.article
@@ -320,15 +329,42 @@ export default function Landing() {
                 viewport={{ once: true, margin: '-60px' }}
                 transition={{ duration: 0.55, delay: i * 0.1 }}
               >
-                <p className="landing__status-title">{card.title}</p>
+                <div className="landing__status-head">
+                  <p className="landing__status-title">{card.title}</p>
+                  <span className={`landing__status-share landing__status-share--${card.key}`}>
+                    {statusSummary.loading ? '--' : `${getStatusShare(card.key)}%`}
+                  </span>
+                </div>
                 <p className="landing__status-value">
                   {statusSummary.loading ? '--' : statusSummary[card.key]}
                 </p>
                 <p className="landing__status-subtitle">{card.subtitle}</p>
+                <p className="landing__status-helper">{card.helper}</p>
+                <div className="landing__status-progress" aria-hidden="true">
+                  <span
+                    className={`landing__status-progress-fill landing__status-progress-fill--${card.key}`}
+                    style={{ width: statusSummary.loading ? '20%' : `${Math.max(8, getStatusShare(card.key))}%` }}
+                  />
+                </div>
               </motion.article>
             ))}
           </div>
-          <p className="landing__status-note">{statusUpdatedLabel}</p>
+
+          <div className="landing__network-foot">
+            <div className="landing__network-health">
+              <span className="landing__network-health-label">Network availability</span>
+              <div className="landing__network-health-track" aria-hidden="true">
+                <span
+                  className="landing__network-health-fill"
+                  style={{ width: statusSummary.loading ? '25%' : `${Math.max(10, availabilityPercent)}%` }}
+                />
+              </div>
+              <span className="landing__network-health-value">
+                {statusSummary.loading ? '--' : `${availabilityPercent}%`}
+              </span>
+            </div>
+            <p className="landing__status-note">{statusUpdatedLabel}</p>
+          </div>
         </div>
       </section>
 

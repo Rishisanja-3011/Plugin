@@ -230,7 +230,58 @@
    -------------------------------------------- */
 .landing__network {
   padding: var(--space-4xl) var(--space-lg);
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background:
+    radial-gradient(900px 280px at 50% -120px, rgba(var(--color-accent-rgb), 0.1), transparent 65%),
+    linear-gradient(180deg, #f8fafc 0%, #eff4fa 100%);
+}
+
+.landing__network-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+.landing__network-kicker {
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.landing__network-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.landing__network-live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.35);
+  animation: landingPulse 1.8s infinite;
+}
+
+@keyframes landingPulse {
+  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.32); }
+  70% { box-shadow: 0 0 0 9px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
 
 .landing__status-grid {
@@ -240,11 +291,37 @@
 }
 
 .landing__status-card {
+  --status-rgb: 59, 130, 246;
   background: var(--color-white);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid rgba(var(--status-rgb), 0.18);
   padding: var(--space-xl);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.landing__status-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(165deg, rgba(var(--status-rgb), 0.08), transparent 45%);
+  pointer-events: none;
+}
+
+.landing__status-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  border-color: rgba(var(--status-rgb), 0.3);
+}
+
+.landing__status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .landing__status-title {
@@ -252,13 +329,24 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-text-muted);
-  margin-bottom: var(--space-sm);
+  margin-bottom: 0;
+}
+
+.landing__status-share {
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  border: 1px solid rgba(var(--status-rgb), 0.24);
+  background: rgba(var(--status-rgb), 0.12);
+  color: rgb(var(--status-rgb));
+  line-height: 1;
 }
 
 .landing__status-value {
   font-size: clamp(var(--font-size-3xl), 3vw, var(--font-size-4xl));
   font-weight: 800;
-  color: var(--color-text-primary);
+  color: rgb(var(--status-rgb));
   line-height: 1.1;
   margin-bottom: var(--space-xs);
 }
@@ -266,25 +354,101 @@
 .landing__status-subtitle {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+  margin-bottom: 6px;
 }
 
-.landing__status-card--available .landing__status-value {
-  color: #15803d;
+.landing__status-helper {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--space-sm);
 }
 
-.landing__status-card--busy .landing__status-value {
-  color: #b45309;
+.landing__status-progress {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: rgba(var(--status-rgb), 0.16);
+  overflow: hidden;
 }
 
-.landing__status-card--outOfService .landing__status-value {
-  color: #b91c1c;
+.landing__status-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, rgba(var(--status-rgb), 0.9), rgba(var(--status-rgb), 0.6));
+}
+
+.landing__status-card--available {
+  --status-rgb: 21, 128, 61;
+}
+
+.landing__status-card--busy {
+  --status-rgb: 180, 83, 9;
+}
+
+.landing__status-card--outOfService {
+  --status-rgb: 185, 28, 28;
+}
+
+.landing__network-foot {
+  margin-top: var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.landing__network-health {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.landing__network-health-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.landing__network-health-track {
+  width: 140px;
+  height: 7px;
+  background: rgba(var(--color-accent-rgb), 0.18);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.landing__network-health-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--gradient-accent);
+}
+
+.landing__network-health-value {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: 700;
 }
 
 .landing__status-note {
-  margin-top: var(--space-md);
-  text-align: center;
+  margin-top: 0;
+  text-align: right;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--color-border-light);
 }
 
 /* --------------------------------------------
@@ -642,10 +806,13 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .landing__status-grid,
   .landing__trust-grid,
   .landing__trust-highlights {
     grid-template-columns: 1fr;
+  }
+
+  .landing__status-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .landing__trust-card {
@@ -702,6 +869,30 @@
   .landing__network,
   .landing__trust {
     padding: var(--space-3xl) var(--space-md);
+  }
+
+  .landing__network-header,
+  .landing__network-foot {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .landing__network-health {
+    width: 100%;
+  }
+
+  .landing__network-health-track {
+    flex: 1;
+    width: auto;
+  }
+
+  .landing__status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing__status-note {
+    width: 100%;
+    text-align: center;
   }
 
   .landing__trust-quote {

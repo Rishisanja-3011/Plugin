@@ -2,6 +2,7 @@ package com.plugin.controller;
 
 import com.plugin.dto.response.ChargingPointResponse;
 import com.plugin.dto.response.PricingResponse;
+import com.plugin.dto.response.StationLiveSummaryResponse;
 import com.plugin.dto.response.StationResponse;
 import com.plugin.service.ChargingPointService;
 import com.plugin.service.PricingService;
@@ -30,6 +31,11 @@ public class StationController {
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(stationService.getActiveStations(
                 PageRequest.of(page, size, Sort.by("name"))));
+    }
+
+    @GetMapping("/live-summary")
+    public ResponseEntity<StationLiveSummaryResponse> getLiveSummary() {
+        return ResponseEntity.ok(stationService.getLiveSummary());
     }
 
     @GetMapping("/search")

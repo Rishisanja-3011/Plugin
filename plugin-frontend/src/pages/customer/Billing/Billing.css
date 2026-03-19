@@ -9,7 +9,7 @@
   box-shadow: var(--shadow-sm);
   border-radius: var(--radius-lg);
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
 }
 
 .billing .table-container:hover {
@@ -19,8 +19,8 @@
 .billing .table th {
   background: var(--color-bg);
   position: sticky;
-  top: var(--navbar-height);
-  z-index: 4;
+  top: 0;
+  z-index: 2;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.08);
 }
 

@@ -6,4 +6,5 @@ export const stationsApi = {
   getById: (id) => api.get(`/stations/${id}`),
   getChargingPoints: (id) => api.get(`/stations/${id}/charging-points`),
   getPricing: (id) => api.get(`/stations/${id}/pricing`),
+  getLiveSummary: () => api.get('/stations/live-summary'),
 };

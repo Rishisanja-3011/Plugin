@@ -1,6 +1,7 @@
 package com.plugin.service;
 
 import com.plugin.dto.request.StationRequest;
+import com.plugin.dto.response.StationLiveSummaryResponse;
 import com.plugin.dto.response.StationResponse;
 import com.plugin.entity.Station;
 import com.plugin.enums.PointStatus;
@@ -12,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +30,25 @@ public class StationService {
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
         return stationRepository.findAll(pageable).map(this::toResponse);
+    }
+
+    public StationLiveSummaryResponse getLiveSummary() {
+        long stationCount = stationRepository.countByActiveTrue();
+        long connectorCount = chargingPointRepository.countByStationActiveTrue();
+        long available = chargingPointRepository.countByStationActiveTrueAndStatus(PointStatus.AVAILABLE);
+        long outOfService = chargingPointRepository.countByStationActiveTrueAndStatus(PointStatus.OUT_OF_SERVICE);
+        long busy = Math.max(0, connectorCount - available - outOfService);
+        LocalDateTime lastUpdated = chargingPointRepository.findLatestUpdatedAtForActiveStations();
+
+        return StationLiveSummaryResponse.builder()
+                .stationCount(stationCount)
+                .connectorCount(connectorCount)
+                .available(available)
+                .busy(busy)
+                .outOfService(outOfService)
+                .lastUpdated(lastUpdated)
+                .refreshedAt(LocalDateTime.now())
+                .build();
     }
 
     public Page<StationResponse> searchStations(String query, Pageable pageable) {
