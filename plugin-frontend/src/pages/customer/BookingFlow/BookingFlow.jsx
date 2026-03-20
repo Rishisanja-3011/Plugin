@@ -299,30 +299,37 @@ export default function BookingFlow() {
                 </div>
               ) : (
                 <div className="booking-flow__points-grid">
-                  {availablePoints.map((point, i) => (
-                    <motion.button
-                      key={point.id ?? i}
-                      type="button"
-                      className={`booking-flow__point-card card ${selectedPoint?.id === point.id ? 'booking-flow__point-card--selected' : ''}`}
-                      onClick={() => setSelectedPoint(point)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <span className="booking-flow__point-icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--md" /></span>
-                      <span className="booking-flow__point-name">
-                        {point.identifier ?? point.name ?? `Point ${i + 1}`}
-                      </span>
-                      <span className="badge badge--info">
-                        {point.pointType ?? point.type ?? 'AC/DC'}
-                      </span>
-                      <span className="booking-flow__point-power">
-                        {point.maxPowerKw ? `${point.maxPowerKw} kW` : '-'}
-                      </span>
-                      <span className="booking-flow__point-connector">
-                        {point.connectorType ?? '-'}
-                      </span>
-                    </motion.button>
-                  ))}
+                  {availablePoints.map((point, i) => {
+                    const isSelected = selectedPoint?.id === point.id;
+
+                    return (
+                      <motion.button
+                        key={point.id ?? i}
+                        type="button"
+                        aria-pressed={isSelected}
+                        className={`booking-flow__point-card card ${isSelected ? 'booking-flow__point-card--selected' : ''}`}
+                        onClick={() => setSelectedPoint(point)}
+                        animate={isSelected ? { y: -4, scale: 1.015 } : { y: 0, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                        whileHover={{ scale: isSelected ? 1.02 : 1.03, y: isSelected ? -4 : -2 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <span className="booking-flow__point-icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--md" /></span>
+                        <span className="booking-flow__point-name">
+                          {point.identifier ?? point.name ?? `Point ${i + 1}`}
+                        </span>
+                        <span className="badge badge--info">
+                          {point.pointType ?? point.type ?? 'AC/DC'}
+                        </span>
+                        <span className="booking-flow__point-power">
+                          {point.maxPowerKw ? `${point.maxPowerKw} kW` : '-'}
+                        </span>
+                        <span className="booking-flow__point-connector">
+                          {point.connectorType ?? '-'}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
                 </div>
               )}
               <div className="booking-flow__actions">
