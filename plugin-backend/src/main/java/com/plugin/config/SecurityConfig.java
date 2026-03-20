@@ -49,7 +49,10 @@ public class SecurityConfig {
                     "http://172.29.*.*:*",
                     "http://172.30.*.*:*",
                     "http://172.31.*.*:*",
-                    "http://192.168.*.*:*"
+                    "http://192.168.*.*:*",
+                    "https://plugin-ashen.vercel.app",
+                    "https://*.vercel.app"
+
                 ));
                 config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                 config.setAllowedHeaders(java.util.List.of("*"));
