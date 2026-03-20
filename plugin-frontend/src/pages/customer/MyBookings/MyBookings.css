@@ -192,6 +192,47 @@
   gap: var(--space-md);
 }
 
+.my-bookings__cancel-text {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.my-bookings__cancel-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.my-bookings__cancel-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.my-bookings__cancel-textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.my-bookings__reschedule-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.my-bookings__reschedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
 @media (max-width: 768px) {
   .my-bookings__toolbar {
     flex-direction: column;
@@ -221,6 +262,11 @@
   }
 
   .my-bookings__detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-bookings__reschedule-summary,
+  .my-bookings__reschedule-grid {
     grid-template-columns: 1fr;
   }
 

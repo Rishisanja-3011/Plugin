@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { authApi } from '../../api/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBillingLock } from '../BillingLock/BillingLock';
 import { sessionsApi } from '../../api/bookings';
@@ -34,28 +33,6 @@ const ProfileIcon = () => (
   </svg>
 );
 
-function formatActiveVehicleLabel(profile) {
-  if (!profile) return '';
-
-  const vehicles = Array.isArray(profile.vehicles) ? profile.vehicles : [];
-  const activeVehicle =
-    vehicles.find((vehicle) => vehicle?.id != null && vehicle.id === profile.activeVehicleId) ||
-    vehicles.find((vehicle) => vehicle?.active) ||
-    vehicles[0] ||
-    null;
-
-  const nickname = (activeVehicle?.vehicleNickname || '').trim();
-  if (nickname) return nickname;
-
-  const make = (activeVehicle?.vehicleMake ?? profile.vehicleMake ?? '').trim();
-  const model = (activeVehicle?.vehicleModel ?? profile.vehicleModel ?? '').trim();
-  const label = `${make} ${model}`.trim();
-  if (label) return label;
-
-  const registration = (activeVehicle?.vehicleRegistration ?? profile.vehicleRegistration ?? '').trim();
-  return registration || '';
-}
-
 export default function Navbar() {
   const { user, logout, isAdmin, isCustomer } = useAuth();
   const { hasUnpaid } = useBillingLock();
@@ -65,7 +42,6 @@ export default function Navbar() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
-  const [activeVehicleLabel, setActiveVehicleLabel] = useState('');
   const blockLogout = isCustomer && (hasUnpaid || hasActiveSession);
 
   useEffect(() => {
@@ -100,33 +76,6 @@ export default function Navbar() {
       clearInterval(pollInterval);
     };
   }, [user, isCustomer]);
-
-  useEffect(() => {
-    if (!user || !isCustomer) {
-      setActiveVehicleLabel('');
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchProfileSummary = () => {
-      authApi.getProfile()
-        .then((res) => {
-          if (cancelled) return;
-          setActiveVehicleLabel(formatActiveVehicleLabel(res.data));
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setActiveVehicleLabel('');
-        });
-    };
-
-    fetchProfileSummary();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, isCustomer, location.pathname]);
 
   const handleLogout = () => {
     if (blockLogout) return;
@@ -198,8 +147,8 @@ export default function Navbar() {
                     <span className="navbar__user-name">
                       {user.fullName}
                     </span>
-                    {isCustomer && activeVehicleLabel && (
-                      <span className="navbar__user-vehicle">{activeVehicleLabel}</span>
+                    {isCustomer && user?.activeVehicleLabel && (
+                      <span className="navbar__user-vehicle">{user.activeVehicleLabel}</span>
                     )}
                   </div>
                 </div>

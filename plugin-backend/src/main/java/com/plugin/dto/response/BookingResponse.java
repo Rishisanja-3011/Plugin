@@ -26,6 +26,14 @@ public class BookingResponse {
     private BigDecimal lockedRatePerUnit;
     private String lockedRateType;
     private String status;
+    private String cancellationReason;
+    private String rescheduleRequestStatus;
+    private LocalDateTime rescheduleRequestedStartTime;
+    private LocalDateTime rescheduleRequestedEndTime;
+    private String rescheduleRequestReason;
+    private LocalDateTime rescheduleRequestedAt;
+    private LocalDateTime rescheduleReviewedAt;
+    private String rescheduleReviewedBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

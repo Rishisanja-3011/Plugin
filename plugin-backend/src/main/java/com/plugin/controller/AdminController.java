@@ -1,5 +1,6 @@
 package com.plugin.controller;
 
+import com.plugin.dto.request.AdminBookingCancelRequest;
 import com.plugin.dto.request.ChargingPointRequest;
 import com.plugin.dto.request.PricingRequest;
 import com.plugin.dto.request.StationRequest;
@@ -187,9 +188,27 @@ public class AdminController {
 
     @PostMapping("/bookings/{id}/cancel")
     public ResponseEntity<BookingResponse> adminCancelBooking(
-            @PathVariable Long id, Authentication auth) {
+            @PathVariable Long id,
+            @Valid @RequestBody AdminBookingCancelRequest request,
+            Authentication auth) {
         String actor = auth != null ? auth.getName() : "SYSTEM";
-        return ResponseEntity.ok(bookingService.cancelBookingAsAdmin(id, actor));
+        return ResponseEntity.ok(bookingService.cancelBookingAsAdmin(id, actor, request.getReason()));
+    }
+
+    @PostMapping("/bookings/{id}/reschedule/approve")
+    public ResponseEntity<BookingResponse> approveRescheduleRequest(
+            @PathVariable Long id,
+            Authentication auth) {
+        String actor = auth != null ? auth.getName() : "SYSTEM";
+        return ResponseEntity.ok(bookingService.approveRescheduleRequest(id, actor));
+    }
+
+    @PostMapping("/bookings/{id}/reschedule/reject")
+    public ResponseEntity<BookingResponse> rejectRescheduleRequest(
+            @PathVariable Long id,
+            Authentication auth) {
+        String actor = auth != null ? auth.getName() : "SYSTEM";
+        return ResponseEntity.ok(bookingService.rejectRescheduleRequest(id, actor));
     }
 
     // ---- Sessions ----

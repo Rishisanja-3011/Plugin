@@ -55,7 +55,6 @@ const CardIcon = ({ className = 'dashboard__icon-svg' }) => (
   </svg>
 );
 
-const isPaid = (status) => (status ?? 'UNPAID').toUpperCase() === 'PAID';
 const formatRs = (amount) => `Rs ${new Intl.NumberFormat('en-IN').format(Math.round(amount ?? 0))}`;
 
 export default function Dashboard() {
@@ -65,8 +64,6 @@ export default function Dashboard() {
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [totalSpent, setTotalSpent] = useState(0);
   const [totalEnergy, setTotalEnergy] = useState(0);
-  const [unpaidCount, setUnpaidCount] = useState(0);
-  const [unpaidAmount, setUnpaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const userName = user?.fullName ?? user?.name ?? user?.email ?? 'Guest';
@@ -96,15 +93,10 @@ export default function Dashboard() {
 
         const energy = sessionsList.reduce((acc, session) => acc + (session.energyDeliveredKwh ?? session.energyDelivered ?? 0), 0);
         const spent = billsList.reduce((acc, bill) => acc + (bill.totalAmount ?? bill.amount ?? 0), 0);
-        const pendingBills = billsList.filter((bill) => !isPaid(bill.paymentStatus));
-        const pendingAmount = pendingBills.reduce((acc, bill) => acc + (bill.totalAmount ?? bill.amount ?? 0), 0);
-
         setActiveSessions(activeList);
         setUpcomingBookings(bookingsList);
         setTotalEnergy(energy);
         setTotalSpent(spent);
-        setUnpaidCount(pendingBills.length);
-        setUnpaidAmount(pendingAmount);
       } catch {
         if (cancelled) return;
         if (showLoading) {
@@ -114,8 +106,6 @@ export default function Dashboard() {
         setUpcomingBookings([]);
         setTotalEnergy(0);
         setTotalSpent(0);
-        setUnpaidCount(0);
-        setUnpaidAmount(0);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -133,7 +123,7 @@ export default function Dashboard() {
   }, []);
 
   const upcomingCount = upcomingBookings.filter(
-    (booking) => ['PENDING', 'CONFIRMED'].includes(booking.status ?? '')
+    (booking) => ['PENDING', 'CONFIRMED', 'MODIFIED'].includes(booking.status ?? '')
   ).length;
   const activeCount = activeSessions.length;
 
@@ -142,12 +132,6 @@ export default function Dashboard() {
     { label: 'My Bookings', to: '/customer/bookings', Icon: CalendarIcon },
     { label: 'Sessions', to: '/customer/sessions', Icon: BoltIcon },
     { label: 'Billing', to: '/customer/billing', Icon: CardIcon },
-  ];
-
-  const summaryCards = [
-    { label: 'Upcoming Booking', value: upcomingCount, sub: 'Next scheduled slots' },
-    { label: 'Active Session', value: activeCount, sub: 'Charging in progress' },
-    { label: 'Unpaid Bill', value: unpaidCount, sub: `Pending ${formatRs(unpaidAmount)}` },
   ];
 
   const containerVariants = {
@@ -188,27 +172,6 @@ export default function Dashboard() {
       </div>
 
       <div className="container page-content">
-        <section className="dashboard__summary-strip">
-          <h2 className="dashboard__section-title">Today Summary</h2>
-          {loading ? (
-            <div className="dashboard__summary-grid dashboard__summary-grid--loading">
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-            </div>
-          ) : (
-            <div className="dashboard__summary-grid">
-              {summaryCards.map((card) => (
-                <article key={card.label} className="dashboard__summary-card">
-                  <p className="dashboard__summary-label">{card.label}</p>
-                  <p className="dashboard__summary-value">{card.value}</p>
-                  <p className="dashboard__summary-sub">{card.sub}</p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
         <motion.div
           className="stat-grid"
           variants={containerVariants}
@@ -337,7 +300,7 @@ export default function Dashboard() {
                   <div>
                     <strong>{booking.stationName ?? booking.station?.name ?? 'Station'}</strong>
                     <span
-                      className={`badge badge--${booking.status === 'CONFIRMED' ? 'success' : booking.status === 'PENDING' ? 'warning' : 'neutral'}`}
+                      className={`badge badge--${booking.status === 'CONFIRMED' ? 'success' : booking.status === 'PENDING' ? 'warning' : booking.status === 'MODIFIED' ? 'info' : 'neutral'}`}
                       style={{ marginLeft: 'var(--space-sm)' }}
                     >
                       {booking.status ?? dash}

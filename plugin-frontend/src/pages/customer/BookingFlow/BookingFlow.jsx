@@ -5,6 +5,7 @@ import { useToast } from '../../../components/Toast/Toast';
 import { bookingsApi } from '../../../api/bookings';
 import { stationsApi } from '../../../api/stations';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
+import { useAuth } from '../../../context/AuthContext';
 import './BookingFlow.css';
 
 const DURATION_OPTIONS = [
@@ -15,11 +16,17 @@ const DURATION_OPTIONS = [
 ];
 
 const STEPS = ['Select Point', 'Schedule', 'Review', 'Complete'];
+const BLOCKED_POINT_STATUSES = new Set(['OUT_OF_SERVICE', 'UNAVAILABLE']);
+
+function isPointBlockedForBooking(status) {
+  return BLOCKED_POINT_STATUSES.has((status ?? '').toString().trim().toUpperCase());
+}
 
 export default function BookingFlow() {
   const { stationId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [station, setStation] = useState(null);
   const [chargingPoints, setChargingPoints] = useState([]);
@@ -57,8 +64,7 @@ export default function BookingFlow() {
           if (!prev) return prev;
           const match = pointsList.find((p) => p.id === prev.id);
           if (!match) return null;
-          const status = (match.status ?? '').toUpperCase();
-          return status === 'OUT_OF_SERVICE' ? null : match;
+          return isPointBlockedForBooking(match.status) ? null : match;
         });
       } catch (err) {
         if (cancelled) return;
@@ -106,7 +112,7 @@ export default function BookingFlow() {
   }, [step, stationId, selectedPoint?.id, date]);
 
   const availablePoints = chargingPoints.filter(
-    (p) => (p.status ?? '').toUpperCase() !== 'OUT_OF_SERVICE'
+    (p) => !isPointBlockedForBooking(p.status)
   );
 
   const validateDateTime = (nextDate = date, nextTime = time) => {
@@ -156,7 +162,14 @@ export default function BookingFlow() {
     }
   };
 
-  if (loading || !station) {
+  const hasSavedVehicle = Boolean(
+    user?.activeVehicleId != null ||
+    ((user?.vehicleMake || '').trim() &&
+      (user?.vehicleModel || '').trim() &&
+      (user?.vehicleRegistration || '').trim())
+  );
+
+  if (loading || authLoading || !station) {
     return (
       <motion.main key="loading" className="booking-flow page-wrapper" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="container page-content">
@@ -165,6 +178,54 @@ export default function BookingFlow() {
             <h2 className="empty-state__title">Loading...</h2>
             <p className="empty-state__text">Fetching station details.</p>
           </div>
+        </div>
+      </motion.main>
+    );
+  }
+
+  if (!hasSavedVehicle) {
+    return (
+      <motion.main
+        key="vehicle-required"
+        className="booking-flow page-wrapper"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="container page-content">
+          <div className="page-header">
+            <Link to={`/stations/${stationId}`} className="booking-flow__back">
+              &larr; Back to station
+            </Link>
+            <h1 className="page-header__title">Add a vehicle first</h1>
+            <p className="page-header__subtitle">Your profile needs at least one saved vehicle before you can book a charging session.</p>
+          </div>
+
+          <section className="booking-flow__vehicle-gate card">
+            <div className="booking-flow__vehicle-gate-icon">
+              <IconGlyph glyph={'\u{1F697}'} className="mono-icon mono-icon--lg" />
+            </div>
+            <h2 className="booking-flow__vehicle-gate-title">Vehicle required for booking</h2>
+            <p className="booking-flow__vehicle-gate-text">
+              Add your car details in Profile, then come back to reserve this charging slot.
+            </p>
+            <div className="booking-flow__actions">
+              <button
+                type="button"
+                className="btn btn--outline"
+                onClick={() => navigate(`/stations/${stationId}`)}
+              >
+                Back to Station
+              </button>
+              <button
+                type="button"
+                className="btn btn--accent"
+                onClick={() => navigate('/customer/profile')}
+              >
+                Go to Profile
+              </button>
+            </div>
+          </section>
         </div>
       </motion.main>
     );
@@ -233,8 +294,8 @@ export default function BookingFlow() {
               {availablePoints.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
-                  <h3 className="empty-state__title">No available points</h3>
-                  <p className="empty-state__text">All charging points are currently occupied.</p>
+                  <h3 className="empty-state__title">No bookable charging points</h3>
+                  <p className="empty-state__text">All charging points at this station are currently unavailable or out of service.</p>
                 </div>
               ) : (
                 <div className="booking-flow__points-grid">

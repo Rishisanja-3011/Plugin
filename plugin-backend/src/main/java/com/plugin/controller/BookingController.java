@@ -1,6 +1,8 @@
 package com.plugin.controller;
 
+import com.plugin.dto.request.BookingCancelRequest;
 import com.plugin.dto.request.BookingRequest;
+import com.plugin.dto.request.BookingRescheduleRequest;
 import com.plugin.dto.response.BookingResponse;
 import com.plugin.service.BookingService;
 import jakarta.validation.Valid;
@@ -38,11 +40,20 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.modifyBooking(id, request, auth.getName()));
     }
 
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/cancel")
     public ResponseEntity<BookingResponse> cancelBooking(
             @PathVariable Long id,
+            @Valid @RequestBody BookingCancelRequest request,
             Authentication auth) {
-        return ResponseEntity.ok(bookingService.cancelBooking(id, auth.getName()));
+        return ResponseEntity.ok(bookingService.cancelBooking(id, auth.getName(), request.getReason()));
+    }
+
+    @PostMapping("/{id}/reschedule-request")
+    public ResponseEntity<BookingResponse> requestReschedule(
+            @PathVariable Long id,
+            @Valid @RequestBody BookingRescheduleRequest request,
+            Authentication auth) {
+        return ResponseEntity.ok(bookingService.requestReschedule(id, request, auth.getName()));
     }
 
     @GetMapping("/my")

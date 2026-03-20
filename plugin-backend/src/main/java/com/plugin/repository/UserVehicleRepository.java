@@ -10,6 +10,8 @@ public interface UserVehicleRepository extends JpaRepository<UserVehicle, Long> 
 
     List<UserVehicle> findByUserIdOrderByActiveDescCreatedAtDesc(Long userId);
 
+    Optional<UserVehicle> findFirstByUserIdOrderByCreatedAtAscIdAsc(Long userId);
+
     Optional<UserVehicle> findFirstByUserIdAndActiveTrue(Long userId);
 
     Optional<UserVehicle> findByIdAndUserId(Long id, Long userId);

@@ -4,6 +4,14 @@ import { billsApi } from '../../api/bookings';
 import { useAuth } from '../../context/AuthContext';
 
 const BillingLockContext = createContext({ hasUnpaid: false, loading: false });
+const BILLING_LOCK_CACHE_KEY = 'plugin_has_unpaid';
+
+function readCachedBillingLock() {
+  const cached = sessionStorage.getItem(BILLING_LOCK_CACHE_KEY);
+  if (cached === '1') return true;
+  if (cached === '0') return false;
+  return null;
+}
 
 export function useBillingLock() {
   return useContext(BillingLockContext);
@@ -12,38 +20,46 @@ export function useBillingLock() {
 export default function BillingLock({ children }) {
   const { user, loading, isCustomer } = useAuth();
   const location = useLocation();
-  const [lockState, setLockState] = useState({ loading: false, hasUnpaid: false, checkedPath: null });
+  const [lockState, setLockState] = useState(() => {
+    const cached = readCachedBillingLock();
+    return {
+      loading: false,
+      hasUnpaid: cached ?? false,
+      initialized: cached !== null,
+    };
+  });
   const isBillingPage = location.pathname === '/customer/billing';
 
   useEffect(() => {
     if (loading || !user || !isCustomer) {
-      setLockState({ loading: false, hasUnpaid: false, checkedPath: location.pathname });
+      sessionStorage.removeItem(BILLING_LOCK_CACHE_KEY);
+      setLockState({ loading: false, hasUnpaid: false, initialized: false });
       return;
     }
+
     let cancelled = false;
-    const refreshLock = (showLoading = false) => {
-      if (showLoading) {
-        setLockState((prev) => ({ ...prev, loading: true, checkedPath: location.pathname }));
-      }
+    const refreshLock = () => {
       billsApi.getMyUnpaidCount()
         .then((res) => {
           if (cancelled) return;
           const count = res.data?.count ?? 0;
-          setLockState({ loading: false, hasUnpaid: count > 0, checkedPath: location.pathname });
+          const hasUnpaid = count > 0;
+          sessionStorage.setItem(BILLING_LOCK_CACHE_KEY, hasUnpaid ? '1' : '0');
+          setLockState({ loading: false, hasUnpaid, initialized: true });
         })
         .catch(() => {
           if (cancelled) return;
-          setLockState({ loading: false, hasUnpaid: false, checkedPath: location.pathname });
+          setLockState((prev) => ({ ...prev, loading: false, initialized: true }));
         });
     };
 
-    refreshLock(true);
+    refreshLock();
     const pollInterval = setInterval(() => {
-      refreshLock(false);
+      refreshLock();
     }, 5000);
 
     return () => { cancelled = true; clearInterval(pollInterval); };
-  }, [loading, user, isCustomer, location.pathname]);
+  }, [loading, user, isCustomer]);
 
   if (loading || !user || !isCustomer) {
     return (
@@ -53,22 +69,12 @@ export default function BillingLock({ children }) {
     );
   }
 
-  const isStale = lockState.checkedPath !== location.pathname;
-
-  if (lockState.loading || isStale) {
-    return (
-      <div className="page-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="skeleton-pulse" style={{ width: 48, height: 48, borderRadius: '50%' }} />
-      </div>
-    );
-  }
-
   if (lockState.hasUnpaid && !isBillingPage) {
     return <Navigate to="/customer/billing" replace />;
   }
 
   return (
-    <BillingLockContext.Provider value={{ hasUnpaid: lockState.hasUnpaid, loading: lockState.loading }}>
+    <BillingLockContext.Provider value={{ hasUnpaid: lockState.hasUnpaid, loading: false }}>
       {children}
     </BillingLockContext.Provider>
   );

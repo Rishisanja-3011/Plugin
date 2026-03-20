@@ -96,6 +96,14 @@ CREATE TABLE IF NOT EXISTS bookings (
     locked_rate_per_unit DECIMAL(10,2),
     locked_rate_type VARCHAR(15),
     status VARCHAR(15) NOT NULL DEFAULT 'CONFIRMED',
+    cancellation_reason VARCHAR(500),
+    reschedule_request_status VARCHAR(20) NOT NULL DEFAULT 'NONE',
+    reschedule_requested_start_time DATETIME,
+    reschedule_requested_end_time DATETIME,
+    reschedule_request_reason VARCHAR(500),
+    reschedule_requested_at DATETIME,
+    reschedule_reviewed_at DATETIME,
+    reschedule_reviewed_by VARCHAR(150),
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
     FOREIGN KEY (customer_id) REFERENCES users(id),
@@ -206,6 +214,30 @@ ALTER TABLE bookings
     ADD COLUMN vehicle_id BIGINT;
 
 ALTER TABLE bookings
+    ADD COLUMN cancellation_reason VARCHAR(500);
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_request_status VARCHAR(20) NOT NULL DEFAULT 'NONE';
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_requested_start_time DATETIME;
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_requested_end_time DATETIME;
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_request_reason VARCHAR(500);
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_requested_at DATETIME;
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_reviewed_at DATETIME;
+
+ALTER TABLE bookings
+    ADD COLUMN reschedule_reviewed_by VARCHAR(150);
+
+ALTER TABLE bookings
     ADD CONSTRAINT fk_booking_vehicle FOREIGN KEY (vehicle_id) REFERENCES user_vehicles(id);
 
 CREATE INDEX idx_booking_vehicle ON bookings(vehicle_id);
@@ -230,6 +262,21 @@ WHERE u.vehicle_make IS NOT NULL
       FROM user_vehicles uv
       WHERE uv.user_id = u.id
         AND uv.vehicle_registration = UPPER(REPLACE(REPLACE(u.vehicle_registration, ' ', ''), '-', ''))
+  );
+
+UPDATE bookings b
+SET b.vehicle_id = (
+    SELECT uv.id
+    FROM user_vehicles uv
+    WHERE uv.user_id = b.customer_id
+    ORDER BY uv.created_at ASC, uv.id ASC
+    LIMIT 1
+)
+WHERE b.vehicle_id IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM user_vehicles uv
+      WHERE uv.user_id = b.customer_id
   );
 
 UPDATE pricing

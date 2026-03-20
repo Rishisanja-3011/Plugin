@@ -54,6 +54,11 @@ public class SessionService {
             throw new ConflictException("Session already exists for this booking");
         }
 
+        if (booking.getChargingPoint().getStatus() == PointStatus.OUT_OF_SERVICE
+                || booking.getChargingPoint().getStatus() == PointStatus.UNAVAILABLE) {
+            throw new BadRequestException("Charging point is currently unavailable. Please wait for admin to restore it.");
+        }
+
         ensureLockedPricing(booking, "Session started for booking " + booking.getReferenceId() + ".");
 
         ChargingPoint cp = booking.getChargingPoint();

@@ -3,7 +3,8 @@ import api from './axios';
 export const bookingsApi = {
   create: (data) => api.post('/bookings', data),
   modify: (id, data) => api.put(`/bookings/${id}`, data),
-  cancel: (id) => api.delete(`/bookings/${id}`),
+  cancel: (id, data) => api.post(`/bookings/${id}/cancel`, data),
+  requestReschedule: (id, data) => api.post(`/bookings/${id}/reschedule-request`, data),
   getMy: (page = 0, size = 10) => api.get(`/bookings/my?page=${page}&size=${size}`),
   getById: (id) => api.get(`/bookings/${id}`),
   getAvailableSlots: (stationId, pointId, date) =>

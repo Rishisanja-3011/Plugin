@@ -56,7 +56,7 @@ function isPersistedVehicle(vehicle) {
 
 export default function Profile() {
   const toast = useToast();
-  const { logout } = useAuth();
+  const { logout, syncUserProfile } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -120,6 +120,7 @@ export default function Profile() {
 
   const applyProfileState = (data) => {
     setProfile(data);
+    syncUserProfile(data);
     setForm({
       fullName: data?.fullName ?? data?.name ?? '',
       email: data?.email ?? '',
@@ -157,6 +158,86 @@ export default function Profile() {
 
     setActiveVehicleKey(resolvedActiveKey);
     setRegistrationError('');
+  };
+
+  const buildProfilePayload = (sourceVehicles = vehicles, nextActiveKey = activeVehicleKey, options = {}) => {
+    const { showErrors = true } = options;
+    const normalizedVehicles = sourceVehicles.map((vehicle) => ({
+      ...vehicle,
+      vehicleNickname: (vehicle.vehicleNickname || '').trim(),
+      vehicleMake: (vehicle.vehicleMake || '').trim(),
+      vehicleModel: (vehicle.vehicleModel || '').trim(),
+      vehicleRegistration: normalizeRegistrationValue(vehicle.vehicleRegistration || ''),
+    }));
+
+    const seenRegistrations = new Set();
+    for (const vehicle of normalizedVehicles) {
+      const hasAnyValue =
+        Boolean(vehicle.vehicleNickname) ||
+        Boolean(vehicle.vehicleMake) ||
+        Boolean(vehicle.vehicleModel) ||
+        Boolean(vehicle.vehicleRegistration);
+      if (!hasAnyValue) {
+        continue;
+      }
+
+      if (!vehicle.vehicleMake || !vehicle.vehicleModel || !vehicle.vehicleRegistration) {
+        if (showErrors) {
+          setActiveVehicleKey(vehicle.key);
+          toast.error('Fill make, model and registration for each vehicle');
+        }
+        return null;
+      }
+
+      const nextRegError = validateRegistration(vehicle.vehicleRegistration);
+      if (nextRegError) {
+        if (showErrors) {
+          setActiveVehicleKey(vehicle.key);
+          setRegistrationError(nextRegError);
+        }
+        return null;
+      }
+
+      if (seenRegistrations.has(vehicle.vehicleRegistration)) {
+        if (showErrors) {
+          setActiveVehicleKey(vehicle.key);
+          toast.error(`Duplicate registration: ${vehicle.vehicleRegistration}`);
+        }
+        return null;
+      }
+      seenRegistrations.add(vehicle.vehicleRegistration);
+    }
+
+    const nonEmptyVehicles = normalizedVehicles.filter(
+      (vehicle) => vehicle.vehicleMake && vehicle.vehicleModel && vehicle.vehicleRegistration
+    );
+
+    const resolvedActiveKey =
+      nonEmptyVehicles.find((vehicle) => vehicle.key === nextActiveKey)?.key || nonEmptyVehicles[0]?.key || null;
+    const activeVehicle = nonEmptyVehicles.find((vehicle) => vehicle.key === resolvedActiveKey) ?? null;
+    const payloadVehicles = nonEmptyVehicles.map((vehicle) => ({
+      id: vehicle.id,
+      vehicleNickname: vehicle.vehicleNickname,
+      vehicleMake: vehicle.vehicleMake,
+      vehicleModel: vehicle.vehicleModel,
+      vehicleRegistration: vehicle.vehicleRegistration,
+      active: vehicle.key === resolvedActiveKey,
+    }));
+
+    return {
+      payload: {
+        fullName: form.fullName,
+        phone: form.phone,
+        vehicleMake: activeVehicle?.vehicleMake || '',
+        vehicleModel: activeVehicle?.vehicleModel || '',
+        vehicleRegistration: activeVehicle?.vehicleRegistration || '',
+        vehicles: payloadVehicles,
+        activeVehicleId: activeVehicle?.id ?? null,
+      },
+      hasNewVehicle: payloadVehicles.some((vehicle) => vehicle.id == null),
+      resolvedActiveKey,
+      normalizedVehicles,
+    };
   };
 
   const fetchProfile = async (showLoader = true) => {
@@ -230,9 +311,33 @@ export default function Profile() {
   const visibleVehicles = vehicles.filter((vehicle) => isPersistedVehicle(vehicle));
   const isFullNameLocked = Boolean((profile?.fullName ?? profile?.name ?? '').trim());
   const isSelectedVehicleLocked = Boolean(selectedVehicle && isPersistedVehicle(selectedVehicle));
+  const currentProfileActiveKey =
+    vehicles.find((vehicle) => vehicle.id != null && vehicle.id === profile?.activeVehicleId)?.key ||
+    vehicles.find((vehicle) => vehicle.active)?.key ||
+    vehicles[0]?.key ||
+    null;
+  const profileVehiclesById = new Map(
+    (Array.isArray(profile?.vehicles) ? profile.vehicles : [])
+      .filter((vehicle) => vehicle?.id != null)
+      .map((vehicle) => [vehicle.id, vehicle])
+  );
   const hasOpenDraftVehicle = vehicles.some((vehicle) => !isPersistedVehicle(vehicle));
   const hasTypedDraftVehicle = vehicles.some((vehicle) => !isPersistedVehicle(vehicle) && hasVehicleAnyValue(vehicle));
   const hasReachedVehicleLimit = vehicles.length >= MAX_VEHICLES;
+  const hasEditableProfileChanges =
+    (!isFullNameLocked && (form.fullName || '').trim() !== (profile?.fullName ?? profile?.name ?? '').trim()) ||
+    (!isPhoneLocked && (form.phone || '').trim() !== (profile?.phone ?? '').trim());
+  const hasSavedVehicleNicknameChanges = vehicles.some((vehicle) => {
+    if (!isPersistedVehicle(vehicle)) return false;
+    const profileVehicle = profileVehiclesById.get(vehicle.id);
+    return (vehicle.vehicleNickname || '').trim() !== (profileVehicle?.vehicleNickname || '').trim();
+  });
+  const hasActiveVehicleSelectionChange = currentProfileActiveKey !== activeVehicleKey;
+  const hasUnsavedChanges =
+    hasEditableProfileChanges ||
+    hasSavedVehicleNicknameChanges ||
+    hasTypedDraftVehicle ||
+    hasActiveVehicleSelectionChange;
   const activeSessionVehicleIds = new Set(
     activeSessions.map((session) => session?.vehicleId).filter((vehicleId) => vehicleId != null)
   );
@@ -317,17 +422,40 @@ export default function Profile() {
     }
   };
 
-  const handleSwitchVehicle = (vehicleKey) => {
-    setVehicles((prev) => {
-      const activeVehicle = prev.find((vehicle) => vehicle.key === activeVehicleKey);
-      if (activeVehicle && !isPersistedVehicle(activeVehicle) && !isVehicleComplete(activeVehicle)) {
-        return prev.filter((vehicle) => vehicle.key !== activeVehicle.key);
-      }
-      return prev;
-    });
+  const handleSwitchVehicle = async (vehicleKey) => {
+    const activeVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey);
+    const nextVehicles =
+      activeVehicle && !isPersistedVehicle(activeVehicle) && !isVehicleComplete(activeVehicle)
+        ? vehicles.filter((vehicle) => vehicle.key !== activeVehicle.key)
+        : vehicles;
+
+    const nextVehicle = nextVehicles.find((vehicle) => vehicle.key === vehicleKey);
+    if (!nextVehicle || vehicleKey === currentProfileActiveKey) {
+      return;
+    }
+
+    const payloadResult = buildProfilePayload(nextVehicles, vehicleKey, { showErrors: false });
+    if (!payloadResult || payloadResult.hasNewVehicle) {
+      toast.error('Save or cancel the new vehicle draft before changing the active vehicle');
+      return;
+    }
+
+    setVehicles(nextVehicles);
     setActiveVehicleKey(vehicleKey);
-    const nextVehicle = vehicles.find((vehicle) => vehicle.key === vehicleKey);
-    setRegistrationError(validateRegistration(nextVehicle?.vehicleRegistration || ''));
+    setRegistrationError(validateRegistration(nextVehicle.vehicleRegistration || ''));
+    setSaving(true);
+
+    try {
+      const res = await authApi.updateProfile(payloadResult.payload);
+      applyProfileState(res.data);
+      await fetchActiveSessions();
+      toast.success('Active vehicle updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update active vehicle');
+      await fetchProfile(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const focusVehicleEditor = () => {
@@ -454,14 +582,22 @@ export default function Profile() {
     setRegistrationError('');
   };
 
-  const submitProfileUpdate = async (payload) => {
+  const submitProfileUpdate = async (payload, options = {}) => {
+    const {
+      bannerMessage = 'Changes saved successfully. Saved profile and vehicle details are now locked from editing.',
+      successMessage = 'Profile updated',
+    } = options;
     setSaving(true);
     try {
       const res = await authApi.updateProfile(payload);
       applyProfileState(res.data);
       await fetchActiveSessions();
-      setSaveBanner('Changes saved successfully. Saved profile and vehicle details are now locked from editing.');
-      toast.success('Profile updated');
+      if (bannerMessage) {
+        setSaveBanner(bannerMessage);
+      }
+      if (successMessage) {
+        toast.success(successMessage);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update profile');
     } finally {
@@ -495,77 +631,18 @@ export default function Profile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const normalizedVehicles = vehicles.map((vehicle) => ({
-      ...vehicle,
-      vehicleNickname: (vehicle.vehicleNickname || '').trim(),
-      vehicleMake: (vehicle.vehicleMake || '').trim(),
-      vehicleModel: (vehicle.vehicleModel || '').trim(),
-      vehicleRegistration: normalizeRegistrationValue(vehicle.vehicleRegistration || ''),
-    }));
-
-    const seenRegistrations = new Set();
-    for (const vehicle of normalizedVehicles) {
-      const hasAnyValue =
-        Boolean(vehicle.vehicleMake) || Boolean(vehicle.vehicleModel) || Boolean(vehicle.vehicleRegistration);
-      if (!hasAnyValue) {
-        continue;
-      }
-
-      if (!vehicle.vehicleMake || !vehicle.vehicleModel || !vehicle.vehicleRegistration) {
-        setActiveVehicleKey(vehicle.key);
-        toast.error('Fill make, model and registration for each vehicle');
-        return;
-      }
-
-      const nextRegError = validateRegistration(vehicle.vehicleRegistration);
-      if (nextRegError) {
-        setActiveVehicleKey(vehicle.key);
-        setRegistrationError(nextRegError);
-        return;
-      }
-
-      if (seenRegistrations.has(vehicle.vehicleRegistration)) {
-        setActiveVehicleKey(vehicle.key);
-        toast.error(`Duplicate registration: ${vehicle.vehicleRegistration}`);
-        return;
-      }
-      seenRegistrations.add(vehicle.vehicleRegistration);
+    const payloadResult = buildProfilePayload();
+    if (!payloadResult) {
+      return;
     }
 
-    const nonEmptyVehicles = normalizedVehicles.filter(
-      (vehicle) => vehicle.vehicleMake && vehicle.vehicleModel && vehicle.vehicleRegistration
-    );
-
-    const resolvedActiveKey =
-      (nonEmptyVehicles.find((vehicle) => vehicle.key === activeVehicleKey)?.key || nonEmptyVehicles[0]?.key || null);
-    const activeVehicle = nonEmptyVehicles.find((vehicle) => vehicle.key === resolvedActiveKey) ?? null;
-    const payloadVehicles = nonEmptyVehicles.map((vehicle) => ({
-      id: vehicle.id,
-      vehicleNickname: vehicle.vehicleNickname,
-      vehicleMake: vehicle.vehicleMake,
-      vehicleModel: vehicle.vehicleModel,
-      vehicleRegistration: vehicle.vehicleRegistration,
-      active: vehicle.key === resolvedActiveKey,
-    }));
-    const requestPayload = {
-      fullName: form.fullName,
-      phone: form.phone,
-      vehicleMake: activeVehicle?.vehicleMake || '',
-      vehicleModel: activeVehicle?.vehicleModel || '',
-      vehicleRegistration: activeVehicle?.vehicleRegistration || '',
-      vehicles: payloadVehicles,
-      activeVehicleId: activeVehicle?.id ?? null,
-    };
-
-    const hasNewVehicle = payloadVehicles.some((vehicle) => vehicle.id == null);
-    if (hasNewVehicle) {
-      setPendingSavePayload(requestPayload);
+    if (payloadResult.hasNewVehicle) {
+      setPendingSavePayload(payloadResult.payload);
       setShowSaveConfirmModal(true);
       return;
     }
 
-    await submitProfileUpdate(requestPayload);
+    await submitProfileUpdate(payloadResult.payload);
   };
 
   const handleStayOnPage = () => {
@@ -933,21 +1010,25 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-              <div className={`profile__actions profile__actions--column${isDraftVehicle ? ' profile__actions--with-cancel' : ''}`}>
-                {isDraftVehicle && (
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={handleCancelVehicleDraft}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button type="submit" className="btn btn--accent" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
+              {(isDraftVehicle || hasUnsavedChanges) && (
+                <div className={`profile__actions profile__actions--column${isDraftVehicle ? ' profile__actions--with-cancel' : ''}`}>
+                  {isDraftVehicle && (
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={handleCancelVehicleDraft}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  {hasUnsavedChanges && (
+                    <button type="submit" className="btn btn--accent" disabled={saving}>
+                      {saving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </motion.form>

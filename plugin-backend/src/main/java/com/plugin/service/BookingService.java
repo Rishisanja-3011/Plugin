@@ -1,6 +1,7 @@
 package com.plugin.service;
 
 import com.plugin.dto.request.BookingRequest;
+import com.plugin.dto.request.BookingRescheduleRequest;
 import com.plugin.dto.response.BookingResponse;
 import com.plugin.entity.*;
 import com.plugin.enums.*;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -41,6 +43,9 @@ public class BookingService {
         User customer = userRepository.findByEmail(customerEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
         UserVehicle activeVehicle = resolveActiveVehicle(customer);
+        if (activeVehicle == null) {
+            throw new BadRequestException("Please add a vehicle in your profile before booking a charging session");
+        }
 
         Station station = stationRepository.findById(request.getStationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
@@ -71,9 +76,7 @@ public class BookingService {
                 throw new BadRequestException("Charging point does not belong to this station");
             }
 
-            if (chargingPoint.getStatus() == PointStatus.OUT_OF_SERVICE) {
-                throw new BadRequestException("Charging point is out of service");
-            }
+            ensurePointAvailableForBooking(chargingPoint);
 
             // Check overlap
             List<Booking> overlapping = bookingRepository.findOverlappingBookings(
@@ -153,6 +156,15 @@ public class BookingService {
         Long pointId = request.getChargingPointId() != null ?
                 request.getChargingPointId() : booking.getChargingPoint().getId();
 
+        ChargingPoint targetPoint = request.getChargingPointId() != null
+                ? cpRepository.findById(request.getChargingPointId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"))
+                : booking.getChargingPoint();
+        if (!targetPoint.getStation().getId().equals(station.getId())) {
+            throw new BadRequestException("Charging point does not belong to this station");
+        }
+        ensurePointAvailableForBooking(targetPoint);
+
         List<Booking> overlapping = bookingRepository.findOverlappingBookingsExcluding(
                 pointId, startTime, endTime, booking.getId());
         if (!overlapping.isEmpty()) {
@@ -160,9 +172,7 @@ public class BookingService {
         }
 
         if (request.getChargingPointId() != null) {
-            ChargingPoint cp = cpRepository.findById(request.getChargingPointId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
-            booking.setChargingPoint(cp);
+            booking.setChargingPoint(targetPoint);
         }
 
         booking.setStartTime(startTime);
@@ -172,6 +182,8 @@ public class BookingService {
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
         booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
+        clearRescheduleRequestFields(booking);
+        resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
 
         if (lockedPricing.usedFallback()) {
@@ -192,7 +204,65 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse cancelBooking(Long bookingId, String customerEmail) {
+    public BookingResponse requestReschedule(Long bookingId, BookingRescheduleRequest request, String customerEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
+            throw new BadRequestException("You can only request changes for your own bookings");
+        }
+
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new BadRequestException("Cannot reschedule a " + booking.getStatus() + " booking");
+        }
+
+        if (!booking.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new BadRequestException("Cannot request reschedule for a booking that has already started");
+        }
+
+        if (booking.getRescheduleRequestStatus() == RescheduleRequestStatus.PENDING) {
+            throw new BadRequestException("A reschedule request is already pending approval");
+        }
+
+        String normalizedReason = normalizeText(request.getReason());
+        if (normalizedReason == null) {
+            throw new BadRequestException("Reschedule reason is required");
+        }
+
+        int durationMinutes = getBookingDurationMinutes(booking);
+        LocalDateTime requestedStartTime = request.getStartTime();
+        if (requestedStartTime == null) {
+            throw new BadRequestException("Requested start time is required");
+        }
+        LocalDateTime requestedEndTime = requestedStartTime.plusMinutes(durationMinutes);
+
+        validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
+
+        booking.setRescheduleRequestStatus(RescheduleRequestStatus.PENDING);
+        booking.setRescheduleRequestedStartTime(requestedStartTime);
+        booking.setRescheduleRequestedEndTime(requestedEndTime);
+        booking.setRescheduleRequestReason(normalizedReason);
+        booking.setRescheduleRequestedAt(LocalDateTime.now());
+        resetRescheduleReview(booking);
+        booking = bookingRepository.save(booking);
+
+        auditService.log("REQUEST_BOOKING_RESCHEDULE", "BOOKING", booking.getId(), customerEmail,
+                "Reschedule requested for " + booking.getReferenceId() + " to " + formatDateTimeValue(requestedStartTime));
+
+        notifyAdmins(
+                "Booking Reschedule Request",
+                booking.getCustomer().getFullName() + " requested to move booking " + booking.getReferenceId() +
+                        " to " + formatDateTimeValue(requestedStartTime) + "."
+        );
+
+        notificationService.send(booking.getCustomer().getId(), "Reschedule Request Sent",
+                "Your reschedule request for booking " + booking.getReferenceId() + " is awaiting admin approval.");
+
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse cancelBooking(Long bookingId, String customerEmail, String reason) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
@@ -208,20 +278,28 @@ public class BookingService {
             throw new BadRequestException("Cannot cancel a completed booking");
         }
 
+        String normalizedReason = normalizeText(reason);
+        if (normalizedReason == null) {
+            throw new BadRequestException("Cancellation reason is required");
+        }
+
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancellationReason(normalizedReason);
+        clearRescheduleRequestFields(booking);
+        resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
 
         auditService.log("CANCEL_BOOKING", "BOOKING", booking.getId(), customerEmail,
-                "Booking cancelled: " + booking.getReferenceId());
+                "Booking cancelled: " + booking.getReferenceId() + ". Reason: " + normalizedReason);
 
         notificationService.send(booking.getCustomer().getId(), "Booking Cancelled",
-                "Your booking " + booking.getReferenceId() + " has been cancelled.");
+                "Your booking " + booking.getReferenceId() + " has been cancelled. Reason: " + normalizedReason);
 
         return toResponse(booking);
     }
 
     @Transactional
-    public BookingResponse cancelBookingAsAdmin(Long bookingId, String adminEmail) {
+    public BookingResponse cancelBookingAsAdmin(Long bookingId, String adminEmail, String reason) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
@@ -233,22 +311,106 @@ public class BookingService {
             throw new BadRequestException("Cannot cancel a completed booking");
         }
 
+        String normalizedReason = normalizeText(reason);
+        if (normalizedReason == null) {
+            throw new BadRequestException("Cancellation reason is required");
+        }
+
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancellationReason(normalizedReason);
+        clearRescheduleRequestFields(booking);
+        resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
 
         try {
             auditService.log("CANCEL_BOOKING", "BOOKING", booking.getId(), adminEmail,
-                    "Booking cancelled by admin: " + booking.getReferenceId());
+                    "Booking cancelled by admin: " + booking.getReferenceId() + ". Reason: " + normalizedReason);
         } catch (Exception ex) {
             log.warn("Failed to write audit log for admin booking cancel {}", booking.getId(), ex);
         }
 
         try {
             notificationService.send(booking.getCustomer().getId(), "Booking Cancelled",
-                    "Your booking " + booking.getReferenceId() + " has been cancelled by admin.");
+                    "Your booking " + booking.getReferenceId() + " has been cancelled by admin. Reason: " + normalizedReason);
         } catch (Exception ex) {
             log.warn("Failed to send cancel notification for booking {}", booking.getId(), ex);
         }
+
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse approveRescheduleRequest(Long bookingId, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        if (booking.getRescheduleRequestStatus() != RescheduleRequestStatus.PENDING) {
+            throw new BadRequestException("No pending reschedule request for this booking");
+        }
+
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new BadRequestException("Cannot reschedule a " + booking.getStatus() + " booking");
+        }
+
+        LocalDateTime requestedStartTime = booking.getRescheduleRequestedStartTime();
+        LocalDateTime requestedEndTime = booking.getRescheduleRequestedEndTime();
+        if (requestedStartTime == null || requestedEndTime == null) {
+            throw new BadRequestException("Requested reschedule slot is incomplete");
+        }
+
+        validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
+
+        PricingSnapshotService.PricingSnapshot lockedPricing =
+                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
+
+        booking.setStartTime(requestedStartTime);
+        booking.setEndTime(requestedEndTime);
+        booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
+        booking.setLockedRateType(lockedPricing.rateType());
+        booking.setStatus(BookingStatus.MODIFIED);
+        booking.setCancellationReason(null);
+        booking.setRescheduleReviewedBy(adminEmail);
+        booking.setRescheduleReviewedAt(LocalDateTime.now());
+        clearRescheduleRequestFields(booking);
+        booking = bookingRepository.save(booking);
+
+        if (lockedPricing.usedFallback()) {
+            pricingSnapshotService.notifyAdminsMissingPricing(
+                    booking.getStation(),
+                    booking.getChargingPoint().getPointType(),
+                    "Approved reschedule for booking " + booking.getReferenceId() + "."
+            );
+        }
+
+        auditService.log("APPROVE_BOOKING_RESCHEDULE", "BOOKING", booking.getId(), adminEmail,
+                "Reschedule approved for " + booking.getReferenceId() + " to " + formatDateTimeValue(requestedStartTime));
+
+        notificationService.send(booking.getCustomer().getId(), "Reschedule Approved",
+                "Your booking " + booking.getReferenceId() + " was rescheduled to " +
+                        formatDateTimeValue(requestedStartTime) + ".");
+
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse rejectRescheduleRequest(Long bookingId, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        if (booking.getRescheduleRequestStatus() != RescheduleRequestStatus.PENDING) {
+            throw new BadRequestException("No pending reschedule request for this booking");
+        }
+
+        booking.setRescheduleRequestStatus(RescheduleRequestStatus.REJECTED);
+        booking.setRescheduleReviewedBy(adminEmail);
+        booking.setRescheduleReviewedAt(LocalDateTime.now());
+        booking = bookingRepository.save(booking);
+
+        auditService.log("REJECT_BOOKING_RESCHEDULE", "BOOKING", booking.getId(), adminEmail,
+                "Reschedule rejected for " + booking.getReferenceId());
+
+        notificationService.send(booking.getCustomer().getId(), "Reschedule Rejected",
+                "Your reschedule request for booking " + booking.getReferenceId() + " was not approved.");
 
         return toResponse(booking);
     }
@@ -294,6 +456,13 @@ public class BookingService {
     public List<String> getAvailableSlots(Long stationId, Long pointId, LocalDate date) {
         Station station = stationRepository.findById(stationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        ChargingPoint chargingPoint = cpRepository.findById(pointId)
+                .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+
+        if (!chargingPoint.getStation().getId().equals(station.getId())) {
+            throw new BadRequestException("Charging point does not belong to this station");
+        }
+        ensurePointAvailableForBooking(chargingPoint);
 
         LocalDateTime dayStart = date.atTime(station.getOpeningTime());
         LocalDateTime dayEnd = date.atTime(station.getClosingTime());
@@ -334,7 +503,7 @@ public class BookingService {
         }
 
         for (ChargingPoint cp : candidates) {
-            if (cp.getStatus() == PointStatus.OUT_OF_SERVICE) continue;
+            if (isPointBlockedForBooking(cp.getStatus())) continue;
             List<Booking> overlapping = bookingRepository.findOverlappingBookings(cp.getId(), startTime, endTime);
             if (overlapping.isEmpty()) {
                 return cp;
@@ -365,7 +534,7 @@ public class BookingService {
     }
 
     private BookingResponse toResponse(Booking b) {
-        UserVehicle bookingVehicle = b.getVehicle();
+        UserVehicle bookingVehicle = resolveResponseVehicle(b);
         String vehicleNickname = bookingVehicle != null ? bookingVehicle.getVehicleNickname() : null;
         String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : b.getCustomer().getVehicleMake();
         String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : b.getCustomer().getVehicleModel();
@@ -393,9 +562,105 @@ public class BookingService {
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
                 .lockedRateType(b.getLockedRateType())
                 .status(b.getStatus().name())
+                .cancellationReason(b.getCancellationReason())
+                .rescheduleRequestStatus((b.getRescheduleRequestStatus() != null ? b.getRescheduleRequestStatus() : RescheduleRequestStatus.NONE).name())
+                .rescheduleRequestedStartTime(b.getRescheduleRequestedStartTime())
+                .rescheduleRequestedEndTime(b.getRescheduleRequestedEndTime())
+                .rescheduleRequestReason(b.getRescheduleRequestReason())
+                .rescheduleRequestedAt(b.getRescheduleRequestedAt())
+                .rescheduleReviewedAt(b.getRescheduleReviewedAt())
+                .rescheduleReviewedBy(b.getRescheduleReviewedBy())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .build();
+    }
+
+    private UserVehicle resolveResponseVehicle(Booking booking) {
+        if (booking.getVehicle() != null) {
+            return booking.getVehicle();
+        }
+
+        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        if (customerId == null) {
+            return null;
+        }
+
+        return userVehicleRepository.findFirstByUserIdOrderByCreatedAtAscIdAsc(customerId).orElse(null);
+    }
+
+    private void validateRescheduleSlot(Booking booking, LocalDateTime requestedStartTime, LocalDateTime requestedEndTime) {
+        if (requestedStartTime == null) {
+            throw new BadRequestException("Requested start time is required");
+        }
+
+        if (!booking.getStation().getActive()) {
+            throw new BadRequestException("Station is currently inactive");
+        }
+
+        ensurePointAvailableForBooking(booking.getChargingPoint());
+
+        validateOperatingHours(booking.getStation(), requestedStartTime, requestedEndTime);
+
+        if (!requestedStartTime.isAfter(LocalDateTime.now())) {
+            throw new BadRequestException("Rescheduled start time must be in the future");
+        }
+
+        if (requestedStartTime.equals(booking.getStartTime()) && requestedEndTime.equals(booking.getEndTime())) {
+            throw new BadRequestException("Please select a different slot for reschedule");
+        }
+
+        List<Booking> overlapping = bookingRepository.findOverlappingBookingsExcluding(
+                booking.getChargingPoint().getId(), requestedStartTime, requestedEndTime, booking.getId());
+        if (!overlapping.isEmpty()) {
+            throw new ConflictException("Requested time slot conflicts with existing bookings");
+        }
+    }
+
+    private int getBookingDurationMinutes(Booking booking) {
+        long duration = Duration.between(booking.getStartTime(), booking.getEndTime()).toMinutes();
+        return duration > 0 ? (int) duration : 60;
+    }
+
+    private void clearRescheduleRequestFields(Booking booking) {
+        booking.setRescheduleRequestStatus(RescheduleRequestStatus.NONE);
+        booking.setRescheduleRequestedStartTime(null);
+        booking.setRescheduleRequestedEndTime(null);
+        booking.setRescheduleRequestReason(null);
+        booking.setRescheduleRequestedAt(null);
+    }
+
+    private void resetRescheduleReview(Booking booking) {
+        booking.setRescheduleReviewedAt(null);
+        booking.setRescheduleReviewedBy(null);
+    }
+
+    private String formatDateTimeValue(LocalDateTime value) {
+        if (value == null) return "-";
+        return value.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+    }
+
+    private void notifyAdmins(String title, String message) {
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        for (User admin : admins) {
+            try {
+                notificationService.send(admin.getId(), title, message);
+            } catch (Exception ex) {
+                log.warn("Failed to notify admin {} for booking workflow", admin.getId(), ex);
+            }
+        }
+    }
+
+    private boolean isPointBlockedForBooking(PointStatus status) {
+        return status == PointStatus.OUT_OF_SERVICE || status == PointStatus.UNAVAILABLE;
+    }
+
+    private void ensurePointAvailableForBooking(ChargingPoint chargingPoint) {
+        if (chargingPoint == null) {
+            throw new ResourceNotFoundException("Charging point not found");
+        }
+        if (isPointBlockedForBooking(chargingPoint.getStatus())) {
+            throw new BadRequestException("Charging point is currently unavailable for booking");
+        }
     }
 
     private UserVehicle resolveActiveVehicle(User customer) {

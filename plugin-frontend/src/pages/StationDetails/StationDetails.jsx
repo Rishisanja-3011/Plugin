@@ -22,6 +22,11 @@ function getStatusConfig(status) {
   return STATUS_CONFIG[key] ?? { class: 'badge--neutral', color: 'gray' };
 }
 
+function isPointBlockedForBooking(status) {
+  const key = (status ?? '').toString().trim().toUpperCase().replace(/\s+/g, '_');
+  return key === 'OUT_OF_SERVICE' || key === 'UNAVAILABLE';
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -147,9 +152,16 @@ export default function StationDetails() {
   const coordinates = station.latitude != null && station.longitude != null
     ? `${station.latitude}, ${station.longitude}`
     : station.coordinates ?? null;
+  const bookablePoints = chargingPoints.filter((point) => !isPointBlockedForBooking(point?.status));
 
-  const bookUrl = user ? `/customer/book/${id}` : '/login';
-  const canBook = Boolean(isActive);
+  const hasSavedVehicle = Boolean(
+    user?.activeVehicleId != null ||
+    ((user?.vehicleMake || '').trim() &&
+      (user?.vehicleModel || '').trim() &&
+      (user?.vehicleRegistration || '').trim())
+  );
+  const bookUrl = user ? (hasSavedVehicle ? `/customer/book/${id}` : '/customer/profile') : '/login';
+  const canBook = Boolean(isActive && bookablePoints.length > 0);
 
   const pricingItems = Array.isArray(pricing)
     ? pricing.map((p) => ({
@@ -303,7 +315,7 @@ export default function StationDetails() {
             </Link>
           ) : (
             <button type="button" className="station-details__book-btn station-details__book-btn--disabled" disabled>
-              Station Closed
+              {isActive ? 'Booking Unavailable' : 'Station Closed'}
             </button>
           )}
           {!user && canBook && (
@@ -311,8 +323,16 @@ export default function StationDetails() {
               <Link to="/login">Sign in</Link> to book a charging slot.
             </p>
           )}
-          {!canBook && (
+          {user && canBook && !hasSavedVehicle && (
+            <p className="station-details__login-hint">
+              Add a vehicle in <Link to="/customer/profile">Profile</Link> before booking a charging slot.
+            </p>
+          )}
+          {!isActive && (
             <p className="station-details__login-hint">Booking is unavailable because this station is closed.</p>
+          )}
+          {isActive && !canBook && (
+            <p className="station-details__login-hint">Booking is unavailable because all charging points are out of service or unavailable.</p>
           )}
         </motion.div>
       </div>

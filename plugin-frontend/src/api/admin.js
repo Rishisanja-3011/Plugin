@@ -44,7 +44,9 @@ export const adminApi = {
   updateCustomerStatus: (id, active) => api.patch(`/admin/customers/${id}/status?active=${active}`),
   getBookingsByStation: (stationId, page = 0, size = 20) =>
     api.get(`/admin/bookings/station/${stationId}?page=${page}&size=${size}`),
-  cancelBooking: (id) => api.post(`/admin/bookings/${id}/cancel`),
+  cancelBooking: (id, data) => api.post(`/admin/bookings/${id}/cancel`, data),
+  approveRescheduleRequest: (id) => api.post(`/admin/bookings/${id}/reschedule/approve`),
+  rejectRescheduleRequest: (id) => api.post(`/admin/bookings/${id}/reschedule/reject`),
 
   // Sessions
   getAllSessions: (page = 0, size = 20) => api.get(`/admin/sessions?page=${page}&size=${size}`),

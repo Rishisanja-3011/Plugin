@@ -26,7 +26,8 @@ public class DashboardService {
         long totalPoints = cpRepository.count();
         long availablePoints = cpRepository.countByStatus(PointStatus.AVAILABLE);
         long totalBookings = bookingRepository.count();
-        long activeBookings = bookingRepository.countByStatus(BookingStatus.CONFIRMED);
+        long activeBookings = bookingRepository.countByStatus(BookingStatus.CONFIRMED)
+                + bookingRepository.countByStatus(BookingStatus.MODIFIED);
         long totalSessions = sessionRepository.count();
         long activeSessions = sessionRepository.countByStatus(SessionStatus.IN_PROGRESS);
         BigDecimal totalRevenue = billRepository.getTotalRevenue();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
@@ -9,9 +9,14 @@ import './MyBookings.css';
 const STATUS_BADGE_MAP = {
   PENDING: 'badge--warning',
   CONFIRMED: 'badge--success',
+  MODIFIED: 'badge--info',
   CANCELLED: 'badge--danger',
   COMPLETED: 'badge--info',
 };
+
+const PAGE_SIZE = 10;
+const FETCH_PAGE_SIZE = 50;
+const MAX_FETCH_PAGES = 20;
 
 function getStatusBadge(status) {
   const key = (status ?? '').toUpperCase();
@@ -46,34 +51,96 @@ function getBookingVehicleLabel(booking) {
   return makeModel || registration || 'Vehicle not set';
 }
 
+function hasPendingRescheduleRequest(booking) {
+  return (booking?.rescheduleRequestStatus ?? '').toUpperCase() === 'PENDING';
+}
+
+function hasRejectedRescheduleRequest(booking) {
+  return (booking?.rescheduleRequestStatus ?? '').toUpperCase() === 'REJECTED';
+}
+
+function formatBookingDateTime(value) {
+  if (!value) return '\u2014';
+  return new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function sortBookingsByNewest(list) {
+  return [...list].sort((a, b) => {
+    const aTime = new Date(a.createdAt ?? a.startTime ?? a.bookingDate ?? a.date ?? 0).getTime();
+    const bTime = new Date(b.createdAt ?? b.startTime ?? b.bookingDate ?? b.date ?? 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+async function fetchAllBookingPages(fetchPage) {
+  let page = 0;
+  let totalPages = 1;
+  const all = [];
+
+  while (page < totalPages && page < MAX_FETCH_PAGES) {
+    const response = await fetchPage(page, FETCH_PAGE_SIZE);
+    const data = response.data;
+    const list = data?.content ?? (Array.isArray(data) ? data : []);
+    all.push(...list);
+
+    if (Array.isArray(data)) {
+      totalPages = 1;
+    } else {
+      totalPages = Math.max(1, data?.totalPages ?? 1);
+    }
+
+    page += 1;
+  }
+
+  return all;
+}
+
+function getBookingDurationMinutes(booking) {
+  const start = new Date(booking?.startTime ?? 0);
+  const end = new Date(booking?.endTime ?? 0);
+  const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+  return minutes > 0 ? minutes : 60;
+}
+
+function toLocalDateInputValue(value) {
+  const date = new Date(value ?? Date.now());
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalTimeInputValue(value) {
+  const date = new Date(value ?? Date.now());
+  if (Number.isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 export default function MyBookings() {
   const toast = useToast();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
+  const [activeSessions, setActiveSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
   const [cancelModal, setCancelModal] = useState(null);
+  const [rescheduleModal, setRescheduleModal] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '', reason: '' });
+  const [rescheduleDateTimeError, setRescheduleDateTimeError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState('ALL');
-  const size = 10;
 
   const fetchBookings = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await bookingsApi.getMy(page, size);
-      const data = res.data;
-      const list = data?.content ?? (Array.isArray(data) ? data : []);
-      const sorted = [...list].sort((a, b) => {
-        const aTime = new Date(a.createdAt ?? a.startTime ?? a.bookingDate ?? a.date ?? 0).getTime();
-        const bTime = new Date(b.createdAt ?? b.startTime ?? b.bookingDate ?? b.date ?? 0).getTime();
-        return bTime - aTime;
-      });
-      setBookings(sorted);
-      setTotalPages(data?.totalPages ?? 0);
-      setTotalElements(data?.totalElements ?? list.length);
+      const allBookings = await fetchAllBookingPages((nextPage, nextSize) => bookingsApi.getMy(nextPage, nextSize));
+      setBookings(sortBookingsByNewest(allBookings));
     } catch {
       if (showLoading) toast.error('Failed to load bookings');
       setBookings([]);
@@ -82,16 +149,28 @@ export default function MyBookings() {
     }
   };
 
+  const fetchActiveSessions = async () => {
+    try {
+      const response = await sessionsApi.getMyActive();
+      const list = Array.isArray(response.data) ? response.data : response.data?.content ?? [];
+      setActiveSessions(list);
+    } catch {
+      setActiveSessions([]);
+    }
+  };
+
   useEffect(() => {
     fetchBookings(true);
-  }, [page]);
+    fetchActiveSessions();
+  }, []);
 
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetchBookings(false);
+      fetchActiveSessions();
     }, 5000);
     return () => clearInterval(pollInterval);
-  }, [page]);
+  }, []);
 
   useEffect(() => {
     if (vehicleFilter === 'ALL') return;
@@ -101,17 +180,103 @@ export default function MyBookings() {
     }
   }, [bookings, vehicleFilter]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [vehicleFilter]);
+
+  const trimmedCancelReason = cancelReason.trim();
+  const trimmedRescheduleReason = rescheduleForm.reason.trim();
+
+  const openCancelModal = (booking) => {
+    setCancelReason('');
+    setCancelModal(booking);
+  };
+
+  const closeCancelModal = () => {
+    if (actionLoading) return;
+    setCancelReason('');
+    setCancelModal(null);
+  };
+
+  const validateRescheduleDateTime = (nextDate = rescheduleForm.date, nextTime = rescheduleForm.time) => {
+    if (!nextDate || !nextTime) {
+      setRescheduleDateTimeError('');
+      return true;
+    }
+    const selected = new Date(`${nextDate}T${nextTime}:00`);
+    if (Number.isNaN(selected.getTime())) {
+      setRescheduleDateTimeError('Please select a valid date and time.');
+      return false;
+    }
+    if (selected <= new Date()) {
+      setRescheduleDateTimeError('Please select a future time.');
+      return false;
+    }
+    setRescheduleDateTimeError('');
+    return true;
+  };
+
+  const openRescheduleModal = (booking) => {
+    const initialDateTime = booking?.rescheduleRequestedStartTime || booking?.startTime || new Date().toISOString();
+    setRescheduleForm({
+      date: toLocalDateInputValue(initialDateTime),
+      time: toLocalTimeInputValue(initialDateTime),
+      reason: booking?.rescheduleRequestReason ?? '',
+    });
+    setRescheduleDateTimeError('');
+    setRescheduleModal(booking);
+  };
+
+  const closeRescheduleModal = () => {
+    if (rescheduleLoading) return;
+    setRescheduleForm({ date: '', time: '', reason: '' });
+    setRescheduleDateTimeError('');
+    setRescheduleModal(null);
+  };
+
   const handleCancel = async (id) => {
+    if (!trimmedCancelReason) {
+      toast.error('Please enter a cancellation reason');
+      return;
+    }
     setActionLoading(id);
     try {
-      await bookingsApi.cancel(id);
+      await bookingsApi.cancel(id, { reason: trimmedCancelReason });
       toast.success('Booking cancelled');
-      setCancelModal(null);
+      closeCancelModal();
       fetchBookings();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to cancel');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleRequestReschedule = async (booking) => {
+    if (!booking?.id) return;
+    if (!trimmedRescheduleReason) {
+      toast.error('Please enter a reschedule reason');
+      return;
+    }
+    if (!validateRescheduleDateTime()) {
+      toast.error('Please select a future time.');
+      return;
+    }
+
+    setRescheduleLoading(booking.id);
+    try {
+      const startTime = `${rescheduleForm.date}T${rescheduleForm.time}:00`;
+      await bookingsApi.requestReschedule(booking.id, {
+        startTime,
+        reason: trimmedRescheduleReason,
+      });
+      toast.success('Reschedule request sent for admin approval');
+      closeRescheduleModal();
+      fetchBookings();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to request reschedule');
+    } finally {
+      setRescheduleLoading(null);
     }
   };
 
@@ -129,26 +294,65 @@ export default function MyBookings() {
   };
 
   const canCancel = (b) =>
-    ['PENDING', 'CONFIRMED'].includes(b.status ?? '') &&
+    ['PENDING', 'CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
     new Date(b.startTime ?? b.bookingDate ?? b.date) > new Date();
-  const canStart = (b) =>
-    b.status === 'CONFIRMED' &&
-    new Date(b.startTime ?? b.bookingDate ?? b.date) <= new Date();
-  const vehicleOptions = Array.from(
-    bookings.reduce((map, booking) => {
-      const key = getBookingVehicleKey(booking);
-      if (!map.has(key)) {
-        map.set(key, {
-          value: key,
-          label: getBookingVehicleLabel(booking),
-        });
-      }
-      return map;
-    }, new Map()).values()
+  const activeSessionsByBookingId = useMemo(
+    () => new Map(
+      activeSessions
+        .filter((session) => session?.bookingId != null)
+        .map((session) => [session.bookingId, session])
+    ),
+    [activeSessions]
   );
-  const displayedBookings = vehicleFilter === 'ALL'
-    ? bookings
-    : bookings.filter((booking) => getBookingVehicleKey(booking) === vehicleFilter);
+  const getActiveSessionForBooking = (booking) => activeSessionsByBookingId.get(booking?.id) ?? null;
+  const hasActiveSessionForBooking = (booking) => Boolean(getActiveSessionForBooking(booking));
+  const canStart = (b) =>
+    !hasActiveSessionForBooking(b) &&
+    ['CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
+    new Date(b.startTime ?? b.bookingDate ?? b.date) <= new Date();
+  const canViewActiveSession = (b) => hasActiveSessionForBooking(b);
+  const canRequestReschedule = (b) =>
+    ['CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
+    new Date(b.startTime ?? b.bookingDate ?? b.date) > new Date() &&
+    !hasPendingRescheduleRequest(b);
+  const vehicleOptions = useMemo(
+    () =>
+      Array.from(
+        bookings.reduce((map, booking) => {
+          const key = getBookingVehicleKey(booking);
+          if (!map.has(key)) {
+            map.set(key, {
+              value: key,
+              label: getBookingVehicleLabel(booking),
+            });
+          }
+          return map;
+        }, new Map()).values()
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [bookings]
+  );
+
+  const filteredBookings = useMemo(
+    () => (
+      vehicleFilter === 'ALL'
+        ? bookings
+        : bookings.filter((booking) => getBookingVehicleKey(booking) === vehicleFilter)
+    ),
+    [bookings, vehicleFilter]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (page >= totalPages) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [page, totalPages]);
+
+  const displayedBookings = useMemo(() => {
+    const startIndex = page * PAGE_SIZE;
+    return filteredBookings.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredBookings, page]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -249,6 +453,15 @@ export default function MyBookings() {
                       <div className="my-bookings__card-header">
                         <span className="my-bookings__ref">#{b.referenceId ?? b.id ?? '\u2014'}</span>
                         <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '\u2014'}</span>
+                        {hasActiveSessionForBooking(b) && (
+                          <span className="badge badge--info">Session In Progress</span>
+                        )}
+                        {hasPendingRescheduleRequest(b) && (
+                          <span className="badge badge--warning">Reschedule Pending</span>
+                        )}
+                        {hasRejectedRescheduleRequest(b) && (
+                          <span className="badge badge--neutral">Reschedule Rejected</span>
+                        )}
                       </div>
                       <h3 className="my-bookings__station">
                         {b.stationName ?? b.station?.name ?? 'Station'}
@@ -263,8 +476,17 @@ export default function MyBookings() {
                     </div>
 
                     <div className="my-bookings__card-controls">
-                      {(canStart(b) || canCancel(b)) && (
+                      {(canViewActiveSession(b) || canStart(b) || canCancel(b) || canRequestReschedule(b) || hasPendingRescheduleRequest(b)) && (
                         <div className="my-bookings__card-actions" onClick={(e) => e.stopPropagation()}>
+                          {canViewActiveSession(b) && (
+                            <button
+                              className="btn btn--accent btn--sm"
+                              disabled={!!actionLoading}
+                              onClick={() => navigate('/customer/sessions')}
+                            >
+                              View Session
+                            </button>
+                          )}
                           {canStart(b) && (
                             <button
                               className="btn btn--accent btn--sm"
@@ -274,11 +496,20 @@ export default function MyBookings() {
                               {actionLoading === b.id ? 'Starting...' : 'Start Session'}
                             </button>
                           )}
+                          {(canRequestReschedule(b) || hasPendingRescheduleRequest(b)) && (
+                            <button
+                              className="btn btn--outline btn--sm"
+                              disabled={!!rescheduleLoading || hasPendingRescheduleRequest(b)}
+                              onClick={() => openRescheduleModal(b)}
+                            >
+                              {hasPendingRescheduleRequest(b) ? 'Pending Approval' : hasRejectedRescheduleRequest(b) ? 'Request Again' : 'Request Reschedule'}
+                            </button>
+                          )}
                           {canCancel(b) && (
                             <button
                               className="btn btn--danger btn--sm"
                               disabled={!!actionLoading}
-                              onClick={() => setCancelModal(b)}
+                              onClick={() => openCancelModal(b)}
                             >
                               Cancel Booking
                             </button>
@@ -318,13 +549,13 @@ export default function MyBookings() {
                             <div className="my-bookings__detail-item">
                               <span className="my-bookings__detail-label">Start Time</span>
                               <span className="my-bookings__detail-value">
-                                {b.startTime ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                                {formatBookingDateTime(b.startTime)}
                               </span>
                             </div>
                             <div className="my-bookings__detail-item">
                               <span className="my-bookings__detail-label">End Time</span>
                               <span className="my-bookings__detail-value">
-                                {b.endTime ? new Date(b.endTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                                {formatBookingDateTime(b.endTime)}
                               </span>
                             </div>
                             <div className="my-bookings__detail-item">
@@ -335,10 +566,40 @@ export default function MyBookings() {
                               <span className="my-bookings__detail-label">Status</span>
                               <span className={`badge ${getStatusBadge(b.status)}`}>{b.status ?? '\u2014'}</span>
                             </div>
+                            {(b.rescheduleRequestStatus ?? 'NONE') !== 'NONE' && (
+                              <div className="my-bookings__detail-item">
+                                <span className="my-bookings__detail-label">Reschedule Request</span>
+                                <span className="my-bookings__detail-value">{b.rescheduleRequestStatus ?? '\u2014'}</span>
+                              </div>
+                            )}
+                            {b.rescheduleRequestedStartTime && (
+                              <div className="my-bookings__detail-item">
+                                <span className="my-bookings__detail-label">Requested Start</span>
+                                <span className="my-bookings__detail-value">{formatBookingDateTime(b.rescheduleRequestedStartTime)}</span>
+                              </div>
+                            )}
+                            {b.rescheduleRequestedEndTime && (
+                              <div className="my-bookings__detail-item">
+                                <span className="my-bookings__detail-label">Requested End</span>
+                                <span className="my-bookings__detail-value">{formatBookingDateTime(b.rescheduleRequestedEndTime)}</span>
+                              </div>
+                            )}
+                            {b.rescheduleRequestReason && (
+                              <div className="my-bookings__detail-item">
+                                <span className="my-bookings__detail-label">Reschedule Reason</span>
+                                <span className="my-bookings__detail-value">{b.rescheduleRequestReason}</span>
+                              </div>
+                            )}
+                            {b.cancellationReason && (
+                              <div className="my-bookings__detail-item">
+                                <span className="my-bookings__detail-label">Cancellation Reason</span>
+                                <span className="my-bookings__detail-value">{b.cancellationReason}</span>
+                              </div>
+                            )}
                             <div className="my-bookings__detail-item">
                               <span className="my-bookings__detail-label">Booked On</span>
                               <span className="my-bookings__detail-value">
-                                {b.createdAt ? new Date(b.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014'}
+                                {formatBookingDateTime(b.createdAt)}
                               </span>
                             </div>
                           </div>
@@ -375,25 +636,113 @@ export default function MyBookings() {
           </>
         )}
 
-        {cancelModal && (
-          <div className="modal-overlay" onClick={() => setCancelModal(null)}>
+        {rescheduleModal && (
+          <div className="modal-overlay" onClick={closeRescheduleModal}>
             <motion.div
-              className="modal card"
+              className="modal card my-bookings__reschedule-modal"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="modal__title">Request reschedule</h3>
+              <p className="my-bookings__cancel-text">
+                Your request will be sent to admin for approval before the booking is changed.
+              </p>
+              <div className="my-bookings__reschedule-summary">
+                <span className="my-bookings__detail-label">Current Slot</span>
+                <span className="my-bookings__detail-value">{formatBookingDateTime(rescheduleModal.startTime)}</span>
+                <span className="my-bookings__detail-label">Duration</span>
+                <span className="my-bookings__detail-value">{getBookingDurationMinutes(rescheduleModal)} min</span>
+              </div>
+              <div className="my-bookings__reschedule-grid">
+                <label className="my-bookings__cancel-field">
+                  <span className="my-bookings__cancel-label">New date</span>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={rescheduleForm.date}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setRescheduleForm((current) => ({ ...current, date: nextDate }));
+                      validateRescheduleDateTime(nextDate, rescheduleForm.time);
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </label>
+                <label className="my-bookings__cancel-field">
+                  <span className="my-bookings__cancel-label">New time</span>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={rescheduleForm.time}
+                    onChange={(e) => {
+                      const nextTime = e.target.value;
+                      setRescheduleForm((current) => ({ ...current, time: nextTime }));
+                      validateRescheduleDateTime(rescheduleForm.date, nextTime);
+                    }}
+                  />
+                </label>
+              </div>
+              {rescheduleDateTimeError && <div className="form-error">{rescheduleDateTimeError}</div>}
+              <label className="my-bookings__cancel-field">
+                <span className="my-bookings__cancel-label">Reason for reschedule</span>
+                <textarea
+                  className="form-input my-bookings__cancel-textarea"
+                  value={rescheduleForm.reason}
+                  onChange={(e) => setRescheduleForm((current) => ({ ...current, reason: e.target.value }))}
+                  placeholder="Tell admin why you want to reschedule this booking"
+                  rows={4}
+                  maxLength={500}
+                  autoFocus
+                />
+              </label>
+              <div className="modal__actions">
+                <button className="btn btn--outline" onClick={closeRescheduleModal} disabled={!!rescheduleLoading}>
+                  Close
+                </button>
+                <button
+                  className="btn btn--accent"
+                  disabled={!!rescheduleLoading || !trimmedRescheduleReason || !rescheduleForm.date || !rescheduleForm.time || !!rescheduleDateTimeError}
+                  onClick={() => handleRequestReschedule(rescheduleModal)}
+                >
+                  {rescheduleLoading === rescheduleModal.id ? 'Sending...' : 'Send Request'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {cancelModal && (
+          <div className="modal-overlay" onClick={closeCancelModal}>
+            <motion.div
+              className="modal card my-bookings__cancel-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="modal__title">Cancel booking?</h3>
-              <p>
+              <p className="my-bookings__cancel-text">
                 Are you sure you want to cancel booking #{cancelModal.referenceId ?? cancelModal.id}?
               </p>
+              <label className="my-bookings__cancel-field">
+                <span className="my-bookings__cancel-label">Reason for cancellation</span>
+                <textarea
+                  className="form-input my-bookings__cancel-textarea"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Enter why you want to cancel this booking"
+                  rows={4}
+                  maxLength={500}
+                  autoFocus
+                />
+              </label>
               <div className="modal__actions">
-                <button className="btn btn--outline" onClick={() => setCancelModal(null)}>
+                <button className="btn btn--outline" onClick={closeCancelModal} disabled={!!actionLoading}>
                   Keep
                 </button>
                 <button
                   className="btn btn--danger"
-                  disabled={!!actionLoading}
+                  disabled={!!actionLoading || !trimmedCancelReason}
                   onClick={() => handleCancel(cancelModal.id)}
                 >
                   {actionLoading === cancelModal.id ? 'Cancelling...' : 'Cancel Booking'}
