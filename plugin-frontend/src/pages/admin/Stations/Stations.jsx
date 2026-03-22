@@ -3,30 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
+import { useAuth } from '../../../context/AuthContext';
+import { getAdminSidebarLinks } from '../adminNavigation';
 import './Stations.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
-const sidebarLinks = [
-  { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
-  { to: '/admin/stations', icon: '\u{1F3E2}', label: 'Stations' },
-  { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
-  { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
-  { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
-  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
-  { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
-  { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
-  { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
-  { to: '/admin/audit-logs', icon: '\u{1F4DD}', label: 'Audit Logs' },
-  { to: '/admin/notifications', icon: '\u{1F514}', label: 'Notifications' },
-];
-
-function AdminSidebar() {
+function AdminSidebar({ links }) {
   const location = useLocation();
   return (
     <aside className="admin-sidebar">
       <div className="admin-sidebar__title">Admin Panel</div>
       <nav>
-        {sidebarLinks.map((link) => (
+        {links.map((link) => (
           <Link
             key={link.to}
             to={link.to}
@@ -64,6 +52,8 @@ const emptyForm = {
 
 export default function Stations() {
   const toast = useToast();
+  const { user } = useAuth();
+  const sidebarLinks = getAdminSidebarLinks(user?.role);
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -72,6 +62,7 @@ export default function Stations() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const canCreateOrDelete = user?.role === 'ADMIN';
 
   const fetchStations = (p = page) => {
     setLoading(true);
@@ -196,7 +187,7 @@ export default function Stations() {
 
   return (
     <div className="admin-layout">
-      <AdminSidebar />
+      <AdminSidebar links={sidebarLinks} />
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -205,19 +196,23 @@ export default function Stations() {
               Back
             </Link>
             <h1 className="page-header__title">Stations</h1>
-            <p className="page-header__subtitle">Manage your charging station network</p>
+            <p className="page-header__subtitle">
+              {canCreateOrDelete ? 'Manage your charging station network' : 'Manage your approved station profile'}
+            </p>
           </div>
-          <button className="btn btn--accent" onClick={openCreate}>+ Add Station</button>
+          {canCreateOrDelete && <button className="btn btn--accent" onClick={openCreate}>+ Add Station</button>}
         </div>
 
         {loading ? (
           <div className="admin-loading"><div className="spinner" /><p>Loading stations...</p></div>
         ) : stations.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state__icon"><IconGlyph glyph={'\u{1F3E2}'} className="mono-icon mono-icon--lg" /></div>
-            <h3 className="empty-state__title">No stations yet</h3>
-            <p className="empty-state__text">Create your first station to get started.</p>
-          </div>
+            <div className="empty-state">
+              <div className="empty-state__icon"><IconGlyph glyph={'\u{1F3E2}'} className="mono-icon mono-icon--lg" /></div>
+              <h3 className="empty-state__title">No stations yet</h3>
+              <p className="empty-state__text">
+                {canCreateOrDelete ? 'Create your first station to get started.' : 'Your approved station will appear here once the manager application is activated.'}
+              </p>
+            </div>
         ) : (
           <>
             <div className="table-container">
@@ -252,7 +247,9 @@ export default function Stations() {
                             {s.active ? 'Deactivate' : 'Activate'}
                           </button>
                           <button className="btn btn--sm btn--ghost" onClick={() => openEdit(s)}>Edit</button>
-                          <button className="btn btn--sm btn--danger" onClick={() => handleDelete(s)}>Delete</button>
+                          {canCreateOrDelete && (
+                            <button className="btn btn--sm btn--danger" onClick={() => handleDelete(s)}>Delete</button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>

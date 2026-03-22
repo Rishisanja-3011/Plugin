@@ -26,21 +26,32 @@ public class PricingService {
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
     private final AuditService auditService;
+    private final StationOperatorAccessService stationOperatorAccessService;
 
     public List<PricingResponse> getByStation(Long stationId) {
+        stationRepository.findById(stationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         return pricingRepository.findByStationId(stationId).stream()
                 .map(this::toResponse).collect(Collectors.toList());
     }
 
-    public List<PricingResponse> getAll() {
-        return pricingRepository.findAll().stream()
+    public List<PricingResponse> getByStation(Long stationId, String actorEmail) {
+        stationOperatorAccessService.getAccessibleStation(stationId, actorEmail);
+        return pricingRepository.findByStationId(stationId).stream()
                 .map(this::toResponse).collect(Collectors.toList());
+    }
+
+    public List<PricingResponse> getAll(String actorEmail) {
+        var actor = stationOperatorAccessService.getActor(actorEmail);
+        List<Pricing> pricing = stationOperatorAccessService.isAdmin(actor)
+                ? pricingRepository.findAll()
+                : pricingRepository.findByStationManagerId(actor.getId());
+        return pricing.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional
     public PricingResponse createOrUpdate(PricingRequest request, String performedBy) {
-        Station station = stationRepository.findById(request.getStationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(request.getStationId(), performedBy);
 
         Optional<Pricing> existing = pricingRepository
                 .findByStationIdAndPointType(request.getStationId(), request.getPointType());
@@ -65,8 +76,7 @@ public class PricingService {
 
     @Transactional
     public void delete(Long id, String performedBy) {
-        Pricing pricing = pricingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Pricing not found"));
+        Pricing pricing = stationOperatorAccessService.getAccessiblePricing(id, performedBy);
         auditService.log("DELETE_PRICING", "PRICING", id, performedBy, "Deleted pricing record");
         pricingRepository.delete(pricing);
     }

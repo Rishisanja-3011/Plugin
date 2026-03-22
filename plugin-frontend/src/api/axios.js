@@ -30,6 +30,8 @@ const isPublicPath = (path, method = 'GET') => {
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/stations')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/charging-points/station/')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/pricing/station/')) return true;
+  if (normalizedMethod === 'GET' && normalizedPath.startsWith('/station-manager/reference-data')) return true;
+  if (normalizedMethod === 'GET' && normalizedPath.startsWith('/station-manager/status/')) return true;
   return false;
 };
 

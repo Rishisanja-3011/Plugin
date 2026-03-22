@@ -2,30 +2,18 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
+import { useAuth } from '../../../context/AuthContext';
+import { getAdminSidebarLinks } from '../adminNavigation';
 import './Dashboard.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
-const sidebarLinks = [
-  { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
-  { to: '/admin/stations', icon: '\u{1F3E2}', label: 'Stations' },
-  { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
-  { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
-  { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
-  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
-  { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
-  { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
-  { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
-  { to: '/admin/audit-logs', icon: '\u{1F4DD}', label: 'Audit Logs' },
-  { to: '/admin/notifications', icon: '\u{1F514}', label: 'Notifications' },
-];
-
-function AdminSidebar() {
+function AdminSidebar({ links }) {
   const location = useLocation();
   return (
     <aside className="admin-sidebar">
       <div className="admin-sidebar__title">Admin Panel</div>
       <nav>
-        {sidebarLinks.map((link) => (
+        {links.map((link) => (
           <Link
             key={link.to}
             to={link.to}
@@ -55,6 +43,8 @@ const cardVariants = {
 };
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const sidebarLinks = getAdminSidebarLinks(user?.role);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -78,15 +68,19 @@ export default function Dashboard() {
   const quickActions = [
     { to: '/admin/stations', label: 'Manage Stations', icon: '\u{1F3E2}' },
     { to: '/admin/charging-points', label: 'Charging Points', icon: '\u{1F50C}' },
-    { to: '/admin/bookings', label: 'View Bookings', icon: '\u{1F4CB}' },
-    { to: '/admin/customers', label: 'Customers', icon: '\u{1F465}' },
-    { to: '/admin/revenue', label: 'Revenue Report', icon: '\u{1F4B0}' },
-    { to: '/admin/analytics', label: 'Analytics', icon: '\u{1F4C8}' },
+    { to: '/admin/pricing', label: 'Pricing', icon: '\u{1F4B2}' },
+    ...(user?.role === 'ADMIN' ? [
+      { to: '/admin/bookings', label: 'View Bookings', icon: '\u{1F4CB}' },
+      { to: '/admin/customers', label: 'Customers', icon: '\u{1F465}' },
+      { to: '/admin/revenue', label: 'Revenue Report', icon: '\u{1F4B0}' },
+      { to: '/admin/analytics', label: 'Analytics', icon: '\u{1F4C8}' },
+    ] : []),
+    ...(user?.role === 'ADMIN' ? [{ to: '/admin/station-manager-applications', label: 'Review Manager KYC', icon: '\u{1F4DD}' }] : []),
   ];
 
   return (
     <div className="admin-layout">
-      <AdminSidebar />
+      <AdminSidebar links={sidebarLinks} />
       <motion.main
         className="admin-content"
         variants={pageVariants}

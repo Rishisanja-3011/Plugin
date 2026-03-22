@@ -1,0 +1,295 @@
+.manager-review__identity {
+  display: grid;
+  gap: 4px;
+}
+
+.manager-review__identity strong {
+  color: var(--color-text-primary);
+}
+
+.manager-review__identity span,
+.manager-review__detail-item span,
+.manager-review__meta-bar span,
+.manager-review__page-subtitle,
+.manager-review__detail-item small {
+  color: var(--color-text-secondary);
+}
+
+.manager-review__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.manager-review__status--success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.manager-review__status--warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+}
+
+.manager-review__status--danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+.manager-review__page-header {
+  margin-bottom: var(--space-xl);
+}
+
+.manager-review__page-card {
+  display: grid;
+  gap: var(--space-xl);
+  padding: clamp(var(--space-xl), 2.5vw, calc(var(--space-2xl) + var(--space-md)));
+  border-radius: 32px;
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+}
+
+.manager-review__page-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-lg);
+}
+
+.manager-review__page-identity {
+  display: grid;
+  gap: 10px;
+}
+
+.manager-review__page-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  line-height: 0.95;
+}
+
+.manager-review__page-subtitle {
+  margin: 0;
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+}
+
+.manager-review__meta-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.manager-review__meta-bar div {
+  display: grid;
+  gap: 8px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+}
+
+.manager-review__meta-bar strong,
+.manager-review__detail-item strong {
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.manager-review__body {
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.manager-review__body--page {
+  overflow: visible;
+}
+
+.manager-review__section {
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+}
+
+.manager-review__section h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.manager-review__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+}
+
+.manager-review__detail-item {
+  display: grid;
+  gap: 8px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+  min-height: 120px;
+  align-content: start;
+}
+
+.manager-review__detail-item--file {
+  min-height: 154px;
+}
+
+.manager-review__file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: auto;
+}
+
+.manager-review__detail-item .btn {
+  justify-self: flex-start;
+}
+
+.manager-review__preview-banner {
+  display: grid;
+  gap: var(--space-lg);
+  padding: clamp(var(--space-lg), 2vw, var(--space-xl));
+  border-radius: 28px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+}
+
+.manager-review__preview-header {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.manager-review__preview-copy {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.manager-review__preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.manager-review__preview-surface {
+  min-height: 520px;
+  max-height: min(72vh, 860px);
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  background:
+    radial-gradient(circle at top left, rgba(var(--color-accent-rgb), 0.08), transparent 22%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.manager-review__preview-frame,
+.manager-review__preview-image {
+  display: block;
+  width: 100%;
+  min-height: 520px;
+  height: min(72vh, 860px);
+  background: #fff;
+}
+
+.manager-review__preview-frame {
+  border: 0;
+}
+
+.manager-review__preview-image {
+  object-fit: contain;
+}
+
+.manager-review__preview-empty {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  gap: var(--space-sm);
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--color-text-secondary);
+}
+
+.manager-review__preview-empty strong {
+  color: var(--color-text-primary);
+}
+
+.manager-review__notes {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  padding: 12px 14px;
+  resize: vertical;
+  min-height: 140px;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+}
+
+.manager-review__notes:focus {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.2);
+  outline-offset: 1px;
+}
+
+.manager-review__page-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border-light);
+}
+
+@media (max-width: 1100px) {
+  .manager-review__meta-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .manager-review__page-card {
+    padding: var(--space-lg);
+    border-radius: 24px;
+  }
+
+  .manager-review__page-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .manager-review__meta-bar,
+  .manager-review__detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-review__preview-actions,
+  .manager-review__file-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .manager-review__preview-frame,
+  .manager-review__preview-image,
+  .manager-review__preview-empty,
+  .manager-review__preview-surface {
+    min-height: 320px;
+    height: 320px;
+  }
+
+  .manager-review__page-actions {
+    justify-content: stretch;
+  }
+
+  .manager-review__page-actions .btn {
+    width: 100%;
+  }
+}

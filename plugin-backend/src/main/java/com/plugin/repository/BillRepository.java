@@ -38,6 +38,10 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @Query("SELECT COALESCE(SUM(b.totalAmount), 0) FROM Bill b WHERE b.paymentStatus = 'PAID'")
     BigDecimal getTotalRevenue();
 
+    @Query("SELECT COALESCE(SUM(b.totalAmount), 0) FROM Bill b " +
+           "WHERE b.paymentStatus = 'PAID' AND b.station.manager.id = :managerId")
+    BigDecimal getTotalRevenueByManagerId(@Param("managerId") Long managerId);
+
     @Query("SELECT COALESCE(SUM(b.totalAmount), 0) FROM Bill b WHERE b.paymentStatus = 'PAID' " +
            "AND b.createdAt >= :start AND b.createdAt < :end")
     BigDecimal getRevenueInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

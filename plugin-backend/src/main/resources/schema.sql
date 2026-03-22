@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS stations (
     pincode VARCHAR(10),
     contact_phone VARCHAR(20),
     contact_email VARCHAR(150),
+    manager_id BIGINT,
     latitude DOUBLE,
     longitude DOUBLE,
     opening_time TIME NOT NULL,
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS stations (
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
+    FOREIGN KEY (manager_id) REFERENCES users(id),
     INDEX idx_stations_city (city),
     INDEX idx_stations_pincode (pincode),
     INDEX idx_stations_active (active)
@@ -189,6 +191,100 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
     INDEX idx_pending_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS station_manager_applications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNIQUE,
+    approved_station_id BIGINT,
+    status VARCHAR(20) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    application_reference_id VARCHAR(11) UNIQUE,
+    phone VARCHAR(20) NOT NULL,
+    date_of_birth DATE,
+    residential_address VARCHAR(300) NOT NULL,
+    government_id_type VARCHAR(50) NOT NULL,
+    government_id_number VARCHAR(100) NOT NULL,
+    government_id_document_reference VARCHAR(500) NOT NULL,
+    selfie_document_reference VARCHAR(500) NOT NULL,
+    business_type VARCHAR(30) NOT NULL,
+    business_name VARCHAR(150) NOT NULL,
+    legal_business_name VARCHAR(150) NOT NULL,
+    pan_number VARCHAR(20) NOT NULL,
+    gst_number VARCHAR(20),
+    business_registration_number VARCHAR(100),
+    business_address VARCHAR(300) NOT NULL,
+    authorized_signatory_name VARCHAR(100) NOT NULL,
+    authorized_signatory_designation VARCHAR(100) NOT NULL,
+    registration_proof_reference VARCHAR(500) NOT NULL,
+    authorization_proof_reference VARCHAR(500) NOT NULL,
+    station_name VARCHAR(150) NOT NULL,
+    station_address VARCHAR(300) NOT NULL,
+    station_city VARCHAR(100) NOT NULL,
+    station_state VARCHAR(100) NOT NULL,
+    station_pincode VARCHAR(10) NOT NULL,
+    station_latitude DOUBLE NOT NULL,
+    station_longitude DOUBLE NOT NULL,
+    property_occupancy_type VARCHAR(20) NOT NULL,
+    property_document_reference VARCHAR(500) NOT NULL,
+    electricity_consumer_number VARCHAR(100) NOT NULL,
+    electricity_bill_reference VARCHAR(500) NOT NULL,
+    opening_time TIME NOT NULL,
+    closing_time TIME NOT NULL,
+    emergency_contact_number VARCHAR(20) NOT NULL,
+    bank_account_holder_name VARCHAR(100) NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    bank_account_number VARCHAR(30) NOT NULL,
+    bank_ifsc_code VARCHAR(20) NOT NULL,
+    bank_proof_reference VARCHAR(500) NOT NULL,
+    number_of_chargers INT NOT NULL,
+    charger_types_summary VARCHAR(500) NOT NULL,
+    connector_types_summary VARCHAR(500) NOT NULL,
+    total_capacity_kw DOUBLE NOT NULL,
+    charger_manufacturer_names VARCHAR(500) NOT NULL,
+    installation_photo_reference VARCHAR(500) NOT NULL,
+    site_photo_reference VARCHAR(500) NOT NULL,
+    submitted_at DATETIME NOT NULL,
+    reviewed_at DATETIME,
+    reviewed_by VARCHAR(150),
+    review_notes VARCHAR(500),
+    credentials_issued_at DATETIME,
+    credentials_issued_by VARCHAR(150),
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_station_id) REFERENCES stations(id),
+    INDEX idx_station_manager_status (status),
+    INDEX idx_station_manager_submitted (submitted_at),
+    INDEX idx_station_manager_business_type (business_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS station_manager_application_documents (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    application_id BIGINT NOT NULL,
+    document_type VARCHAR(50) NOT NULL,
+    reference_number VARCHAR(100),
+    document_reference VARCHAR(500) NOT NULL,
+    notes VARCHAR(300),
+    FOREIGN KEY (application_id) REFERENCES station_manager_applications(id) ON DELETE CASCADE,
+    INDEX idx_station_manager_docs_application (application_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS station_manager_application_files (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    application_id BIGINT NOT NULL,
+    slot_type VARCHAR(40) NOT NULL,
+    business_document_type VARCHAR(50),
+    original_file_name VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100),
+    file_size BIGINT NOT NULL,
+    file_data LONGBLOB NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME,
+    FOREIGN KEY (application_id) REFERENCES station_manager_applications(id) ON DELETE CASCADE,
+    INDEX idx_station_manager_files_application (application_id),
+    INDEX idx_station_manager_files_slot (slot_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     action VARCHAR(100) NOT NULL,
@@ -292,3 +388,33 @@ UPDATE bills
 SET rate_type = 'PER_KWH'
 WHERE rate_type IS NOT NULL
   AND rate_type <> 'PER_KWH';
+
+ALTER TABLE stations
+    ADD COLUMN manager_id BIGINT;
+
+ALTER TABLE stations
+    ADD CONSTRAINT fk_station_manager FOREIGN KEY (manager_id) REFERENCES users(id);
+
+ALTER TABLE station_manager_applications
+    ADD COLUMN approved_station_id BIGINT;
+
+ALTER TABLE station_manager_applications
+    ADD CONSTRAINT fk_station_manager_approved_station FOREIGN KEY (approved_station_id) REFERENCES stations(id);
+
+ALTER TABLE station_manager_applications
+    MODIFY COLUMN user_id BIGINT NULL;
+
+ALTER TABLE station_manager_applications
+    ADD CONSTRAINT uq_station_manager_application_email UNIQUE (email);
+
+ALTER TABLE station_manager_applications
+    ADD COLUMN credentials_issued_at DATETIME;
+
+ALTER TABLE station_manager_applications
+    ADD COLUMN credentials_issued_by VARCHAR(150);
+
+ALTER TABLE station_manager_applications
+    ADD COLUMN application_reference_id VARCHAR(11);
+
+ALTER TABLE station_manager_applications
+    ADD CONSTRAINT uq_station_manager_application_reference_id UNIQUE (application_reference_id);

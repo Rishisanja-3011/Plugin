@@ -131,6 +131,18 @@ const trustHighlights = [
   { value: '24x7', label: 'Driver support' },
 ];
 
+const operatorBenefits = [
+  'One onboarding flow for business, station, bank, and charger details.',
+  'Business-type-specific document rules that change automatically during KYC.',
+  'Admin approval before operational access is unlocked for station management.',
+];
+
+const operatorSteps = [
+  { title: 'Apply', desc: 'Submit KYC, business proof, station proof, and payout details.' },
+  { title: 'Review', desc: 'Admin validates the submitted documents and station readiness.' },
+  { title: 'Operate', desc: 'Approved accounts move into station operations and management.' },
+];
+
 const floatingVariants = (delay = 0, y = 0) => ({
   initial: { opacity: 0, y: 20 },
   animate: {
@@ -465,6 +477,50 @@ export default function Landing() {
           <p className="landing__trust-support">
             Need help? Reach us anytime at <a href="mailto:plugin.onservice@gmail.com">plugin.onservice@gmail.com</a>.
           </p>
+        </div>
+      </section>
+
+      <section className="landing__operators">
+        <div className="landing__section-inner landing__operators-grid">
+          <motion.div
+            className="landing__operators-copy"
+            initial={{ opacity: 0, x: -24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ duration: 0.6 }}
+          >
+            <p className="landing__network-kicker">For Operators</p>
+            <h2 className="landing__section-title landing__section-title--left">Launch your station manager onboarding</h2>
+            <p className="landing__operators-text">
+              PLUGIN now supports station-manager applications with a full KYC flow. Operators submit one application, admin reviews it, and approved accounts unlock station operations.
+            </p>
+            <ul className="landing__operators-list">
+              {operatorBenefits.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <Link to="/station-manager/apply" className="landing__btn landing__btn--accent">
+              Start Manager Application
+            </Link>
+          </motion.div>
+
+          <motion.div
+            className="landing__operators-panel"
+            initial={{ opacity: 0, x: 24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ duration: 0.6, delay: 0.08 }}
+          >
+            {operatorSteps.map((step, index) => (
+              <article key={step.title} className="landing__operators-step">
+                <span className="landing__operators-step-index">0{index + 1}</span>
+                <div>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                </div>
+              </article>
+            ))}
+          </motion.div>
         </div>
       </section>
 

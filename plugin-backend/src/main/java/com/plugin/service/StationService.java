@@ -4,7 +4,9 @@ import com.plugin.dto.request.StationRequest;
 import com.plugin.dto.response.StationLiveSummaryResponse;
 import com.plugin.dto.response.StationResponse;
 import com.plugin.entity.Station;
+import com.plugin.entity.User;
 import com.plugin.enums.PointStatus;
+import com.plugin.enums.Role;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.ChargingPointRepository;
 import com.plugin.repository.StationRepository;
@@ -23,9 +25,14 @@ public class StationService {
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
     private final AuditService auditService;
+    private final StationOperatorAccessService stationOperatorAccessService;
 
-    public Page<StationResponse> getAllStations(Pageable pageable) {
-        return stationRepository.findAll(pageable).map(this::toResponse);
+    public Page<StationResponse> getAllStations(String actorEmail, Pageable pageable) {
+        User actor = stationOperatorAccessService.getActor(actorEmail);
+        if (actor.getRole() == Role.ADMIN) {
+            return stationRepository.findAll(pageable).map(this::toResponse);
+        }
+        return stationRepository.findByManagerId(actor.getId(), pageable).map(this::toResponse);
     }
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
@@ -73,6 +80,7 @@ public class StationService {
 
     @Transactional
     public StationResponse createStation(StationRequest request, String performedBy) {
+        stationOperatorAccessService.requireAdmin(performedBy);
         Station station = Station.builder()
                 .name(request.getName())
                 .address(request.getAddress())
@@ -95,8 +103,7 @@ public class StationService {
 
     @Transactional
     public StationResponse updateStation(Long id, StationRequest request, String performedBy) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(id, performedBy);
         station.setName(request.getName());
         station.setAddress(request.getAddress());
         station.setCity(request.getCity());
@@ -116,8 +123,7 @@ public class StationService {
 
     @Transactional
     public StationResponse toggleStationStatus(Long id, String performedBy) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(id, performedBy);
         station.setActive(!station.getActive());
         station = stationRepository.save(station);
 
@@ -138,6 +144,7 @@ public class StationService {
 
     @Transactional
     public void deleteStation(Long id, String performedBy) {
+        stationOperatorAccessService.requireAdmin(performedBy);
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         auditService.log("DELETE_STATION", "STATION", id, performedBy,
@@ -157,6 +164,8 @@ public class StationService {
                 .pincode(station.getPincode())
                 .contactPhone(station.getContactPhone())
                 .contactEmail(station.getContactEmail())
+                .managerId(station.getManager() != null ? station.getManager().getId() : null)
+                .managerName(station.getManager() != null ? station.getManager().getFullName() : null)
                 .latitude(station.getLatitude())
                 .longitude(station.getLongitude())
                 .openingTime(station.getOpeningTime())

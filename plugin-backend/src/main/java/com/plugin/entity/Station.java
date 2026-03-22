@@ -35,6 +35,10 @@ public class Station {
     @Column(length = 150)
     private String contactEmail;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_id")
+    private User manager;
+
     private Double latitude;
 
     private Double longitude;
