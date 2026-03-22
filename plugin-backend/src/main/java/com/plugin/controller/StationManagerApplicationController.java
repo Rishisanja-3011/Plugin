@@ -1,5 +1,6 @@
 package com.plugin.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.plugin.dto.request.StationManagerApplicationRequest;
 import com.plugin.dto.response.AuthResponse;
 import com.plugin.dto.response.StationManagerApplicationResponse;
@@ -7,9 +8,11 @@ import com.plugin.dto.response.StationManagerReferenceDataResponse;
 import com.plugin.dto.response.StationManagerStatusLookupResponse;
 import com.plugin.enums.StationManagerBusinessDocumentType;
 import com.plugin.enums.StationManagerFileSlot;
+import com.plugin.exception.BadRequestException;
 import com.plugin.service.StationManagerApplicationService;
 import com.plugin.service.StationManagerFileService;
-import jakarta.validation.Valid;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,6 +31,8 @@ import java.util.Map;
 public class StationManagerApplicationController {
 
     private final StationManagerApplicationService stationManagerApplicationService;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
 
     @GetMapping("/reference-data")
     public ResponseEntity<StationManagerReferenceDataResponse> getReferenceData() {
@@ -46,8 +51,8 @@ public class StationManagerApplicationController {
 
     @PostMapping(value = "/application", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<StationManagerApplicationResponse> submitApplication(
-            @Valid @RequestPart("application") StationManagerApplicationRequest request,
             MultipartHttpServletRequest multipartRequest) {
+        StationManagerApplicationRequest request = parseApplicationRequest(multipartRequest);
         return ResponseEntity.ok(stationManagerApplicationService.submitApplication(
                 request,
                 extractStandardFiles(multipartRequest),
@@ -102,6 +107,36 @@ public class StationManagerApplicationController {
     private <K> void putIfPresent(Map<K, MultipartFile> target, K key, MultipartFile file) {
         if (file != null && !file.isEmpty()) {
             target.put(key, file);
+        }
+    }
+
+    private StationManagerApplicationRequest parseApplicationRequest(MultipartHttpServletRequest request) {
+        String rawApplication = request.getParameter("application");
+
+        if ((rawApplication == null || rawApplication.isBlank()) && request.getFile("application") != null) {
+            try {
+                rawApplication = new String(request.getFile("application").getBytes());
+            } catch (Exception ex) {
+                throw new BadRequestException("Failed to read application data.");
+            }
+        }
+
+        if (rawApplication == null || rawApplication.isBlank()) {
+            throw new BadRequestException("Application data is required.");
+        }
+
+        try {
+            StationManagerApplicationRequest parsed = objectMapper.readValue(rawApplication, StationManagerApplicationRequest.class);
+            var violations = validator.validate(parsed);
+            if (!violations.isEmpty()) {
+                ConstraintViolation<StationManagerApplicationRequest> violation = violations.iterator().next();
+                throw new BadRequestException(violation.getMessage());
+            }
+            return parsed;
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BadRequestException("Invalid application data.");
         }
     }
 

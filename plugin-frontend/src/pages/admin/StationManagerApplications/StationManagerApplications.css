@@ -239,6 +239,40 @@
   outline-offset: 1px;
 }
 
+.manager-review__credential-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.manager-review__credential-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.manager-review__field {
+  display: grid;
+  gap: 8px;
+}
+
+.manager-review__field span {
+  color: var(--color-text-secondary);
+}
+
+.manager-review__field input {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  padding: 12px 14px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.manager-review__field input:focus {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.2);
+  outline-offset: 1px;
+}
+
 .manager-review__page-actions {
   display: flex;
   justify-content: flex-end;
@@ -268,6 +302,10 @@
 
   .manager-review__meta-bar,
   .manager-review__detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-review__credential-grid {
     grid-template-columns: 1fr;
   }
 

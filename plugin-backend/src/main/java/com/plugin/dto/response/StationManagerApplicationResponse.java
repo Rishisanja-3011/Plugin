@@ -70,6 +70,7 @@ public class StationManagerApplicationResponse {
     private LocalDateTime reviewedAt;
     private String reviewedBy;
     private String reviewNotes;
+    private Boolean trackingIdEmailSent;
     private Boolean portalAccessReady;
     private String portalLoginEmail;
     private String temporaryPassword;

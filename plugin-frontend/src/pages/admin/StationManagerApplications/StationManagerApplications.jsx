@@ -173,6 +173,22 @@ function getPreviewKind(contentType, fileName) {
   return 'other';
 }
 
+function buildPortalLoginSuggestion(application) {
+  const source = application?.portalLoginEmail
+    || application?.businessName
+    || application?.stationName
+    || application?.fullName
+    || `manager${application?.id || ''}`;
+
+  const localPart = String(source)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .replace(/\.{2,}/g, '.');
+
+  return `${localPart || `manager${application?.id || ''}`}@plugin.com`;
+}
+
 export default function StationManagerApplications() {
   const toast = useToast();
   const navigate = useNavigate();
@@ -188,6 +204,7 @@ export default function StationManagerApplications() {
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [credentialForm, setCredentialForm] = useState({ portalLoginEmail: '', password: '' });
   const [actionLoading, setActionLoading] = useState('');
   const [downloadLoading, setDownloadLoading] = useState('');
   const [previewLoading, setPreviewLoading] = useState('');
@@ -237,6 +254,7 @@ export default function StationManagerApplications() {
       setSelectedApplication(null);
       setSelectedLoading(false);
       setReviewNotes('');
+      setCredentialForm({ portalLoginEmail: '', password: '' });
       setPreviewFile(null);
       return undefined;
     }
@@ -272,6 +290,17 @@ export default function StationManagerApplications() {
       window.URL.revokeObjectURL(previewFile.url);
     }
   }, [previewFile]);
+
+  useEffect(() => {
+    if (!selectedApplication) {
+      return;
+    }
+
+    setCredentialForm({
+      portalLoginEmail: selectedApplication.portalLoginEmail || buildPortalLoginSuggestion(selectedApplication),
+      password: '',
+    });
+  }, [selectedApplication?.id, selectedApplication?.portalLoginEmail]);
 
   useEffect(() => {
     if (!previewFile || !previewSectionRef.current) {
@@ -348,6 +377,13 @@ export default function StationManagerApplications() {
     navigate('/admin/station-manager-applications');
   };
 
+  const handleCredentialFieldChange = (field, value) => {
+    setCredentialForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
   const handleReview = async (action) => {
     if (!selectedApplication?.id) return;
     if (!reviewNotes.trim()) {
@@ -374,11 +410,36 @@ export default function StationManagerApplications() {
 
   const handleIssueCredentials = async () => {
     if (!selectedApplication?.id) return;
+    const portalLoginEmail = credentialForm.portalLoginEmail.trim().toLowerCase();
+    const password = credentialForm.password;
+
+    if (!portalLoginEmail) {
+      toast.error('Enter the station manager portal login email.');
+      return;
+    }
+
+    if (!portalLoginEmail.endsWith('@plugin.com')) {
+      toast.error('Portal login email must end with @plugin.com.');
+      return;
+    }
+
+    if (!password.trim()) {
+      toast.error('Enter the portal password.');
+      return;
+    }
+
     setActionLoading('credentials');
     try {
-      const response = await adminApi.issueStationManagerCredentials(selectedApplication.id);
+      const response = await adminApi.issueStationManagerCredentials(selectedApplication.id, {
+        portalLoginEmail,
+        password,
+      });
       setSelectedApplication(response.data);
-      toast.success('Portal credentials generated. Share them with the station manager securely.');
+      setCredentialForm({
+        portalLoginEmail: response.data?.portalLoginEmail || portalLoginEmail,
+        password: '',
+      });
+      toast.success(`Portal credentials emailed to ${response.data?.email || selectedApplication.email}.`);
       fetchApplications(page, searchTerm, statusFilter);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to issue portal credentials.');
@@ -594,12 +655,10 @@ export default function StationManagerApplications() {
     createStandardFileItem('Site Photo', 'SITE_PHOTO', 'sitePhotoReference'),
   ] : [];
 
-  const portalLoginStatus = selectedApplication?.portalAccessReady
-    ? 'Shared separately by admin'
-    : 'Not issued yet';
+  const portalLoginStatus = selectedApplication?.portalLoginEmail || 'Not issued yet';
 
   const portalItems = selectedApplication ? [
-    { label: 'Portal Login', value: portalLoginStatus },
+    { label: 'Portal Login Email', value: portalLoginStatus },
     { label: 'Portal Access Ready', value: selectedApplication.portalAccessReady ? 'Yes' : 'No' },
     { label: 'Credentials Issued At', value: formatDateTime(selectedApplication.credentialsIssuedAt) },
     { label: 'Credentials Issued By', value: selectedApplication.credentialsIssuedBy || '-' },
@@ -709,19 +768,48 @@ export default function StationManagerApplications() {
                   <DetailSection title="Charger Details" items={chargerItems} registerItemRef={registerDetailItemRef} />
                   <DetailSection title="Portal Credentials" items={portalItems} registerItemRef={registerDetailItemRef} />
 
+                  {selectedApplication.status === 'APPROVED' && (
+                    <section className="manager-review__section">
+                      <h3>Credential Setup</h3>
+                      <p className="manager-review__credential-help">
+                        Create the station manager login below. These credentials will be emailed to {selectedApplication.email}.
+                      </p>
+                      <div className="manager-review__credential-grid">
+                        <label className="manager-review__field">
+                          <span>Portal Login Email</span>
+                          <input
+                            type="email"
+                            value={credentialForm.portalLoginEmail}
+                            onChange={(event) => handleCredentialFieldChange('portalLoginEmail', event.target.value)}
+                            placeholder="station.manager@plugin.com"
+                          />
+                        </label>
+                        <label className="manager-review__field">
+                          <span>Portal Password</span>
+                          <input
+                            type="password"
+                            value={credentialForm.password}
+                            onChange={(event) => handleCredentialFieldChange('password', event.target.value)}
+                            placeholder="Enter portal password"
+                          />
+                        </label>
+                      </div>
+                    </section>
+                  )}
+
                   {selectedApplication.temporaryPassword && (
                     <section className="manager-review__section">
-                      <h3>Share These Credentials</h3>
+                      <h3>Credentials Sent</h3>
                       <div className="manager-review__detail-grid">
                         <div className="manager-review__detail-item">
-                          <span>Portal Login</span>
+                          <span>Portal Login Email</span>
                           <strong>{portalLoginStatus}</strong>
-                          <small>Login ID is shared manually by admin.</small>
+                          <small>Emailed to {selectedApplication.email}.</small>
                         </div>
                         <div className="manager-review__detail-item">
-                          <span>Temporary Password</span>
+                          <span>Issued Password</span>
                           <strong>{selectedApplication.temporaryPassword}</strong>
-                          <small>Show this only once to the approved station manager.</small>
+                          <small>This password was sent to the station manager by email.</small>
                         </div>
                       </div>
                     </section>
@@ -770,10 +858,10 @@ export default function StationManagerApplications() {
                       disabled={actionLoading === 'credentials'}
                     >
                       {actionLoading === 'credentials'
-                        ? 'Generating Credentials...'
+                        ? 'Emailing Credentials...'
                         : selectedApplication.portalAccessReady
-                          ? 'Reset Credentials'
-                          : 'Issue Portal Credentials'}
+                          ? 'Update & Email Credentials'
+                          : 'Email Portal Credentials'}
                     </button>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 package com.plugin.controller;
 
+import com.plugin.dto.request.StationManagerCredentialIssueRequest;
 import com.plugin.dto.request.StationManagerReviewRequest;
 import com.plugin.dto.response.StationManagerApplicationResponse;
 import com.plugin.dto.response.StationManagerApplicationSummaryResponse;
@@ -61,8 +62,10 @@ public class AdminStationManagerApplicationController {
     }
 
     @PostMapping("/{id}/issue-credentials")
-    public ResponseEntity<StationManagerApplicationResponse> issueCredentials(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(stationManagerApplicationService.issuePortalCredentials(id, auth.getName()));
+    public ResponseEntity<StationManagerApplicationResponse> issueCredentials(@PathVariable Long id,
+                                                                              @Valid @RequestBody StationManagerCredentialIssueRequest request,
+                                                                              Authentication auth) {
+        return ResponseEntity.ok(stationManagerApplicationService.issuePortalCredentials(id, auth.getName(), request));
     }
 
     @GetMapping("/{id}/files/{slotType}")

@@ -91,8 +91,8 @@ export const adminApi = {
     api.post(`/admin/station-manager-applications/${id}/approve`, { notes }),
   rejectStationManagerApplication: (id, notes) =>
     api.post(`/admin/station-manager-applications/${id}/reject`, { notes }),
-  issueStationManagerCredentials: (id) =>
-    api.post(`/admin/station-manager-applications/${id}/issue-credentials`),
+  issueStationManagerCredentials: (id, data) =>
+    api.post(`/admin/station-manager-applications/${id}/issue-credentials`, data),
   downloadStationManagerFile: (id, slotType) => api.get(
     `/admin/station-manager-applications/${id}/files/${slotType}`,
     { responseType: 'blob' }

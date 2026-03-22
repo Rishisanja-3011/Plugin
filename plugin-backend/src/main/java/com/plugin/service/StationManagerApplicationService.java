@@ -1,6 +1,7 @@
 package com.plugin.service;
 
 import com.plugin.dto.request.StationManagerApplicationRequest;
+import com.plugin.dto.request.StationManagerCredentialIssueRequest;
 import com.plugin.dto.request.StationManagerDocumentRequest;
 import com.plugin.dto.request.StationManagerReviewRequest;
 import com.plugin.dto.response.AuthResponse;
@@ -57,10 +58,10 @@ public class StationManagerApplicationService {
     private final AuditService auditService;
     private final AuthService authService;
     private final StationManagerFileService stationManagerFileService;
+    private final StationManagerCredentialEmailService stationManagerCredentialEmailService;
+    private final StationManagerTrackingEmailService stationManagerTrackingEmailService;
     private final PasswordEncoder passwordEncoder;
 
-    private static final String TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%";
-    private static final int TEMP_PASSWORD_LENGTH = 10;
     private static final int APPLICATION_REFERENCE_LENGTH = 11;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -109,7 +110,7 @@ public class StationManagerApplicationService {
                 .submittedAt(application.getSubmittedAt())
                 .reviewedAt(application.getReviewedAt())
                 .reviewNotes(application.getReviewNotes())
-                .portalAccessReady(application.getUser() != null)
+                .portalAccessReady(isPortalAccessReady(application))
                 .credentialsIssuedAt(application.getCredentialsIssuedAt())
                 .application(toPublicLookupApplication(application))
                 .build();
@@ -154,7 +155,17 @@ public class StationManagerApplicationService {
         auditService.log("SUBMIT_STATION_MANAGER_APPLICATION", "STATION_MANAGER_APPLICATION", application.getId(), request.getEmail(),
                 "Submitted station manager application for business " + application.getBusinessName());
 
-        return toResponse(application);
+        boolean trackingIdEmailSent = stationManagerTrackingEmailService.sendTrackingId(
+                application.getEmail(),
+                application.getFullName(),
+                application.getApplicationReferenceId(),
+                application.getBusinessName(),
+                application.getStationName()
+        );
+
+        StationManagerApplicationResponse response = toResponse(application);
+        response.setTrackingIdEmailSent(trackingIdEmailSent);
+        return response;
     }
 
     public AuthResponse refreshManagerSession(String email) {
@@ -251,20 +262,20 @@ public class StationManagerApplicationService {
     }
 
     @Transactional
-    public StationManagerApplicationResponse issuePortalCredentials(Long id, String actor) {
+    public StationManagerApplicationResponse issuePortalCredentials(Long id,
+                                                                   String actor,
+                                                                   StationManagerCredentialIssueRequest request) {
         StationManagerApplication application = getApplicationById(id);
         if (application.getStatus() != StationManagerApplicationStatus.APPROVED) {
             throw new BadRequestException("Approve the application before issuing portal credentials.");
         }
 
-        String portalEmail = application.getEmail().trim().toLowerCase(Locale.ROOT);
+        String portalEmail = normalizePortalLoginEmail(request.getPortalLoginEmail());
+        String portalPassword = validatePortalPassword(request.getPassword());
         User linkedUser = application.getUser();
+        validatePortalLoginAvailability(linkedUser, portalEmail);
 
         if (linkedUser == null) {
-            if (userRepository.existsByEmail(portalEmail)) {
-                throw new BadRequestException("This email already has a portal account. Please update the application email before issuing credentials.");
-            }
-
             linkedUser = User.builder()
                     .fullName(application.getFullName())
                     .email(portalEmail)
@@ -274,13 +285,13 @@ public class StationManagerApplicationService {
                     .build();
         } else {
             linkedUser.setFullName(application.getFullName());
+            linkedUser.setEmail(portalEmail);
             linkedUser.setPhone(application.getPhone());
             linkedUser.setRole(Role.STATION_OPERATOR);
             linkedUser.setActive(true);
         }
 
-        String temporaryPassword = generateTemporaryPassword();
-        linkedUser.setPassword(passwordEncoder.encode(temporaryPassword));
+        linkedUser.setPassword(passwordEncoder.encode(portalPassword));
         linkedUser = userRepository.save(linkedUser);
 
         application.setUser(linkedUser);
@@ -314,11 +325,21 @@ public class StationManagerApplicationService {
 
         application = applicationRepository.save(application);
         application = ensureApplicationReferenceId(application);
+        try {
+            stationManagerCredentialEmailService.sendCredentials(
+                    application.getEmail(),
+                    application.getFullName(),
+                    portalEmail,
+                    portalPassword
+            );
+        } catch (IllegalStateException ex) {
+            throw new BadRequestException(ex.getMessage());
+        }
 
         auditService.log("ISSUE_STATION_MANAGER_CREDENTIALS", "STATION_MANAGER_APPLICATION", application.getId(), actor,
                 "Issued portal credentials for " + application.getBusinessName());
 
-        return toResponse(application, temporaryPassword);
+        return toResponse(application, portalPassword);
     }
 
     public StationManagerFileService.DownloadedFile getMyStandardFile(String email, StationManagerFileSlot slotType) {
@@ -366,6 +387,14 @@ public class StationManagerApplicationService {
         userRepository.findByEmail(normalizedEmail).ifPresent(existingUser -> {
             if (application.getUser() == null || !existingUser.getId().equals(application.getUser().getId())) {
                 throw new BadRequestException("This email is already in use for a portal account. Please use a different email.");
+            }
+        });
+    }
+
+    private void validatePortalLoginAvailability(User linkedUser, String portalLoginEmail) {
+        userRepository.findByEmail(portalLoginEmail).ifPresent(existingUser -> {
+            if (linkedUser == null || !existingUser.getId().equals(linkedUser.getId())) {
+                throw new BadRequestException("This portal login email is already in use.");
             }
         });
     }
@@ -700,8 +729,8 @@ public class StationManagerApplicationService {
                 .reviewedAt(application.getReviewedAt())
                 .reviewedBy(application.getReviewedBy())
                 .reviewNotes(application.getReviewNotes())
-                .portalAccessReady(application.getUser() != null)
-                .portalLoginEmail(null)
+                .portalAccessReady(isPortalAccessReady(application))
+                .portalLoginEmail(application.getUser() != null ? application.getUser().getEmail() : null)
                 .temporaryPassword(temporaryPassword)
                 .credentialsIssuedAt(application.getCredentialsIssuedAt())
                 .credentialsIssuedBy(application.getCredentialsIssuedBy())
@@ -780,6 +809,32 @@ public class StationManagerApplicationService {
         return normalized;
     }
 
+    private String normalizePortalLoginEmail(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            throw new BadRequestException("Portal login email is required.");
+        }
+        if (!normalized.endsWith("@plugin.com")) {
+            throw new BadRequestException("Portal login email must end with @plugin.com.");
+        }
+        return normalized;
+    }
+
+    private String validatePortalPassword(String value) {
+        if (value == null || value.isBlank()) {
+            throw new BadRequestException("Portal password is required.");
+        }
+        String password = value.trim();
+        if (password.length() < 6) {
+            throw new BadRequestException("Portal password must be at least 6 characters.");
+        }
+        return password;
+    }
+
+    private boolean isPortalAccessReady(StationManagerApplication application) {
+        return application.getUser() != null && application.getCredentialsIssuedAt() != null;
+    }
+
     private Long legacyApplicationIdFromReferenceId(String referenceId) {
         try {
             return Long.parseLong(normalizeReferenceId(referenceId));
@@ -824,15 +879,6 @@ public class StationManagerApplicationService {
         return Arrays.stream(value.split("_"))
                 .map(part -> part.substring(0, 1) + part.substring(1).toLowerCase(Locale.ROOT))
                 .collect(Collectors.joining(" "));
-    }
-
-    private String generateTemporaryPassword() {
-        StringBuilder builder = new StringBuilder(TEMP_PASSWORD_LENGTH);
-        for (int index = 0; index < TEMP_PASSWORD_LENGTH; index += 1) {
-            int next = SECURE_RANDOM.nextInt(TEMP_PASSWORD_CHARS.length());
-            builder.append(TEMP_PASSWORD_CHARS.charAt(next));
-        }
-        return builder.toString();
     }
 
     private static EnumMap<StationManagerBusinessType, BusinessRule> buildRules() {

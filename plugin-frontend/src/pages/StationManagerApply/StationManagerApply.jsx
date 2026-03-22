@@ -504,7 +504,7 @@ export default function StationManagerApply() {
   const buildFormData = () => {
     const payload = buildPayload();
     const formData = new FormData();
-    formData.append('application', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    formData.append('application', JSON.stringify(payload));
 
     STANDARD_FILE_FIELDS.forEach(({ key }) => {
       if (selectedFiles[key]) {
@@ -524,11 +524,27 @@ export default function StationManagerApply() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!event.currentTarget.reportValidity()) {
+    const firstInvalidField = event.currentTarget.querySelector('input:invalid, select:invalid, textarea:invalid');
+    if (firstInvalidField) {
+      if (typeof firstInvalidField.reportValidity === 'function') {
+        firstInvalidField.reportValidity();
+      }
+      if (typeof firstInvalidField.focus === 'function') {
+        try {
+          firstInvalidField.focus({ preventScroll: true });
+        } catch {
+          firstInvalidField.focus();
+        }
+      }
+      if (typeof firstInvalidField.scrollIntoView === 'function') {
+        firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      toast.error('Please complete all required fields before submitting.');
       return;
     }
 
     if (!validateApplication()) {
+      toast.error('Please complete the required files and document checklist before submitting.');
       return;
     }
 
@@ -543,7 +559,9 @@ export default function StationManagerApply() {
       setErrors({});
       toast.success(
         nextApplication?.applicationReferenceId
-          ? `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}.`
+          ? nextApplication?.trackingIdEmailSent
+            ? `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}, and it has been sent to your email.`
+            : `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}.`
           : 'Application submitted. After approval, admin will share station-manager portal credentials.'
       );
     } catch (err) {
@@ -779,7 +797,7 @@ export default function StationManagerApply() {
             </ul>
           </div>
 
-          <form className="station-manager__form card" onSubmit={handleSubmit}>
+          <form className="station-manager__form card" onSubmit={handleSubmit} noValidate>
             <div className="station-manager__section-head station-manager__section-head--left">
               <span className="station-manager__eyebrow">Application Form</span>
               <h2>Station manager KYC</h2>
