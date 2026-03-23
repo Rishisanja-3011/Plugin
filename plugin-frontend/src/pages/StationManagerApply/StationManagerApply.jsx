@@ -416,9 +416,11 @@ export default function StationManagerApply() {
     (documentType) => hasBusinessDocument(documentType)
   ).length;
 
+  const isManagerMode = user?.role === 'STATION_OPERATOR';
+  const isAdminViewer = user?.role === 'ADMIN';
   const statusMeta = getStatusMeta(application?.status);
-  const hasDashboardAccess = user?.role === 'STATION_OPERATOR';
-  const isApproved = hasDashboardAccess;
+  const showApprovedSummary = application?.status === 'APPROVED' && !isManagerMode;
+  const backLink = isManagerMode || isAdminViewer ? '/admin/dashboard' : '/station-manager/apply';
   const applicationReferenceId = application?.applicationReferenceId || '';
 
   const updateField = (field, value) => {
@@ -558,11 +560,15 @@ export default function StationManagerApply() {
       setSelectedBusinessFiles(createEmptyFileState());
       setErrors({});
       toast.success(
-        nextApplication?.applicationReferenceId
-          ? nextApplication?.trackingIdEmailSent
-            ? `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}, and it has been sent to your email.`
-            : `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}.`
-          : 'Application submitted. After approval, admin will share station-manager portal credentials.'
+        isManagerMode
+          ? nextApplication?.applicationReferenceId
+            ? `Re-KYC submitted. Your updated application is now under review with tracking ID ${nextApplication.applicationReferenceId}.`
+            : 'Re-KYC submitted successfully. Your updated application is now under admin review.'
+          : nextApplication?.applicationReferenceId
+            ? nextApplication?.trackingIdEmailSent
+              ? `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}, and it has been sent to your email.`
+              : `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}.`
+            : 'Application submitted. After approval, admin will share station-manager portal credentials.'
       );
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit station manager application.');
@@ -596,7 +602,7 @@ export default function StationManagerApply() {
       <main className="station-manager station-manager--limited">
         <section className="station-manager__shell">
           <div className="station-manager__header card">
-            <Link to="/station-manager/apply" className="page-back station-manager__back-link">
+            <Link to={backLink} className="page-back station-manager__back-link">
               <span className="page-back__icon">{'\u2190'}</span>
               Back
             </Link>
@@ -644,36 +650,38 @@ export default function StationManagerApply() {
     >
       <section className="station-manager__shell">
         <div className="station-manager__header card">
-          <Link to="/station-manager/apply" className="page-back station-manager__back-link">
+          <Link to={backLink} className="page-back station-manager__back-link">
             <span className="page-back__icon">{'\u2190'}</span>
             Back
           </Link>
           <div className="station-manager__section-head station-manager__section-head--left station-manager__section-head--compact">
-            <span className="station-manager__eyebrow">{isApproved ? 'Portal Ready' : 'Step 2 of 2'}</span>
-            <h1>{isApproved ? 'Your station manager portal is active' : 'Complete the station manager KYC form'}</h1>
+            <span className="station-manager__eyebrow">{isManagerMode ? 'Manager Re-KYC' : showApprovedSummary ? 'Portal Ready' : 'Step 2 of 2'}</span>
+            <h1>{isManagerMode ? 'Update your station manager KYC' : showApprovedSummary ? 'Your station manager portal is active' : 'Complete the station manager KYC form'}</h1>
             <p>
-              {isApproved
+              {isManagerMode
+                ? 'Your previously submitted KYC details are loaded below. Update only the changed information and submit again for admin review from your manager dashboard.'
+                : showApprovedSummary
                 ? 'Your approved account is now mapped to its registered station. Use the operations dashboard to manage only that station and its charging points.'
                 : 'This screen is only for the final KYC submission. The checklist download stays on the previous page, and the email entered here will be used by admin when portal credentials are issued after approval.'}
             </p>
           </div>
           <div className="station-manager__header-grid">
-            {hasDashboardAccess ? (
+            {isManagerMode ? (
               <>
                 <article className="station-manager__header-card">
-                  <span>Portal Email</span>
+                  <span>Manager Login</span>
                   <strong>{user?.email || '-'}</strong>
-                  <p>This account is currently linked to your approved station manager access.</p>
+                  <p>This manager account stays linked while admin reviews your updated KYC submission.</p>
                 </article>
                 <article className="station-manager__header-card">
-                  <span>Scope</span>
-                  <strong>Only your registered station</strong>
-                  <p>You can manage the approved station, its charging points, and related pricing only.</p>
+                  <span>Current Status</span>
+                  <strong>{statusMeta?.title || 'KYC on file'}</strong>
+                  <p>{applicationReferenceId ? `Tracking ID ${applicationReferenceId}` : 'Your existing application will be updated in place.'}</p>
                 </article>
                 <article className="station-manager__header-card">
-                  <span>Access</span>
-                  <strong>Admin-issued credentials</strong>
-                  <p>Use the credentials shared by admin whenever you need to enter the station manager portal.</p>
+                  <span>Station On File</span>
+                  <strong>{application?.stationName || 'No saved station yet'}</strong>
+                  <p>{application?.stationAddress || 'Your previously approved station details will appear here once they are loaded.'}</p>
                 </article>
               </>
             ) : (
@@ -697,10 +705,9 @@ export default function StationManagerApply() {
             )}
           </div>
           <div className="station-manager__header-actions">
-            {hasDashboardAccess ? (
+            {isManagerMode ? (
               <>
-                <Link to="/admin/dashboard" className="btn btn--accent">Open Station Dashboard</Link>
-                <Link to="/search" className="btn btn--ghost">Browse Stations</Link>
+                <Link to="/admin/dashboard" className="btn btn--accent">Back to Manager Dashboard</Link>
               </>
             ) : (
               <span className="station-manager__header-note">You already downloaded the checklist on the previous page. This screen stays focused on the final KYC submission only.</span>
@@ -733,7 +740,7 @@ export default function StationManagerApply() {
         </section>
       )}
 
-      {isApproved ? (
+      {showApprovedSummary ? (
         <section className="station-manager__approved-view">
           <div className="station-manager__approved-actions card">
             <h2>What you can do now</h2>
@@ -787,21 +794,35 @@ export default function StationManagerApply() {
         <section className="station-manager__content" id="station-manager-form">
           <div className="station-manager__form-note card">
             <div>
-              <span className="station-manager__eyebrow">Before You Submit</span>
-              <h2>Upload complete, review-ready information</h2>
+              <span className="station-manager__eyebrow">{isManagerMode ? 'Before You Re-Submit' : 'Before You Submit'}</span>
+              <h2>{isManagerMode ? 'Review and update your saved KYC details' : 'Upload complete, review-ready information'}</h2>
             </div>
             <ul className="station-manager__form-note-list">
-              <li>Use the same email throughout the process so admin can issue your portal credentials correctly.</li>
-              <li>Make sure the business type matches the uploaded business documents before you submit.</li>
-              <li>Clear scans and clear station photos help the admin review finish faster.</li>
+              {isManagerMode ? (
+                <>
+                  <li>Your last submitted KYC information is prefilled below so you only need to change the fields that were updated.</li>
+                  <li>Replace only the files or business documents that changed. Existing uploaded files stay linked until you upload a new one.</li>
+                  <li>Submitting Re-KYC sends your updated details for admin review while your current manager login remains active.</li>
+                </>
+              ) : (
+                <>
+                  <li>Use the same email throughout the process so admin can issue your portal credentials correctly.</li>
+                  <li>Make sure the business type matches the uploaded business documents before you submit.</li>
+                  <li>Clear scans and clear station photos help the admin review finish faster.</li>
+                </>
+              )}
             </ul>
           </div>
 
           <form className="station-manager__form card" onSubmit={handleSubmit} noValidate>
             <div className="station-manager__section-head station-manager__section-head--left">
               <span className="station-manager__eyebrow">Application Form</span>
-              <h2>Station manager KYC</h2>
-              <p>All details below are collected in a single submission. Use the email you want for the future station-manager portal, because admin will issue credentials on that email after approval.</p>
+              <h2>{isManagerMode ? 'Station manager Re-KYC' : 'Station manager KYC'}</h2>
+              <p>
+                {isManagerMode
+                  ? 'All previously submitted details are editable here. Update your business, station, bank, or document information and submit again for admin review.'
+                  : 'All details below are collected in a single submission. Use the email you want for the future station-manager portal, because admin will issue credentials on that email after approval.'}
+              </p>
             </div>
 
             <section className="station-manager__form-section">
@@ -1185,10 +1206,16 @@ export default function StationManagerApply() {
 
             <div className="station-manager__submit-row">
               <button type="submit" className="btn btn--accent" disabled={submitting}>
-                {submitting ? 'Submitting Application...' : application?.status === 'REJECTED' ? 'Resubmit Application' : 'Submit Application'}
+                {submitting
+                  ? isManagerMode ? 'Submitting Re-KYC...' : 'Submitting Application...'
+                  : isManagerMode
+                    ? application?.status === 'REJECTED' ? 'Resubmit Re-KYC' : 'Submit Re-KYC'
+                    : application?.status === 'REJECTED' ? 'Resubmit Application' : 'Submit Application'}
               </button>
               <p>
-                By submitting, you confirm that the business and station details are accurate and ready for admin verification.
+                {isManagerMode
+                  ? 'By submitting, you confirm that the updated business and station details are accurate and ready for admin re-verification.'
+                  : 'By submitting, you confirm that the business and station details are accurate and ready for admin verification.'}
               </p>
             </div>
           </form>

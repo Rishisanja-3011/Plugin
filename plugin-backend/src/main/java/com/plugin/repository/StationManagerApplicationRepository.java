@@ -14,11 +14,13 @@ public interface StationManagerApplicationRepository extends JpaRepository<Stati
     Optional<StationManagerApplication> findByUserId(Long userId);
     Optional<StationManagerApplication> findByEmailIgnoreCase(String email);
     Optional<StationManagerApplication> findByApplicationReferenceId(String applicationReferenceId);
+    Optional<StationManagerApplication> findByApprovedStationId(Long approvedStationId);
     boolean existsByApplicationReferenceId(String applicationReferenceId);
 
     @Query("""
             SELECT a FROM StationManagerApplication a
             WHERE (:status IS NULL OR a.status = :status)
+              AND (:linkedStationOnly = false OR a.approvedStation IS NOT NULL)
               AND (
                 :query IS NULL OR :query = '' OR
                 a.applicationReferenceId LIKE CONCAT('%', :query, '%') OR
@@ -30,5 +32,6 @@ public interface StationManagerApplicationRepository extends JpaRepository<Stati
             """)
     Page<StationManagerApplication> search(@Param("status") StationManagerApplicationStatus status,
                                            @Param("query") String query,
+                                           @Param("linkedStationOnly") boolean linkedStationOnly,
                                            Pageable pageable);
 }

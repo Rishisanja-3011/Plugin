@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 public class StationManagerApplicationSummaryResponse {
     private Long id;
     private Long userId;
+    private Long approvedStationId;
     private String applicationReferenceId;
     private String fullName;
     private String email;
@@ -22,6 +23,7 @@ public class StationManagerApplicationSummaryResponse {
     private String stationCity;
     private String stationState;
     private StationManagerApplicationStatus status;
+    private Boolean portalAccessReady;
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
     private String reviewedBy;

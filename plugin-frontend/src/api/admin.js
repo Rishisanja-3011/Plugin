@@ -86,6 +86,14 @@ export const adminApi = {
     });
     return api.get(`/admin/station-manager-applications?${query.toString()}`);
   },
+  getApprovedStationManagers: (page = 0, size = 20, params = {}) => {
+    const query = new URLSearchParams({ page, size, status: 'APPROVED', linkedStationOnly: 'true' });
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, value);
+    });
+    return api.get(`/admin/station-manager-applications?${query.toString()}`);
+  },
   getStationManagerApplication: (id) => api.get(`/admin/station-manager-applications/${id}`),
   approveStationManagerApplication: (id, notes) =>
     api.post(`/admin/station-manager-applications/${id}/approve`, { notes }),

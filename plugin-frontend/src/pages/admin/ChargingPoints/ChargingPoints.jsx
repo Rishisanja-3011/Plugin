@@ -4,15 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import { useAuth } from '../../../context/AuthContext';
-import { getAdminSidebarLinks } from '../adminNavigation';
+import { getAdminSidebarLinks, getPanelTitle } from '../adminNavigation';
 import './ChargingPoints.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
-function AdminSidebar({ links }) {
+function AdminSidebar({ links, title }) {
   const location = useLocation();
   return (
     <aside className="admin-sidebar">
-      <div className="admin-sidebar__title">Admin Panel</div>
+      <div className="admin-sidebar__title">{title}</div>
       <nav>
         {links.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
@@ -38,6 +38,7 @@ export default function ChargingPoints() {
   const toast = useToast();
   const { user } = useAuth();
   const sidebarLinks = getAdminSidebarLinks(user?.role);
+  const panelTitle = getPanelTitle(user?.role);
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState('');
   const [points, setPoints] = useState([]);
@@ -147,7 +148,7 @@ export default function ChargingPoints() {
 
   return (
     <div className="admin-layout">
-      <AdminSidebar links={sidebarLinks} />
+      <AdminSidebar links={sidebarLinks} title={panelTitle} />
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>

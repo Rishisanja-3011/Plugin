@@ -37,6 +37,7 @@ import AdminAnalytics from './pages/admin/Analytics/Analytics';
 import AdminAuditLogs from './pages/admin/AuditLogs/AuditLogs';
 import AdminNotifications from './pages/admin/Notifications/Notifications';
 import AdminStationManagerApplications from './pages/admin/StationManagerApplications/StationManagerApplications';
+import AdminStationManagers from './pages/admin/StationManagers/StationManagers';
 
 export default function App() {
   const location = useLocation();
@@ -88,8 +89,10 @@ export default function App() {
 
           {/* Admin */}
           <Route path="/admin/dashboard" element={<ProtectedRoute role="ADMIN"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/re-kyc" element={<ProtectedRoute roles={['STATION_OPERATOR']}><StationManagerApply /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications/:id" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />
+          <Route path="/admin/station-managers" element={<ProtectedRoute role="ADMIN"><AdminStationManagers /></ProtectedRoute>} />
           <Route path="/admin/stations" element={<ProtectedRoute role="ADMIN"><AdminStations /></ProtectedRoute>} />
           <Route path="/admin/charging-points" element={<ProtectedRoute role="ADMIN"><AdminChargingPoints /></ProtectedRoute>} />
           <Route path="/admin/pricing" element={<ProtectedRoute role="ADMIN"><AdminPricing /></ProtectedRoute>} />

@@ -32,11 +32,13 @@ public class AdminStationManagerApplicationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) StationManagerApplicationStatus status,
+            @RequestParam(defaultValue = "false") boolean linkedStationOnly,
             @RequestParam(required = false) String q) {
         return ResponseEntity.ok(stationManagerApplicationService.getAdminApplications(
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt")),
                 status,
-                q
+                q,
+                linkedStationOnly
         ));
     }
 

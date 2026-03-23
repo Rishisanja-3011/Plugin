@@ -45,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -96,7 +97,7 @@ public class StationManagerApplicationService {
 
     @Transactional
     public StationManagerApplicationResponse getMyApplication(String email) {
-        return applicationRepository.findByEmailIgnoreCase(email)
+        return findAccessibleApplication(email)
                 .map(this::ensureApplicationReferenceId)
                 .map(this::toResponse)
                 .orElse(null);
@@ -117,15 +118,13 @@ public class StationManagerApplicationService {
     }
 
     @Transactional
-    public StationManagerApplicationResponse submitApplication(StationManagerApplicationRequest request,
+    public StationManagerApplicationResponse submitApplication(String authenticatedEmail,
+                                                              StationManagerApplicationRequest request,
                                                               Map<StationManagerFileSlot, MultipartFile> standardFiles,
                                                               Map<StationManagerBusinessDocumentType, MultipartFile> businessDocumentFiles) {
-        StationManagerApplication application = applicationRepository.findByEmailIgnoreCase(request.getEmail())
+        StationManagerApplication application = findAccessibleApplication(authenticatedEmail)
+                .or(() -> applicationRepository.findByEmailIgnoreCase(request.getEmail()))
                 .orElse(StationManagerApplication.builder().build());
-
-        if (application.getStatus() == StationManagerApplicationStatus.APPROVED) {
-            throw new BadRequestException("This station manager application is already approved.");
-        }
 
         validatePortalEmailAvailability(application, request.getEmail());
 
@@ -143,8 +142,6 @@ public class StationManagerApplicationService {
         application.setReviewedAt(null);
         application.setReviewedBy(null);
         application.setReviewNotes(null);
-        application.setCredentialsIssuedAt(null);
-        application.setCredentialsIssuedBy(null);
 
         application = applicationRepository.save(application);
         application = ensureApplicationReferenceId(application);
@@ -178,12 +175,16 @@ public class StationManagerApplicationService {
 
     public Page<StationManagerApplicationSummaryResponse> getAdminApplications(Pageable pageable,
                                                                                StationManagerApplicationStatus status,
-                                                                               String query) {
+                                                                               String query,
+                                                                               boolean linkedStationOnly) {
         String normalizedQuery = normalize(query);
         if (normalizedQuery != null && normalizedQuery.matches("\\d{11}")) {
             try {
                 StationManagerApplication application = getApplicationByReferenceId(normalizedQuery);
                 if (status != null && application.getStatus() != status) {
+                    return Page.empty(pageable);
+                }
+                if (linkedStationOnly && application.getApprovedStation() == null) {
                     return Page.empty(pageable);
                 }
                 StationManagerApplicationSummaryResponse summary = toSummaryResponse(application);
@@ -193,7 +194,7 @@ public class StationManagerApplicationService {
             }
         }
 
-        return applicationRepository.search(status, normalizedQuery, pageable)
+        return applicationRepository.search(status, normalizedQuery, linkedStationOnly, pageable)
                 .map(this::ensureApplicationReferenceId)
                 .map(this::toSummaryResponse);
     }
@@ -639,6 +640,7 @@ public class StationManagerApplicationService {
         return StationManagerApplicationSummaryResponse.builder()
                 .id(application.getId())
                 .userId(application.getUser() != null ? application.getUser().getId() : null)
+                .approvedStationId(application.getApprovedStation() != null ? application.getApprovedStation().getId() : null)
                 .applicationReferenceId(application.getApplicationReferenceId())
                 .fullName(application.getFullName())
                 .email(application.getEmail())
@@ -649,6 +651,7 @@ public class StationManagerApplicationService {
                 .stationCity(application.getStationCity())
                 .stationState(application.getStationState())
                 .status(application.getStatus())
+                .portalAccessReady(isPortalAccessReady(application))
                 .submittedAt(application.getSubmittedAt())
                 .reviewedAt(application.getReviewedAt())
                 .reviewedBy(application.getReviewedBy())
@@ -758,6 +761,19 @@ public class StationManagerApplicationService {
         return applicationRepository.findByUserId(user.getId())
                 .or(() -> applicationRepository.findByEmailIgnoreCase(user.getEmail()))
                 .orElseThrow(() -> new ResourceNotFoundException("Station manager application not found"));
+    }
+
+    private Optional<StationManagerApplication> findAccessibleApplication(String email) {
+        String normalizedEmail = normalize(email);
+        if (normalizedEmail == null) {
+            return Optional.empty();
+        }
+
+        Optional<StationManagerApplication> byLinkedUser = userRepository.findByEmail(normalizedEmail)
+                .flatMap(user -> applicationRepository.findByUserId(user.getId())
+                        .or(() -> applicationRepository.findByEmailIgnoreCase(user.getEmail())));
+
+        return byLinkedUser.isPresent() ? byLinkedUser : applicationRepository.findByEmailIgnoreCase(normalizedEmail);
     }
 
     private StationManagerApplication getApplicationByReferenceId(String referenceId) {

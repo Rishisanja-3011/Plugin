@@ -7,8 +7,12 @@ import com.plugin.entity.Station;
 import com.plugin.entity.User;
 import com.plugin.enums.PointStatus;
 import com.plugin.enums.Role;
+import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
+import com.plugin.repository.BillRepository;
+import com.plugin.repository.BookingRepository;
 import com.plugin.repository.ChargingPointRepository;
+import com.plugin.repository.StationManagerApplicationRepository;
 import com.plugin.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,6 +28,9 @@ public class StationService {
 
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
+    private final BookingRepository bookingRepository;
+    private final BillRepository billRepository;
+    private final StationManagerApplicationRepository stationManagerApplicationRepository;
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
 
@@ -147,6 +154,18 @@ public class StationService {
         stationOperatorAccessService.requireAdmin(performedBy);
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+
+        if (bookingRepository.existsByStationId(id) || billRepository.existsByStationId(id)) {
+            throw new BadRequestException(
+                    "This station cannot be removed because it already has booking or billing history. Please deactivate it instead."
+            );
+        }
+
+        stationManagerApplicationRepository.findByApprovedStationId(id).ifPresent(application -> {
+            application.setApprovedStation(null);
+            stationManagerApplicationRepository.save(application);
+        });
+
         auditService.log("DELETE_STATION", "STATION", id, performedBy,
                 "Deleted station: " + station.getName());
         stationRepository.delete(station);

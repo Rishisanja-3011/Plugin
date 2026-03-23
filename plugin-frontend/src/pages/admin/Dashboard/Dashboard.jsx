@@ -3,15 +3,15 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
 import { useAuth } from '../../../context/AuthContext';
-import { getAdminSidebarLinks } from '../adminNavigation';
+import { getAdminSidebarLinks, getPanelTitle } from '../adminNavigation';
 import './Dashboard.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
-function AdminSidebar({ links }) {
+function AdminSidebar({ links, title }) {
   const location = useLocation();
   return (
     <aside className="admin-sidebar">
-      <div className="admin-sidebar__title">Admin Panel</div>
+      <div className="admin-sidebar__title">{title}</div>
       <nav>
         {links.map((link) => (
           <Link
@@ -45,6 +45,7 @@ const cardVariants = {
 export default function Dashboard() {
   const { user } = useAuth();
   const sidebarLinks = getAdminSidebarLinks(user?.role);
+  const panelTitle = getPanelTitle(user?.role);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,9 +68,13 @@ export default function Dashboard() {
 
   const quickActions = [
     { to: '/admin/stations', label: 'Manage Stations', icon: '\u{1F3E2}' },
+    ...(user?.role === 'STATION_OPERATOR' ? [
+      { to: '/admin/re-kyc', label: 'Re-KYC', icon: '\u{1F4DD}' },
+    ] : []),
     { to: '/admin/charging-points', label: 'Charging Points', icon: '\u{1F50C}' },
     { to: '/admin/pricing', label: 'Pricing', icon: '\u{1F4B2}' },
     ...(user?.role === 'ADMIN' ? [
+      { to: '/admin/station-managers', label: 'Station Managers', icon: '\u{1F465}' },
       { to: '/admin/bookings', label: 'View Bookings', icon: '\u{1F4CB}' },
       { to: '/admin/customers', label: 'Customers', icon: '\u{1F465}' },
       { to: '/admin/revenue', label: 'Revenue Report', icon: '\u{1F4B0}' },
@@ -80,7 +85,7 @@ export default function Dashboard() {
 
   return (
     <div className="admin-layout">
-      <AdminSidebar links={sidebarLinks} />
+      <AdminSidebar links={sidebarLinks} title={panelTitle} />
       <motion.main
         className="admin-content"
         variants={pageVariants}

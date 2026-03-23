@@ -51,9 +51,11 @@ public class StationManagerApplicationController {
 
     @PostMapping(value = "/application", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<StationManagerApplicationResponse> submitApplication(
+            Authentication auth,
             MultipartHttpServletRequest multipartRequest) {
         StationManagerApplicationRequest request = parseApplicationRequest(multipartRequest);
         return ResponseEntity.ok(stationManagerApplicationService.submitApplication(
+                auth != null ? auth.getName() : null,
                 request,
                 extractStandardFiles(multipartRequest),
                 extractBusinessDocumentFiles(multipartRequest)
