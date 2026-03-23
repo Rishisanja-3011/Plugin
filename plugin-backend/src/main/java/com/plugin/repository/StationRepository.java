@@ -7,10 +7,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
+import java.util.Optional;
 
 public interface StationRepository extends JpaRepository<Station, Long> {
 
     Page<Station> findByActiveTrue(Pageable pageable);
+    Page<Station> findByManagerId(Long managerId, Pageable pageable);
+    List<Station> findByManagerId(Long managerId);
+    Optional<Station> findByIdAndManagerId(Long id, Long managerId);
 
     Page<Station> findByActiveTrueAndPincode(String pincode, Pageable pageable);
 
@@ -24,6 +28,8 @@ public interface StationRepository extends JpaRepository<Station, Long> {
     Page<Station> searchStations(@Param("query") String query, Pageable pageable);
 
     long countByActiveTrue();
+    long countByManagerId(Long managerId);
+    long countByManagerIdAndActiveTrue(Long managerId);
 
     List<Station> findByActiveTrue();
 }

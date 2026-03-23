@@ -4,9 +4,15 @@ import com.plugin.dto.request.StationRequest;
 import com.plugin.dto.response.StationLiveSummaryResponse;
 import com.plugin.dto.response.StationResponse;
 import com.plugin.entity.Station;
+import com.plugin.entity.User;
 import com.plugin.enums.PointStatus;
+import com.plugin.enums.Role;
+import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
+import com.plugin.repository.BillRepository;
+import com.plugin.repository.BookingRepository;
 import com.plugin.repository.ChargingPointRepository;
+import com.plugin.repository.StationManagerApplicationRepository;
 import com.plugin.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,10 +28,18 @@ public class StationService {
 
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
+    private final BookingRepository bookingRepository;
+    private final BillRepository billRepository;
+    private final StationManagerApplicationRepository stationManagerApplicationRepository;
     private final AuditService auditService;
+    private final StationOperatorAccessService stationOperatorAccessService;
 
-    public Page<StationResponse> getAllStations(Pageable pageable) {
-        return stationRepository.findAll(pageable).map(this::toResponse);
+    public Page<StationResponse> getAllStations(String actorEmail, Pageable pageable) {
+        User actor = stationOperatorAccessService.getActor(actorEmail);
+        if (actor.getRole() == Role.ADMIN) {
+            return stationRepository.findAll(pageable).map(this::toResponse);
+        }
+        return stationRepository.findByManagerId(actor.getId(), pageable).map(this::toResponse);
     }
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
@@ -73,6 +87,7 @@ public class StationService {
 
     @Transactional
     public StationResponse createStation(StationRequest request, String performedBy) {
+        stationOperatorAccessService.requireAdmin(performedBy);
         Station station = Station.builder()
                 .name(request.getName())
                 .address(request.getAddress())
@@ -95,8 +110,7 @@ public class StationService {
 
     @Transactional
     public StationResponse updateStation(Long id, StationRequest request, String performedBy) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(id, performedBy);
         station.setName(request.getName());
         station.setAddress(request.getAddress());
         station.setCity(request.getCity());
@@ -116,8 +130,7 @@ public class StationService {
 
     @Transactional
     public StationResponse toggleStationStatus(Long id, String performedBy) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(id, performedBy);
         station.setActive(!station.getActive());
         station = stationRepository.save(station);
 
@@ -138,8 +151,21 @@ public class StationService {
 
     @Transactional
     public void deleteStation(Long id, String performedBy) {
+        stationOperatorAccessService.requireAdmin(performedBy);
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+
+        if (bookingRepository.existsByStationId(id) || billRepository.existsByStationId(id)) {
+            throw new BadRequestException(
+                    "This station cannot be removed because it already has booking or billing history. Please deactivate it instead."
+            );
+        }
+
+        stationManagerApplicationRepository.findByApprovedStationId(id).ifPresent(application -> {
+            application.setApprovedStation(null);
+            stationManagerApplicationRepository.save(application);
+        });
+
         auditService.log("DELETE_STATION", "STATION", id, performedBy,
                 "Deleted station: " + station.getName());
         stationRepository.delete(station);
@@ -157,6 +183,8 @@ public class StationService {
                 .pincode(station.getPincode())
                 .contactPhone(station.getContactPhone())
                 .contactEmail(station.getContactEmail())
+                .managerId(station.getManager() != null ? station.getManager().getId() : null)
+                .managerName(station.getManager() != null ? station.getManager().getFullName() : null)
                 .latitude(station.getLatitude())
                 .longitude(station.getLongitude())
                 .openingTime(station.getOpeningTime())

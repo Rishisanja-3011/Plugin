@@ -187,6 +187,13 @@ public class AuthService {
             throw new BadRequestException("Your account is deleted. Contact admin.");
         }
 
+        return issueAuthResponse(user.getEmail());
+    }
+
+    public AuthResponse issueAuthResponse(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         String token = jwtService.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
         return AuthResponse.builder()

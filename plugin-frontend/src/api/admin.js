@@ -76,4 +76,37 @@ export const adminApi = {
     if (entityType) url += `&entityType=${entityType}`;
     return api.get(url);
   },
+
+  // Station manager applications
+  getStationManagerApplications: (page = 0, size = 20, params = {}) => {
+    const query = new URLSearchParams({ page, size });
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, value);
+    });
+    return api.get(`/admin/station-manager-applications?${query.toString()}`);
+  },
+  getApprovedStationManagers: (page = 0, size = 20, params = {}) => {
+    const query = new URLSearchParams({ page, size, status: 'APPROVED', linkedStationOnly: 'true' });
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.append(key, value);
+    });
+    return api.get(`/admin/station-manager-applications?${query.toString()}`);
+  },
+  getStationManagerApplication: (id) => api.get(`/admin/station-manager-applications/${id}`),
+  approveStationManagerApplication: (id, notes) =>
+    api.post(`/admin/station-manager-applications/${id}/approve`, { notes }),
+  rejectStationManagerApplication: (id, notes) =>
+    api.post(`/admin/station-manager-applications/${id}/reject`, { notes }),
+  issueStationManagerCredentials: (id, data) =>
+    api.post(`/admin/station-manager-applications/${id}/issue-credentials`, data),
+  downloadStationManagerFile: (id, slotType) => api.get(
+    `/admin/station-manager-applications/${id}/files/${slotType}`,
+    { responseType: 'blob' }
+  ),
+  downloadStationManagerBusinessDocument: (id, documentType) => api.get(
+    `/admin/station-manager-applications/${id}/business-documents/${documentType}/file`,
+    { responseType: 'blob' }
+  ),
 };

@@ -43,6 +43,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const blockLogout = isCustomer && (hasUnpaid || hasActiveSession);
+  const panelLabel = user?.role === 'STATION_OPERATOR' ? 'Manager Panel' : 'Admin Panel';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -136,7 +137,7 @@ export default function Navbar() {
 
           {isAdmin && (
             <Link to="/admin/dashboard" className={`navbar__link ${isActive('/admin') ? 'navbar__link--active' : ''}`}
-                  onClick={() => setMobileOpen(false)}>Admin Panel</Link>
+                  onClick={() => setMobileOpen(false)}>{panelLabel}</Link>
           )}
 
           <div className="navbar__actions">

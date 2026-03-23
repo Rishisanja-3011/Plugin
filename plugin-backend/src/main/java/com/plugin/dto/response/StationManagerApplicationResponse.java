@@ -1,0 +1,81 @@
+package com.plugin.dto.response;
+
+import com.plugin.enums.StationManagerApplicationStatus;
+import com.plugin.enums.StationManagerBusinessType;
+import com.plugin.enums.StationPropertyOccupancyType;
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+
+@Data
+@Builder
+public class StationManagerApplicationResponse {
+    private Long id;
+    private Long userId;
+    private Long approvedStationId;
+    private String applicationReferenceId;
+    private StationManagerApplicationStatus status;
+    private String fullName;
+    private String email;
+    private String phone;
+    private LocalDate dateOfBirth;
+    private String residentialAddress;
+    private String governmentIdType;
+    private String governmentIdNumber;
+    private String governmentIdDocumentReference;
+    private String selfieDocumentReference;
+    private StationManagerBusinessType businessType;
+    private String businessName;
+    private String legalBusinessName;
+    private String panNumber;
+    private String gstNumber;
+    private String businessRegistrationNumber;
+    private String businessAddress;
+    private String authorizedSignatoryName;
+    private String authorizedSignatoryDesignation;
+    private String registrationProofReference;
+    private String authorizationProofReference;
+    private List<StationManagerDocumentResponse> businessDocuments;
+    private String stationName;
+    private String stationAddress;
+    private String stationCity;
+    private String stationState;
+    private String stationPincode;
+    private Double stationLatitude;
+    private Double stationLongitude;
+    private StationPropertyOccupancyType propertyOccupancyType;
+    private String propertyDocumentReference;
+    private String electricityConsumerNumber;
+    private String electricityBillReference;
+    private LocalTime openingTime;
+    private LocalTime closingTime;
+    private String emergencyContactNumber;
+    private String bankAccountHolderName;
+    private String bankName;
+    private String bankAccountNumber;
+    private String bankIfscCode;
+    private String bankProofReference;
+    private Integer numberOfChargers;
+    private String chargerTypesSummary;
+    private String connectorTypesSummary;
+    private Double totalCapacityKw;
+    private String chargerManufacturerNames;
+    private String installationPhotoReference;
+    private String sitePhotoReference;
+    private LocalDateTime submittedAt;
+    private LocalDateTime reviewedAt;
+    private String reviewedBy;
+    private String reviewNotes;
+    private Boolean trackingIdEmailSent;
+    private Boolean portalAccessReady;
+    private String portalLoginEmail;
+    private String temporaryPassword;
+    private LocalDateTime credentialsIssuedAt;
+    private String credentialsIssuedBy;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}

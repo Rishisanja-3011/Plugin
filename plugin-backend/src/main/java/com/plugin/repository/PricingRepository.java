@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface PricingRepository extends JpaRepository<Pricing, Long> {
     List<Pricing> findByStationId(Long stationId);
+    List<Pricing> findByStationManagerId(Long managerId);
     Optional<Pricing> findByStationIdAndPointType(Long stationId, PointType pointType);
 }
