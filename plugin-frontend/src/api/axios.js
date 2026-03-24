@@ -68,7 +68,8 @@ const handleAuthFailure = () => {
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('plugin_token');
-  if (token) {
+  const path = normalizePath(config.url);
+  if (token && !isPublicPath(path, config.method)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

@@ -14,6 +14,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -22,6 +24,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+
+    private static final RequestMatcher[] PUBLIC_STATION_MANAGER_MATCHERS = new RequestMatcher[] {
+        new AntPathRequestMatcher("/api/station-manager/reference-data", HttpMethod.GET.name()),
+        new AntPathRequestMatcher("/api/station-manager/status/**", HttpMethod.GET.name()),
+        new AntPathRequestMatcher("/api/station-manager/application", HttpMethod.POST.name())
+    };
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -71,9 +79,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/stations/*/pricing").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/charging-points/station/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/pricing/station/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/station-manager/reference-data").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/station-manager/status/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/station-manager/application").permitAll()
+                .requestMatchers(PUBLIC_STATION_MANAGER_MATCHERS).permitAll()
 
                 // Customer endpoints
                 .requestMatchers("/api/bookings/**").hasAnyRole("CUSTOMER", "ADMIN", "STATION_OPERATOR")
