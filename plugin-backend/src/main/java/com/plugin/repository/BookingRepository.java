@@ -59,16 +59,22 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Page<Booking> findAllByOrderByCreatedAtDesc(Pageable pageable);
     Page<Booking> findByStatusOrderByCreatedAtDesc(BookingStatus status, Pageable pageable);
+    long countByStationManagerId(Long managerId);
+    long countByStationManagerIdAndStatus(Long managerId, BookingStatus status);
     long countByCustomerId(Long customerId);
     long countByCustomerIdAndStatus(Long customerId, BookingStatus status);
 
     boolean existsByCustomerId(Long customerId);
     boolean existsByVehicleId(Long vehicleId);
+    boolean existsByStationId(Long stationId);
 
     @Query("SELECT b FROM Booking b WHERE b.station.id = :stationId ORDER BY b.createdAt DESC")
     Page<Booking> findByStationId(@Param("stationId") Long stationId, Pageable pageable);
 
     long countByStatus(BookingStatus status);
+
+    @Query("SELECT COUNT(DISTINCT b.customer.id) FROM Booking b WHERE b.station.manager.id = :managerId")
+    long countDistinctCustomersByStationManagerId(@Param("managerId") Long managerId);
 
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.startTime >= :start AND b.startTime < :end")
     long countBookingsInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
@@ -76,4 +82,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT HOUR(b.startTime) as hr, COUNT(b) as cnt FROM Booking b " +
            "WHERE b.status IN ('CONFIRMED', 'COMPLETED') GROUP BY HOUR(b.startTime) ORDER BY cnt DESC")
     List<Object[]> findBusiestHours();
+
+    @Query("SELECT HOUR(b.startTime) as hr, COUNT(b) as cnt FROM Booking b " +
+           "WHERE b.station.manager.id = :managerId AND b.status IN ('CONFIRMED', 'COMPLETED') " +
+           "GROUP BY HOUR(b.startTime) ORDER BY cnt DESC")
+    List<Object[]> findBusiestHoursByManagerId(@Param("managerId") Long managerId);
 }

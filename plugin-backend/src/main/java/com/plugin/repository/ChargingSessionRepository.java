@@ -21,6 +21,7 @@ public interface ChargingSessionRepository extends JpaRepository<ChargingSession
     Optional<ChargingSession> findByBookingId(Long bookingId);
 
     Page<ChargingSession> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Page<ChargingSession> findByChargingPointStationManagerIdOrderByCreatedAtDesc(Long managerId, Pageable pageable);
 
     List<ChargingSession> findByStatus(SessionStatus status);
 
@@ -41,8 +42,14 @@ public interface ChargingSessionRepository extends JpaRepository<ChargingSession
     BigDecimal getTotalEnergyDelivered();
 
     @Query("SELECT COALESCE(SUM(s.energyDeliveredKwh), 0) FROM ChargingSession s " +
+           "WHERE s.status = 'COMPLETED' AND s.chargingPoint.station.manager.id = :managerId")
+    BigDecimal getTotalEnergyDeliveredByManagerId(@Param("managerId") Long managerId);
+
+    @Query("SELECT COALESCE(SUM(s.energyDeliveredKwh), 0) FROM ChargingSession s " +
            "WHERE s.status = 'COMPLETED' AND s.endTime >= :start AND s.endTime < :end")
     BigDecimal getEnergyDeliveredInRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     long countByStatus(SessionStatus status);
+    long countByChargingPointStationManagerId(Long managerId);
+    long countByChargingPointStationManagerIdAndStatus(Long managerId, SessionStatus status);
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '../api/auth';
+import { stationManagerApi } from '../api/stationManager';
 
 const AuthContext = createContext(null);
 
@@ -73,6 +74,23 @@ export function AuthProvider({ children }) {
     return res.data;
   };
 
+  const applyAuthSession = async (data, options = {}) => {
+    const { refreshProfile = data?.role === 'CUSTOMER' } = options;
+    localStorage.setItem('plugin_token', data.token);
+    persistUser(data);
+
+    if (!refreshProfile) {
+      return data;
+    }
+
+    try {
+      const profile = await refreshUserProfile();
+      return mergeUserWithProfileSummary(data, profile);
+    } catch {
+      return data;
+    }
+  };
+
   useEffect(() => {
     const stored = localStorage.getItem('plugin_user');
     const token = localStorage.getItem('plugin_token');
@@ -96,16 +114,12 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await authApi.login({ email, password });
-    const data = res.data;
-    localStorage.setItem('plugin_token', data.token);
-    persistUser(data);
+    return applyAuthSession(res.data);
+  };
 
-    try {
-      const profile = await refreshUserProfile();
-      return mergeUserWithProfileSummary(data, profile);
-    } catch {
-      return data;
-    }
+  const refreshStationManagerAccess = async () => {
+    const res = await stationManagerApi.refreshSession();
+    return applyAuthSession(res.data, { refreshProfile: false });
   };
 
   const register = async (fullName, email, password, phone) => {
@@ -122,7 +136,20 @@ export function AuthProvider({ children }) {
   const isCustomer = user?.role === 'CUSTOMER';
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, isAdmin, isCustomer, syncUserProfile, refreshUserProfile }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        loading,
+        isAdmin,
+        isCustomer,
+        syncUserProfile,
+        refreshUserProfile,
+        refreshStationManagerAccess,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

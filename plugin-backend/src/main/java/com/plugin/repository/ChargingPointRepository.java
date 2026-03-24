@@ -16,6 +16,8 @@ public interface ChargingPointRepository extends JpaRepository<ChargingPoint, Lo
     long countByStationId(Long stationId);
     long countByStationIdAndStatus(Long stationId, PointStatus status);
     long countByStatus(PointStatus status);
+    long countByStationManagerId(Long managerId);
+    long countByStationManagerIdAndStatus(Long managerId, PointStatus status);
 
     long countByStationActiveTrue();
     long countByStationActiveTrueAndStatus(PointStatus status);

@@ -15,6 +15,8 @@ public class StationResponse {
     private String pincode;
     private String contactPhone;
     private String contactEmail;
+    private Long managerId;
+    private String managerName;
     private Double latitude;
     private Double longitude;
     private LocalTime openingTime;

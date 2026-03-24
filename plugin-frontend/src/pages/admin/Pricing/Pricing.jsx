@@ -3,30 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
+import { useAuth } from '../../../context/AuthContext';
+import { getAdminSidebarLinks, getPanelTitle } from '../adminNavigation';
 import './Pricing.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
-const sidebarLinks = [
-  { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
-  { to: '/admin/stations', icon: '\u{1F3E2}', label: 'Stations' },
-  { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },
-  { to: '/admin/pricing', icon: '\u{1F4B2}', label: 'Pricing' },
-  { to: '/admin/bookings', icon: '\u{1F4CB}', label: 'Bookings' },
-  { to: '/admin/customers', icon: '\u{1F465}', label: 'Customers' },
-  { to: '/admin/sessions', icon: '\u26A1', label: 'Sessions' },
-  { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
-  { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
-  { to: '/admin/audit-logs', icon: '\u{1F4DD}', label: 'Audit Logs' },
-  { to: '/admin/notifications', icon: '\u{1F514}', label: 'Notifications' },
-];
-
-function AdminSidebar() {
+function AdminSidebar({ links, title }) {
   const location = useLocation();
   return (
     <aside className="admin-sidebar">
-      <div className="admin-sidebar__title">Admin Panel</div>
+      <div className="admin-sidebar__title">{title}</div>
       <nav>
-        {sidebarLinks.map((link) => (
+        {links.map((link) => (
           <Link key={link.to} to={link.to} className={`admin-sidebar__link${location.pathname === link.to ? ' admin-sidebar__link--active' : ''}`}>
             <span className="admin-sidebar__icon"><IconGlyph glyph={link.icon} className="mono-icon mono-icon--sm" /></span>
             <span>{link.label}</span>
@@ -47,6 +35,9 @@ const emptyForm = { stationId: '', pointType: 'FAST', pricingModel: 'PER_KWH', r
 
 export default function Pricing() {
   const toast = useToast();
+  const { user } = useAuth();
+  const sidebarLinks = getAdminSidebarLinks(user?.role);
+  const panelTitle = getPanelTitle(user?.role);
   const [pricing, setPricing] = useState([]);
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState('');
@@ -171,7 +162,7 @@ export default function Pricing() {
 
   return (
     <div className="admin-layout">
-      <AdminSidebar />
+      <AdminSidebar links={sidebarLinks} title={panelTitle} />
       <motion.main className="admin-content" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.4 }}>
         <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>

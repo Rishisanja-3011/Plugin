@@ -43,16 +43,18 @@ public class AdminController {
 
     // ---- Dashboard ----
     @GetMapping("/dashboard")
-    public ResponseEntity<DashboardStats> getDashboard() {
-        return ResponseEntity.ok(dashboardService.getStats());
+    public ResponseEntity<DashboardStats> getDashboard(Authentication auth) {
+        return ResponseEntity.ok(dashboardService.getStats(auth.getName()));
     }
 
     // ---- Stations ----
     @GetMapping("/stations")
     public ResponseEntity<Page<StationResponse>> getAllStations(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            Authentication auth) {
         return ResponseEntity.ok(stationService.getAllStations(
+                auth.getName(),
                 PageRequest.of(page, size, Sort.by("id"))));
     }
 
@@ -85,8 +87,8 @@ public class AdminController {
 
     // ---- Charging Points ----
     @GetMapping("/charging-points/station/{stationId}")
-    public ResponseEntity<List<ChargingPointResponse>> getChargingPoints(@PathVariable Long stationId) {
-        return ResponseEntity.ok(cpService.getByStation(stationId));
+    public ResponseEntity<List<ChargingPointResponse>> getChargingPoints(@PathVariable Long stationId, Authentication auth) {
+        return ResponseEntity.ok(cpService.getByStation(stationId, auth.getName()));
     }
 
     @PostMapping("/charging-points")
@@ -120,13 +122,13 @@ public class AdminController {
 
     // ---- Pricing ----
     @GetMapping("/pricing")
-    public ResponseEntity<List<PricingResponse>> getAllPricing() {
-        return ResponseEntity.ok(pricingService.getAll());
+    public ResponseEntity<List<PricingResponse>> getAllPricing(Authentication auth) {
+        return ResponseEntity.ok(pricingService.getAll(auth.getName()));
     }
 
     @GetMapping("/pricing/station/{stationId}")
-    public ResponseEntity<List<PricingResponse>> getPricingByStation(@PathVariable Long stationId) {
-        return ResponseEntity.ok(pricingService.getByStation(stationId));
+    public ResponseEntity<List<PricingResponse>> getPricingByStation(@PathVariable Long stationId, Authentication auth) {
+        return ResponseEntity.ok(pricingService.getByStation(stationId, auth.getName()));
     }
 
     @PostMapping("/pricing")

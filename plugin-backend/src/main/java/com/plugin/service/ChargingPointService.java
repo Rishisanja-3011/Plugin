@@ -22,8 +22,17 @@ public class ChargingPointService {
     private final ChargingPointRepository cpRepository;
     private final StationRepository stationRepository;
     private final AuditService auditService;
+    private final StationOperatorAccessService stationOperatorAccessService;
 
     public List<ChargingPointResponse> getByStation(Long stationId) {
+        stationRepository.findById(stationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        return cpRepository.findByStationId(stationId).stream()
+                .map(this::toResponse).collect(Collectors.toList());
+    }
+
+    public List<ChargingPointResponse> getByStation(Long stationId, String actorEmail) {
+        stationOperatorAccessService.getAccessibleStation(stationId, actorEmail);
         return cpRepository.findByStationId(stationId).stream()
                 .map(this::toResponse).collect(Collectors.toList());
     }
@@ -36,8 +45,7 @@ public class ChargingPointService {
 
     @Transactional
     public ChargingPointResponse create(ChargingPointRequest request, String performedBy) {
-        Station station = stationRepository.findById(request.getStationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
+        Station station = stationOperatorAccessService.getAccessibleStation(request.getStationId(), performedBy);
         ChargingPoint cp = ChargingPoint.builder()
                 .identifier(request.getIdentifier())
                 .station(station)
@@ -54,9 +62,10 @@ public class ChargingPointService {
 
     @Transactional
     public ChargingPointResponse update(Long id, ChargingPointRequest request, String performedBy) {
-        ChargingPoint cp = cpRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+        ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
+        Station station = stationOperatorAccessService.getAccessibleStation(request.getStationId(), performedBy);
         cp.setIdentifier(request.getIdentifier());
+        cp.setStation(station);
         cp.setPointType(request.getPointType());
         cp.setMaxPowerKw(request.getMaxPowerKw());
         cp.setConnectorType(request.getConnectorType());
@@ -68,8 +77,7 @@ public class ChargingPointService {
 
     @Transactional
     public ChargingPointResponse updateStatus(Long id, PointStatus status, String performedBy) {
-        ChargingPoint cp = cpRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+        ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
         cp.setStatus(status);
         cp = cpRepository.save(cp);
         auditService.log("UPDATE_POINT_STATUS", "CHARGING_POINT", cp.getId(), performedBy,
@@ -79,8 +87,7 @@ public class ChargingPointService {
 
     @Transactional
     public void delete(Long id, String performedBy) {
-        ChargingPoint cp = cpRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+        ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
         auditService.log("DELETE_CHARGING_POINT", "CHARGING_POINT", id, performedBy,
                 "Deleted point: " + cp.getIdentifier());
         cpRepository.delete(cp);

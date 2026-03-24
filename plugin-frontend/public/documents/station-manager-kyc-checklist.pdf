@@ -1,0 +1,80 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [3 0 R] >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1072 >>
+stream
+BT
+/F1 18 Tf
+50 760 Td
+(PLUGIN Station Manager KYC Checklist) Tj
+0 -28 Td
+/F1 12 Tf
+(Keep these documents ready before filling the online KYC form.) Tj
+0 -16 Td
+0 -18 Td
+(Personal Documents) Tj
+0 -16 Td
+(1. Government ID proof) Tj
+0 -16 Td
+(2. Selfie or live face photo) Tj
+0 -16 Td
+0 -18 Td
+(Business Documents) Tj
+0 -16 Td
+(3. Business registration proof) Tj
+0 -16 Td
+(4. Authorization letter or signatory proof) Tj
+0 -16 Td
+(5. Type-specific business documents based on business type) Tj
+0 -16 Td
+0 -18 Td
+(Station Documents) Tj
+0 -16 Td
+(6. Property ownership or lease proof) Tj
+0 -16 Td
+(7. Latest electricity bill) Tj
+0 -16 Td
+(8. Station photo and installation photo) Tj
+0 -16 Td
+0 -18 Td
+(Bank and Charger Details) Tj
+0 -16 Td
+(9. Bank proof such as cancelled cheque or passbook) Tj
+0 -16 Td
+(10. Charger count, capacity, connector, and manufacturer details) Tj
+0 -16 Td
+0 -18 Td
+(Important:) Tj
+0 -16 Td
+(Admin reviews the KYC first.) Tj
+0 -16 Td
+(Portal credentials are issued only after approval.) Tj
+0 -16 Td
+ET
+
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1435
+%%EOF

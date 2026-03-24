@@ -71,15 +71,26 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/stations/*/pricing").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/charging-points/station/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/pricing/station/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/station-manager/reference-data").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/station-manager/status/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/station-manager/application").permitAll()
 
                 // Customer endpoints
                 .requestMatchers("/api/bookings/**").hasAnyRole("CUSTOMER", "ADMIN", "STATION_OPERATOR")
                 .requestMatchers("/api/sessions/my/**").hasRole("CUSTOMER")
                 .requestMatchers("/api/bills/my/**").hasRole("CUSTOMER")
-                .requestMatchers("/api/profile/**").hasAnyRole("CUSTOMER", "ADMIN")
+                .requestMatchers("/api/profile/**").hasAnyRole("CUSTOMER", "ADMIN", "STATION_OPERATOR")
+                .requestMatchers("/api/station-manager/**").authenticated()
 
-                // Admin endpoints
-                .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
+                // Station operator endpoints
+                .requestMatchers("/api/admin/dashboard").hasAnyRole("ADMIN", "STATION_OPERATOR")
+                .requestMatchers("/api/admin/stations/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
+                .requestMatchers("/api/admin/charging-points/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
+                .requestMatchers("/api/admin/pricing/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
+
+                // Admin-only endpoints
+                .requestMatchers("/api/admin/station-manager-applications/**").hasRole("ADMIN")
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                 // Notifications
                 .requestMatchers("/api/notifications/**").authenticated()
