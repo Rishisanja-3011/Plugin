@@ -293,10 +293,10 @@ export default function StationDetails() {
                 >
                   <h4 className="station-details__pricing-type">{item.type}</h4>
                   {item.rate != null && (
-                    <p className="station-details__pricing-rate">₹{item.rate}/kWh</p>
+                    <p className="station-details__pricing-rate">{'\u20B9'}{item.rate}/kWh</p>
                   )}
                   {item.baseFee != null && (
-                    <p className="station-details__pricing-fee">Base: ₹{item.baseFee}</p>
+                    <p className="station-details__pricing-fee">Base: {'\u20B9'}{item.baseFee}</p>
                   )}
                   <p className="station-details__pricing-model">Per kWh</p>
                   {item.description && (
