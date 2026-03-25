@@ -83,7 +83,7 @@ Navigate to **http://localhost:5173** in your browser.
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@plugin.com` | `Admin@123` |
+| Admin | `plugin.bymain@gmail.com` | `Admin@123` |
 | Customer | `user@plugin.com` | `User@123` |
 
 ---
