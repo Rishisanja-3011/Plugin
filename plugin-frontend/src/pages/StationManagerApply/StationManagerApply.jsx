@@ -110,12 +110,182 @@ const STANDARD_FILE_FIELDS = [
 ];
 
 const FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
+const INDIAN_PHONE_DIGITS = 10;
+const AADHAAR_DIGITS = 12;
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const PASSPORT_REGEX = /^[A-Z][0-9]{7}$/;
+const GOVERNMENT_ID_OPTIONS = [
+  { value: 'Aadhaar', label: 'Aadhaar' },
+  { value: 'PAN', label: 'PAN' },
+  { value: 'Passport', label: 'Passport' },
+];
+
+function sanitizeFullName(value = '') {
+  return value
+    .replace(/[^a-zA-Z\s]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s+/g, '');
+}
+
+function extractIndianPhoneDigits(value = '') {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length > INDIAN_PHONE_DIGITS) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > INDIAN_PHONE_DIGITS) {
+    digits = digits.slice(-INDIAN_PHONE_DIGITS);
+  }
+  return digits.slice(0, INDIAN_PHONE_DIGITS);
+}
+
+function formatAadhaar(value = '') {
+  const digits = value.replace(/\D/g, '').slice(0, AADHAAR_DIGITS);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
+function sanitizePan(value = '') {
+  const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let result = '';
+
+  for (const char of raw) {
+    const position = result.length;
+    if (position < 5) {
+      if (/[A-Z]/.test(char)) {
+        result += char;
+      }
+      continue;
+    }
+    if (position < 9) {
+      if (/\d/.test(char)) {
+        result += char;
+      }
+      continue;
+    }
+    if (position === 9 && /[A-Z]/.test(char)) {
+      result += char;
+      break;
+    }
+  }
+
+  return result.slice(0, 10);
+}
+
+function sanitizePassport(value = '') {
+  const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let result = '';
+
+  for (const char of raw) {
+    const position = result.length;
+    if (position === 0) {
+      if (/[A-Z]/.test(char)) {
+        result += char;
+      }
+      continue;
+    }
+    if (position < 8 && /\d/.test(char)) {
+      result += char;
+    }
+    if (result.length >= 8) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+function getGovernmentIdKind(type = '') {
+  const normalized = type.trim().toUpperCase();
+  if (normalized.includes('AADHAAR') || normalized.includes('ADHAAR')) {
+    return 'AADHAAR';
+  }
+  if (normalized.includes('PAN')) {
+    return 'PAN';
+  }
+  if (normalized.includes('PASSPORT')) {
+    return 'PASSPORT';
+  }
+  return 'GENERIC';
+}
+
+function normalizeGovernmentIdType(type = '') {
+  const idKind = getGovernmentIdKind(type);
+  if (idKind === 'AADHAAR') {
+    return 'Aadhaar';
+  }
+  if (idKind === 'PAN') {
+    return 'PAN';
+  }
+  if (idKind === 'PASSPORT') {
+    return 'Passport';
+  }
+  return '';
+}
+
+function sanitizeGovernmentIdNumber(type = '', value = '') {
+  const idKind = getGovernmentIdKind(type);
+  if (idKind === 'AADHAAR') {
+    return formatAadhaar(value);
+  }
+  if (idKind === 'PAN') {
+    return sanitizePan(value);
+  }
+  if (idKind === 'PASSPORT') {
+    return sanitizePassport(value);
+  }
+  return value.toUpperCase();
+}
+
+function normalizeGovernmentIdForPayload(type = '', value = '') {
+  const idKind = getGovernmentIdKind(type);
+  if (idKind === 'AADHAAR') {
+    return value.replace(/\s/g, '');
+  }
+  if (idKind === 'PAN') {
+    return sanitizePan(value);
+  }
+  if (idKind === 'PASSPORT') {
+    return sanitizePassport(value);
+  }
+  return value.trim();
+}
+
+function getGovernmentIdValidationError(type = '', value = '') {
+  const idKind = getGovernmentIdKind(type);
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return 'Government ID number is required.';
+  }
+
+  if (idKind === 'AADHAAR') {
+    if (trimmed.replace(/\s/g, '').length !== AADHAAR_DIGITS) {
+      return 'Aadhaar number must contain exactly 12 digits.';
+    }
+    return '';
+  }
+
+  if (idKind === 'PAN') {
+    if (!PAN_REGEX.test(trimmed)) {
+      return 'PAN must be in format AAAAA9999A.';
+    }
+    return '';
+  }
+
+  if (idKind === 'PASSPORT') {
+    if (!PASSPORT_REGEX.test(trimmed)) {
+      return 'Passport must be in format A1234567.';
+    }
+    return '';
+  }
+
+  return '';
+}
 
 function createEmptyForm(user = null) {
   return {
-    fullName: user?.fullName || '',
+    fullName: sanitizeFullName(user?.fullName || ''),
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: extractIndianPhoneDigits(user?.phone || ''),
     dateOfBirth: '',
     residentialAddress: '',
     governmentIdType: '',
@@ -190,19 +360,19 @@ function mapApplicationToForm(application, user = null) {
 
   return {
     ...base,
-    fullName: application.fullName || base.fullName,
+    fullName: sanitizeFullName(application.fullName || base.fullName),
     email: application.email || base.email,
-    phone: application.phone || base.phone,
+    phone: extractIndianPhoneDigits(application.phone || base.phone),
     dateOfBirth: application.dateOfBirth || '',
     residentialAddress: application.residentialAddress || '',
-    governmentIdType: application.governmentIdType || '',
-    governmentIdNumber: application.governmentIdNumber || '',
+    governmentIdType: normalizeGovernmentIdType(application.governmentIdType || ''),
+    governmentIdNumber: sanitizeGovernmentIdNumber(normalizeGovernmentIdType(application.governmentIdType || ''), application.governmentIdNumber || ''),
     governmentIdDocumentReference: application.governmentIdDocumentReference || '',
     selfieDocumentReference: application.selfieDocumentReference || '',
     businessType: application.businessType || base.businessType,
     businessName: application.businessName || '',
     legalBusinessName: application.legalBusinessName || '',
-    panNumber: application.panNumber || '',
+    panNumber: sanitizePan(application.panNumber || ''),
     gstNumber: application.gstNumber || '',
     businessRegistrationNumber: application.businessRegistrationNumber || '',
     businessAddress: application.businessAddress || '',
@@ -317,10 +487,10 @@ function FileUploadField({
   return (
     <div className={`station-manager__field ${className}`.trim()}>
       <span>{label}</span>
-      <input type="file" accept={FILE_ACCEPT} onChange={onChange} required={required} />
+      <input className="station-manager__file-input" type="file" accept={FILE_ACCEPT} onChange={onChange} required={required} />
       <div className="station-manager__file-meta">
-        <strong className="station-manager__file-name">{file?.name || existingName || 'No file uploaded yet'}</strong>
-        {file && <span className="station-manager__tag station-manager__tag--optional">New file selected</span>}
+        <strong className="station-manager__file-name">{file?.name || existingName || 'No file selected'}</strong>
+        {file && <span className="station-manager__tag station-manager__tag--optional">Updated file</span>}
       </div>
       {helperText && !error && <small className="station-manager__field-help">{helperText}</small>}
       {error && <small>{error}</small>}
@@ -422,12 +592,66 @@ export default function StationManagerApply() {
   const showApprovedSummary = application?.status === 'APPROVED' && !isManagerMode;
   const backLink = isManagerMode || isAdminViewer ? '/admin/dashboard' : '/station-manager/apply';
   const applicationReferenceId = application?.applicationReferenceId || '';
+  const governmentIdKind = getGovernmentIdKind(form.governmentIdType);
+  const governmentIdPattern = governmentIdKind === 'AADHAAR'
+    ? '[0-9]{4}\\s[0-9]{4}\\s[0-9]{4}'
+    : governmentIdKind === 'PAN'
+      ? '[A-Z]{5}[0-9]{4}[A-Z]{1}'
+      : governmentIdKind === 'PASSPORT'
+        ? '[A-Z]{1}[0-9]{7}'
+        : undefined;
+  const governmentIdTitle = governmentIdKind === 'AADHAAR'
+    ? 'Enter 12 digits in format 1234 5678 9012'
+    : governmentIdKind === 'PAN'
+      ? 'Enter PAN in format AAAAA9999A'
+      : governmentIdKind === 'PASSPORT'
+        ? 'Enter passport in format A1234567'
+        : undefined;
+  const governmentIdPlaceholder = governmentIdKind === 'AADHAAR'
+    ? 'Enter Aadhaar number'
+    : governmentIdKind === 'PAN'
+      ? 'Enter PAN number'
+      : governmentIdKind === 'PASSPORT'
+        ? 'Enter Passport number'
+        : 'Enter ID number';
+  const governmentIdMaxLength = governmentIdKind === 'AADHAAR'
+    ? 14
+    : governmentIdKind === 'PAN'
+      ? 10
+      : governmentIdKind === 'PASSPORT'
+        ? 8
+        : undefined;
 
   const updateField = (field, value) => {
     setForm((prev) => ({
       ...prev,
       [field]: value,
     }));
+  };
+
+  const updateFullName = (value) => {
+    updateField('fullName', sanitizeFullName(value));
+  };
+
+  const updatePhone = (value) => {
+    updateField('phone', extractIndianPhoneDigits(value));
+  };
+
+  const updateGovernmentIdType = (value) => {
+    const normalizedType = normalizeGovernmentIdType(value);
+    setForm((prev) => ({
+      ...prev,
+      governmentIdType: normalizedType,
+      governmentIdNumber: sanitizeGovernmentIdNumber(normalizedType, prev.governmentIdNumber),
+    }));
+  };
+
+  const updateGovernmentIdNumber = (value) => {
+    updateField('governmentIdNumber', sanitizeGovernmentIdNumber(form.governmentIdType, value));
+  };
+
+  const updatePanNumber = (value) => {
+    updateField('panNumber', sanitizePan(value));
   };
 
   const updateBusinessDocument = (documentType, field, value) => {
@@ -460,6 +684,24 @@ export default function StationManagerApply() {
   const validateApplication = () => {
     const nextErrors = {};
 
+    const cleanFullName = form.fullName.trim();
+    if (!cleanFullName || !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(cleanFullName)) {
+      nextErrors.fullName = 'Full name can contain letters and spaces only.';
+    }
+
+    if (!/^\d{10}$/.test(form.phone)) {
+      nextErrors.phone = 'Enter a valid 10-digit mobile number.';
+    }
+
+    const governmentIdError = getGovernmentIdValidationError(form.governmentIdType, form.governmentIdNumber);
+    if (governmentIdError) {
+      nextErrors.governmentIdNumber = governmentIdError;
+    }
+
+    if (!PAN_REGEX.test(form.panNumber)) {
+      nextErrors.panNumber = 'PAN must be in format AAAAA9999A.';
+    }
+
     if (form.openingTime && form.closingTime && form.closingTime <= form.openingTime) {
       nextErrors.closingTime = 'Closing time must be after opening time.';
     }
@@ -488,7 +730,11 @@ export default function StationManagerApply() {
 
   const buildPayload = () => ({
     ...form,
+    fullName: form.fullName.trim(),
     email: form.email.trim(),
+    phone: `+91${form.phone}`,
+    governmentIdNumber: normalizeGovernmentIdForPayload(form.governmentIdType, form.governmentIdNumber),
+    panNumber: sanitizePan(form.panNumber),
     stationLatitude: Number(form.stationLatitude),
     stationLongitude: Number(form.stationLongitude),
     numberOfChargers: Number(form.numberOfChargers),
@@ -568,7 +814,7 @@ export default function StationManagerApply() {
             ? nextApplication?.trackingIdEmailSent
               ? `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}, and it has been sent to your email.`
               : `Application submitted. Your KYC tracking ID is ${nextApplication.applicationReferenceId}.`
-            : 'Application submitted. After approval, admin will share station-manager portal credentials.'
+            : 'Application submitted successfully. Further updates will be shared on your registered email.'
       );
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit station manager application.');
@@ -656,13 +902,13 @@ export default function StationManagerApply() {
           </Link>
           <div className="station-manager__section-head station-manager__section-head--left station-manager__section-head--compact">
             <span className="station-manager__eyebrow">{isManagerMode ? 'Manager Re-KYC' : showApprovedSummary ? 'Portal Ready' : 'Step 2 of 2'}</span>
-            <h1>{isManagerMode ? 'Update your station manager KYC' : showApprovedSummary ? 'Your station manager portal is active' : 'Complete the station manager KYC form'}</h1>
+            <h1>{isManagerMode ? 'Update your station manager KYC' : showApprovedSummary ? 'Your station manager portal is active' : 'Complete station manager KYC'}</h1>
             <p>
               {isManagerMode
-                ? 'Your previously submitted KYC details are loaded below. Update only the changed information and submit again for admin review from your manager dashboard.'
+                ? 'Your previous submission is prefilled below. Update the changed details and resubmit for review.'
                 : showApprovedSummary
-                ? 'Your approved account is now mapped to its registered station. Use the operations dashboard to manage only that station and its charging points.'
-                : 'This screen is only for the final KYC submission. The checklist download stays on the previous page, and the email entered here will be used by admin when portal credentials are issued after approval.'}
+                ? 'Your approved account is mapped to the registered station. Manage operations from the dashboard.'
+                : 'Final step: complete the form and upload valid documents for KYC review.'}
             </p>
           </div>
           <div className="station-manager__header-grid">
@@ -671,48 +917,44 @@ export default function StationManagerApply() {
                 <article className="station-manager__header-card">
                   <span>Manager Login</span>
                   <strong>{user?.email || '-'}</strong>
-                  <p>This manager account stays linked while admin reviews your updated KYC submission.</p>
+                  <p>This account remains active while your update is reviewed.</p>
                 </article>
                 <article className="station-manager__header-card">
                   <span>Current Status</span>
                   <strong>{statusMeta?.title || 'KYC on file'}</strong>
-                  <p>{applicationReferenceId ? `Tracking ID ${applicationReferenceId}` : 'Your existing application will be updated in place.'}</p>
+                  <p>{applicationReferenceId ? `Tracking ID ${applicationReferenceId}` : 'Your existing record will be updated.'}</p>
                 </article>
                 <article className="station-manager__header-card">
                   <span>Station On File</span>
                   <strong>{application?.stationName || 'No saved station yet'}</strong>
-                  <p>{application?.stationAddress || 'Your previously approved station details will appear here once they are loaded.'}</p>
+                  <p>{application?.stationAddress || 'Approved station details will appear here.'}</p>
                 </article>
               </>
             ) : (
               <>
                 <article className="station-manager__header-card">
-                  <span>Use one email</span>
-                  <strong>Portal credentials will use it later</strong>
-                  <p>Choose the email where the admin should send your station-manager login after approval.</p>
+                  <span>Primary contact</span>
+                  <strong>Use your official email</strong>
+                  <p>All KYC updates will be shared on this address.</p>
                 </article>
                 <article className="station-manager__header-card">
-                  <span>Files accepted</span>
-                  <strong>PDF, PNG, JPG, JPEG, WEBP</strong>
-                  <p>Keep scans and photos clear so the review team can verify everything in one pass.</p>
+                  <span>File quality</span>
+                  <strong>PDF or clear images</strong>
+                  <p>Blurry, cropped, or unreadable files can delay approval.</p>
                 </article>
                 <article className="station-manager__header-card">
-                  <span>Business rules</span>
-                  <strong>Documents change with business type</strong>
-                  <p>Selecting a different business type updates the document requirements automatically inside the form.</p>
+                  <span>Business type</span>
+                  <strong>Rules update automatically</strong>
+                  <p>Selecting a business type loads the correct document checklist.</p>
                 </article>
               </>
             )}
           </div>
-          <div className="station-manager__header-actions">
-            {isManagerMode ? (
-              <>
-                <Link to="/admin/dashboard" className="btn btn--accent">Back to Manager Dashboard</Link>
-              </>
-            ) : (
-              <span className="station-manager__header-note">You already downloaded the checklist on the previous page. This screen stays focused on the final KYC submission only.</span>
-            )}
-          </div>
+          {isManagerMode && (
+            <div className="station-manager__header-actions">
+              <Link to="/admin/dashboard" className="btn btn--accent">Back to Manager Dashboard</Link>
+            </div>
+          )}
         </div>
 
       {statusMeta && (
@@ -745,8 +987,8 @@ export default function StationManagerApply() {
           <div className="station-manager__approved-actions card">
             <h2>What you can do now</h2>
             <ul className="station-manager__approved-list">
-              <li>Manage only your approved station, its charging points, and its pricing from the operations dashboard.</li>
-              <li>Use the admin-issued station-manager credentials whenever you sign into the portal.</li>
+              <li>Manage your approved station, chargers, and pricing from the operations dashboard.</li>
+              <li>Sign in with your approved station manager account to access portal operations.</li>
               <li>Come back to this page anytime to review the submitted onboarding details.</li>
             </ul>
           </div>
@@ -792,36 +1034,14 @@ export default function StationManagerApply() {
         </section>
       ) : (
         <section className="station-manager__content" id="station-manager-form">
-          <div className="station-manager__form-note card">
-            <div>
-              <span className="station-manager__eyebrow">{isManagerMode ? 'Before You Re-Submit' : 'Before You Submit'}</span>
-              <h2>{isManagerMode ? 'Review and update your saved KYC details' : 'Upload complete, review-ready information'}</h2>
-            </div>
-            <ul className="station-manager__form-note-list">
-              {isManagerMode ? (
-                <>
-                  <li>Your last submitted KYC information is prefilled below so you only need to change the fields that were updated.</li>
-                  <li>Replace only the files or business documents that changed. Existing uploaded files stay linked until you upload a new one.</li>
-                  <li>Submitting Re-KYC sends your updated details for admin review while your current manager login remains active.</li>
-                </>
-              ) : (
-                <>
-                  <li>Use the same email throughout the process so admin can issue your portal credentials correctly.</li>
-                  <li>Make sure the business type matches the uploaded business documents before you submit.</li>
-                  <li>Clear scans and clear station photos help the admin review finish faster.</li>
-                </>
-              )}
-            </ul>
-          </div>
-
           <form className="station-manager__form card" onSubmit={handleSubmit} noValidate>
             <div className="station-manager__section-head station-manager__section-head--left">
               <span className="station-manager__eyebrow">Application Form</span>
               <h2>{isManagerMode ? 'Station manager Re-KYC' : 'Station manager KYC'}</h2>
               <p>
                 {isManagerMode
-                  ? 'All previously submitted details are editable here. Update your business, station, bank, or document information and submit again for admin review.'
-                  : 'All details below are collected in a single submission. Use the email you want for the future station-manager portal, because admin will issue credentials on that email after approval.'}
+                  ? 'All previously submitted details are editable here.'
+                  : 'Enter accurate details and submit once for review.'}
               </p>
             </div>
 
@@ -833,17 +1053,38 @@ export default function StationManagerApply() {
               <div className="station-manager__field-grid">
                 <label className="station-manager__field">
                   <span>Full name</span>
-                  <input type="text" value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} required />
+                  <input
+                    type="text"
+                    value={form.fullName}
+                    onChange={(event) => updateFullName(event.target.value)}
+                    pattern="[A-Za-z ]+"
+                    title="Only letters and spaces are allowed."
+                    required
+                  />
+                  {errors.fullName && <small>{errors.fullName}</small>}
                 </label>
                 <label className="station-manager__field">
                   <span>Email</span>
                   <input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} required />
                   {errors.email && <small>{errors.email}</small>}
-                  <small className="station-manager__field-help">This email will be used for the station-manager portal credentials after approval.</small>
+                  <small className="station-manager__field-help">Use an email you check regularly.</small>
                 </label>
                 <label className="station-manager__field">
                   <span>Phone</span>
-                  <input type="tel" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} required />
+                  <div className="station-manager__phone-field">
+                    <span className="station-manager__phone-prefix">+91</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={form.phone}
+                      onChange={(event) => updatePhone(event.target.value)}
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      title="Enter a valid 10-digit mobile number."
+                      required
+                    />
+                  </div>
+                  {errors.phone && <small>{errors.phone}</small>}
                 </label>
                 <label className="station-manager__field">
                   <span>Date of birth</span>
@@ -851,11 +1092,27 @@ export default function StationManagerApply() {
                 </label>
                 <label className="station-manager__field">
                   <span>Government ID type</span>
-                  <input type="text" value={form.governmentIdType} onChange={(event) => updateField('governmentIdType', event.target.value)} placeholder="Aadhaar, PAN, Passport" required />
+                  <select value={form.governmentIdType} onChange={(event) => updateGovernmentIdType(event.target.value)} required>
+                    <option value="" disabled>Select ID type</option>
+                    {GOVERNMENT_ID_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="station-manager__field">
                   <span>Government ID number</span>
-                  <input type="text" value={form.governmentIdNumber} onChange={(event) => updateField('governmentIdNumber', event.target.value)} required />
+                  <input
+                    type="text"
+                    value={form.governmentIdNumber}
+                    onChange={(event) => updateGovernmentIdNumber(event.target.value)}
+                    inputMode={governmentIdKind === 'AADHAAR' ? 'numeric' : 'text'}
+                    pattern={governmentIdPattern}
+                    title={governmentIdTitle}
+                    maxLength={governmentIdMaxLength}
+                    placeholder={governmentIdPlaceholder}
+                    required
+                  />
+                  {errors.governmentIdNumber && <small>{errors.governmentIdNumber}</small>}
                 </label>
                 <label className="station-manager__field station-manager__field--full">
                   <span>Residential address</span>
@@ -908,7 +1165,16 @@ export default function StationManagerApply() {
                 </label>
                 <label className="station-manager__field">
                   <span>PAN number</span>
-                  <input type="text" value={form.panNumber} onChange={(event) => updateField('panNumber', event.target.value.toUpperCase())} required />
+                  <input
+                    type="text"
+                    value={form.panNumber}
+                    onChange={(event) => updatePanNumber(event.target.value)}
+                    pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                    title="Enter PAN in format AAAAA9999A."
+                    maxLength={10}
+                    required
+                  />
+                  {errors.panNumber && <small>{errors.panNumber}</small>}
                 </label>
                 <label className="station-manager__field">
                   <span>GST number</span>
@@ -1011,6 +1277,7 @@ export default function StationManagerApply() {
                         <div className="station-manager__field">
                           <span>Document file</span>
                           <input
+                            className="station-manager__file-input"
                             type="file"
                             accept={FILE_ACCEPT}
                             onChange={(event) => updateBusinessDocumentFile(documentType, event.target.files?.[0] || null)}
@@ -1018,10 +1285,10 @@ export default function StationManagerApply() {
                           />
                           <div className="station-manager__file-meta">
                             <strong className="station-manager__file-name">
-                              {selectedBusinessFiles[documentType]?.name || documentValue.documentReference || 'No file uploaded yet'}
+                              {selectedBusinessFiles[documentType]?.name || documentValue.documentReference || 'No file selected'}
                             </strong>
                             {selectedBusinessFiles[documentType] && (
-                              <span className="station-manager__tag station-manager__tag--optional">New file selected</span>
+                              <span className="station-manager__tag station-manager__tag--optional">Updated file</span>
                             )}
                           </div>
                           {errors[`doc-file-${documentType}`] && <small>{errors[`doc-file-${documentType}`]}</small>}

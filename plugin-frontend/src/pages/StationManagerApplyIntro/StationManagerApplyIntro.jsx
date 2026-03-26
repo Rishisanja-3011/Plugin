@@ -10,7 +10,7 @@ const CHECKLIST_PDF_URL = '/documents/station-manager-kyc-checklist.pdf';
 const prepCards = [
   {
     title: 'Prepare the checklist once',
-    text: 'Download the checklist PDF and keep every required scan, station proof, bank proof, and charger photo ready before you start.',
+    text: 'Please download the checklist PDF and keep all required documents ready, including ID proof, address proof, bank proof, and a charger photo.',
   },
   {
     title: 'Submit one complete KYC',
