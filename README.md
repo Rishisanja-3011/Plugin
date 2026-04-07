@@ -10,7 +10,7 @@ A complete, production-style web application for managing electric vehicle charg
 | Backend | Java 17, Spring Boot 3.2, Spring Security, Spring Data JPA |
 | Database | MySQL 8+ |
 | Auth | JWT (JSON Web Tokens) with BCrypt password hashing |
-| Styling | Custom CSS (Tesla-inspired white theme), CSS Variables |
+| Styling | Custom CSS,CSS Variables |
 
 ---
 
