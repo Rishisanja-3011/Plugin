@@ -30,20 +30,14 @@ CREATE DATABASE IF NOT EXISTS plugin_db;
 ```
 
 Ensure MySQL is running with:
-- **Username:** `root`
-- **Password:** `45srt`
-- **Port:** `3306`
+- **Username:** `yourname`
+- **Password:** `yourpassword`
+- **Port:** `0000`
 
 ### Step 2: Start the Backend
 
 ```bash
 cd plugin-backend
-
-# On Windows (PowerShell):
-$env:DB_URL="jdbc:mysql://localhost:3306/plugin_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
-$env:DB_USER="root"
-$env:DB_PASSWORD="45srt"
-$env:JWT_SECRET="mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin"
 
 # Build and run
 mvn clean install -DskipTests
@@ -52,15 +46,10 @@ mvn spring-boot:run
 
 Or on Linux/Mac:
 ```bash
-export DB_URL="jdbc:mysql://localhost:3306/plugin_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
-export DB_USER="root"
-export DB_PASSWORD="45srt"
-export JWT_SECRET="mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin"
-
 mvn clean install -DskipTests && mvn spring-boot:run
 ```
 
-The backend will start on **http://localhost:8080**.  
+The backend will start on **http://localhost:....**.  
 On first run, it automatically creates all tables and seeds initial data.
 
 ### Step 3: Start the Frontend
@@ -71,19 +60,19 @@ npm install
 npm run dev
 ```
 
-The frontend will start on **http://localhost:5173**.
+The frontend will start on **http://localhost:....**.
 
 ### Step 4: Open the App
 
-Navigate to **http://localhost:5173** in your browser.
-
+Navigate to **http://localhost:....** in your browser.
+(open from frontend)
 ---
 
 ## Test Accounts
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `plugin.bymain@gmail.com` | `Admin@123` |
+| Admin | `admin@plugin.com` | `Admin@123` |
 | Customer | `user@plugin.com` | `User@123` |
 
 ---
