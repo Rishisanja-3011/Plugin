@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +34,8 @@ public class StationService {
     private final StationManagerApplicationRepository stationManagerApplicationRepository;
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
+    private final EntityReferenceResolver referenceResolver;
+    private final StationManagerDirectoryService stationManagerDirectoryService;
 
     public Page<StationResponse> getAllStations(String actorEmail, Pageable pageable) {
         User actor = stationOperatorAccessService.getActor(actorEmail);
@@ -47,12 +50,19 @@ public class StationService {
     }
 
     public StationLiveSummaryResponse getLiveSummary() {
-        long stationCount = stationRepository.countByActiveTrue();
-        long connectorCount = chargingPointRepository.countByStationActiveTrue();
-        long available = chargingPointRepository.countByStationActiveTrueAndStatus(PointStatus.AVAILABLE);
-        long outOfService = chargingPointRepository.countByStationActiveTrueAndStatus(PointStatus.OUT_OF_SERVICE);
+        List<Long> activeStationIds = stationRepository.findByActiveTrue().stream()
+                .map(Station::getId)
+                .toList();
+        long stationCount = activeStationIds.size();
+        long connectorCount = activeStationIds.isEmpty() ? 0 : chargingPointRepository.countByStationIdIn(activeStationIds);
+        long available = activeStationIds.isEmpty()
+                ? 0
+                : chargingPointRepository.countByStationIdInAndStatus(activeStationIds, PointStatus.AVAILABLE);
+        long outOfService = activeStationIds.isEmpty()
+                ? 0
+                : chargingPointRepository.countByStationIdInAndStatus(activeStationIds, PointStatus.OUT_OF_SERVICE);
         long busy = Math.max(0, connectorCount - available - outOfService);
-        LocalDateTime lastUpdated = chargingPointRepository.findLatestUpdatedAtForActiveStations();
+        LocalDateTime lastUpdated = chargingPointRepository.findLatestUpdatedAtForStationIds(activeStationIds);
 
         return StationLiveSummaryResponse.builder()
                 .stationCount(stationCount)
@@ -164,6 +174,7 @@ public class StationService {
         stationManagerApplicationRepository.findByApprovedStationId(id).ifPresent(application -> {
             application.setApprovedStation(null);
             stationManagerApplicationRepository.save(application);
+            stationManagerDirectoryService.upsertFromApplication(application);
         });
 
         auditService.log("DELETE_STATION", "STATION", id, performedBy,
@@ -172,6 +183,7 @@ public class StationService {
     }
 
     private StationResponse toResponse(Station station) {
+        station = referenceResolver.resolveStation(station, station.getId());
         long total = chargingPointRepository.countByStationId(station.getId());
         long available = chargingPointRepository.countByStationIdAndStatus(station.getId(), PointStatus.AVAILABLE);
         return StationResponse.builder()

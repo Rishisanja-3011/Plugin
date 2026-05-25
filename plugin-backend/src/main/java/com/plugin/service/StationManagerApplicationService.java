@@ -59,6 +59,7 @@ public class StationManagerApplicationService {
     private final AuditService auditService;
     private final AuthService authService;
     private final StationManagerFileService stationManagerFileService;
+    private final StationManagerDirectoryService stationManagerDirectoryService;
     private final StationManagerCredentialEmailService stationManagerCredentialEmailService;
     private final StationManagerTrackingEmailService stationManagerTrackingEmailService;
     private final PasswordEncoder passwordEncoder;
@@ -238,6 +239,7 @@ public class StationManagerApplicationService {
         application.setReviewNotes(request.getNotes().trim());
         application = applicationRepository.save(application);
         application = ensureApplicationReferenceId(application);
+        stationManagerDirectoryService.upsertFromApplication(application);
 
         auditService.log("APPROVE_STATION_MANAGER_APPLICATION", "STATION_MANAGER_APPLICATION", application.getId(), actor,
                 "Approved station manager application for " + application.getBusinessName());
@@ -255,6 +257,7 @@ public class StationManagerApplicationService {
         application.setReviewNotes(request.getNotes().trim());
         application = applicationRepository.save(application);
         application = ensureApplicationReferenceId(application);
+        stationManagerDirectoryService.deleteByApplicationId(application.getId());
 
         auditService.log("REJECT_STATION_MANAGER_APPLICATION", "STATION_MANAGER_APPLICATION", application.getId(), actor,
                 "Rejected station manager application for " + application.getBusinessName());
@@ -326,6 +329,7 @@ public class StationManagerApplicationService {
 
         application = applicationRepository.save(application);
         application = ensureApplicationReferenceId(application);
+        stationManagerDirectoryService.upsertFromApplication(application);
         try {
             stationManagerCredentialEmailService.sendCredentials(
                     application.getEmail(),

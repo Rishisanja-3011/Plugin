@@ -22,6 +22,7 @@ public class StationOperatorAccessService {
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
     private final PricingRepository pricingRepository;
+    private final EntityReferenceResolver referenceResolver;
 
     public User getActor(String email) {
         return userRepository.findByEmail(email)
@@ -52,14 +53,18 @@ public class StationOperatorAccessService {
     public ChargingPoint getAccessibleChargingPoint(Long chargingPointId, String actorEmail) {
         ChargingPoint chargingPoint = chargingPointRepository.findById(chargingPointId)
                 .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
-        getAccessibleStation(chargingPoint.getStation().getId(), actorEmail);
+        chargingPoint = referenceResolver.hydrate(chargingPoint);
+        Long stationId = chargingPoint.getStation() != null ? chargingPoint.getStation().getId() : chargingPoint.getStationId();
+        getAccessibleStation(stationId, actorEmail);
         return chargingPoint;
     }
 
     public Pricing getAccessiblePricing(Long pricingId, String actorEmail) {
         Pricing pricing = pricingRepository.findById(pricingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pricing not found"));
-        getAccessibleStation(pricing.getStation().getId(), actorEmail);
+        pricing = referenceResolver.hydrate(pricing);
+        Long stationId = pricing.getStation() != null ? pricing.getStation().getId() : pricing.getStationId();
+        getAccessibleStation(stationId, actorEmail);
         return pricing;
     }
 }

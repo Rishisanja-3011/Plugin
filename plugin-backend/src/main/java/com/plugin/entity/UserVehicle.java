@@ -1,17 +1,15 @@
 package com.plugin.entity;
 
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "user_vehicles", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_user_vehicle_registration", columnNames = {"user_id", "vehicle_registration"})
-}, indexes = {
-        @Index(name = "idx_vehicle_user", columnList = "user_id"),
-        @Index(name = "idx_vehicle_active", columnList = "active")
-})
+@Document(collection = "userVehicles")
+@CompoundIndex(name = "uq_user_vehicle_registration", def = "{'user.id': 1, 'vehicleRegistration': 1}", unique = true)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,34 +18,31 @@ import java.time.LocalDateTime;
 public class UserVehicle {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private String mongoId;
+
+    @Indexed(unique = true, sparse = true)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @Indexed
     private User user;
 
-    @Column(name = "vehicle_make", nullable = false, length = 50)
+    private Long userId;
+
     private String vehicleMake;
 
-    @Column(name = "vehicle_model", nullable = false, length = 50)
     private String vehicleModel;
 
-    @Column(name = "vehicle_registration", nullable = false, length = 20)
     private String vehicleRegistration;
 
-    @Column(name = "vehicle_nickname", length = 50)
     private String vehicleNickname;
 
-    @Column(nullable = false)
+    @Indexed
     private Boolean active;
 
-    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 
-    @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
@@ -56,7 +51,6 @@ public class UserVehicle {
         }
     }
 
-    @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }

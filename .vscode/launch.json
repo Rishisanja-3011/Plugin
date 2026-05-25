@@ -16,7 +16,7 @@
                 "MAIL_HOST": "smtp.gmail.com",
                 "MAIL_PORT": "587",
                 "MAIL_USERNAME": "plugin.available@gmail.com",
-                "MAIL_PASSWORD": "ohfvjfltmpdodbxv",
+                "MAIL_PASSWORD": "${env:MAIL_PASSWORD}",
                 "MAIL_FROM": "plugin.available@gmail.com"
 
             }

@@ -26,22 +26,33 @@ public class DashboardService {
                 .orElseThrow(() -> new com.plugin.exception.ResourceNotFoundException("User not found"));
 
         boolean isAdmin = actor.getRole() == Role.ADMIN;
+        List<Long> managedStationIds = isAdmin
+                ? List.of()
+                : stationRepository.findByManagerId(actor.getId()).stream()
+                        .map(com.plugin.entity.Station::getId)
+                        .toList();
+        List<Long> managedPointIds = isAdmin
+                ? List.of()
+                : cpRepository.findByStationIdIn(managedStationIds).stream()
+                        .map(com.plugin.entity.ChargingPoint::getId)
+                        .toList();
+
         long totalStations = isAdmin ? stationRepository.count() : stationRepository.countByManagerId(actor.getId());
         long activeStations = isAdmin ? stationRepository.countByActiveTrue() : stationRepository.countByManagerIdAndActiveTrue(actor.getId());
-        long totalPoints = isAdmin ? cpRepository.count() : cpRepository.countByStationManagerId(actor.getId());
-        long availablePoints = isAdmin ? cpRepository.countByStatus(PointStatus.AVAILABLE) : cpRepository.countByStationManagerIdAndStatus(actor.getId(), PointStatus.AVAILABLE);
-        long totalBookings = isAdmin ? bookingRepository.count() : bookingRepository.countByStationManagerId(actor.getId());
+        long totalPoints = isAdmin ? cpRepository.count() : cpRepository.countByStationIdIn(managedStationIds);
+        long availablePoints = isAdmin ? cpRepository.countByStatus(PointStatus.AVAILABLE) : cpRepository.countByStationIdInAndStatus(managedStationIds, PointStatus.AVAILABLE);
+        long totalBookings = isAdmin ? bookingRepository.count() : bookingRepository.countByStationIdIn(managedStationIds);
         long activeBookings = isAdmin
                 ? bookingRepository.countByStatus(BookingStatus.CONFIRMED) + bookingRepository.countByStatus(BookingStatus.MODIFIED)
-                : bookingRepository.countByStationManagerIdAndStatus(actor.getId(), BookingStatus.CONFIRMED)
-                + bookingRepository.countByStationManagerIdAndStatus(actor.getId(), BookingStatus.MODIFIED);
-        long totalSessions = isAdmin ? sessionRepository.count() : sessionRepository.countByChargingPointStationManagerId(actor.getId());
-        long activeSessions = isAdmin ? sessionRepository.countByStatus(SessionStatus.IN_PROGRESS) : sessionRepository.countByChargingPointStationManagerIdAndStatus(actor.getId(), SessionStatus.IN_PROGRESS);
-        BigDecimal totalRevenue = isAdmin ? billRepository.getTotalRevenue() : billRepository.getTotalRevenueByManagerId(actor.getId());
-        BigDecimal totalEnergy = isAdmin ? sessionRepository.getTotalEnergyDelivered() : sessionRepository.getTotalEnergyDeliveredByManagerId(actor.getId());
-        long totalCustomers = isAdmin ? userRepository.countByRole(Role.CUSTOMER) : bookingRepository.countDistinctCustomersByStationManagerId(actor.getId());
+                : bookingRepository.countByStationIdInAndStatus(managedStationIds, BookingStatus.CONFIRMED)
+                + bookingRepository.countByStationIdInAndStatus(managedStationIds, BookingStatus.MODIFIED);
+        long totalSessions = isAdmin ? sessionRepository.count() : sessionRepository.countByChargingPointIdIn(managedPointIds);
+        long activeSessions = isAdmin ? sessionRepository.countByStatus(SessionStatus.IN_PROGRESS) : sessionRepository.countByChargingPointIdInAndStatus(managedPointIds, SessionStatus.IN_PROGRESS);
+        BigDecimal totalRevenue = isAdmin ? billRepository.getTotalRevenue() : billRepository.getTotalRevenueByStationIds(managedStationIds);
+        BigDecimal totalEnergy = isAdmin ? sessionRepository.getTotalEnergyDelivered() : sessionRepository.getTotalEnergyDeliveredByChargingPointIds(managedPointIds);
+        long totalCustomers = isAdmin ? userRepository.countByRole(Role.CUSTOMER) : bookingRepository.countDistinctCustomersByStationIds(managedStationIds);
 
-        List<Object[]> busiestHoursRaw = isAdmin ? bookingRepository.findBusiestHours() : bookingRepository.findBusiestHoursByManagerId(actor.getId());
+        List<Object[]> busiestHoursRaw = isAdmin ? bookingRepository.findBusiestHours() : bookingRepository.findBusiestHoursByStationIds(managedStationIds);
         List<Map<String, Object>> busiestHours = new ArrayList<>();
         for (Object[] row : busiestHoursRaw) {
             Map<String, Object> map = new HashMap<>();

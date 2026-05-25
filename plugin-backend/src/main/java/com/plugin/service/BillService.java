@@ -2,6 +2,8 @@ package com.plugin.service;
 
 import com.plugin.dto.response.BillResponse;
 import com.plugin.entity.Bill;
+import com.plugin.entity.ChargingSession;
+import com.plugin.entity.Station;
 import com.plugin.entity.User;
 import com.plugin.enums.PaymentStatus;
 import com.plugin.exception.BadRequestException;
@@ -32,6 +34,7 @@ public class BillService {
     private final UserRepository userRepository;
     private final InvoicePdfService invoicePdfService;
     private final InvoiceEmailService invoiceEmailService;
+    private final EntityReferenceResolver referenceResolver;
 
     public record InvoiceFile(byte[] data, String filename) {}
     public record StatementFile(byte[] data, String filename, int rowCount) {}
@@ -42,8 +45,9 @@ public class BillService {
     public Page<BillResponse> getMyBills(String email, Pageable pageable) {
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return billRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId(), pageable)
-                .map(this::toResponse);
+        return referenceResolver.withCache(() ->
+                billRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId(), pageable)
+                        .map(this::toResponse));
     }
 
     public long getMyUnpaidCount(String email) {
@@ -53,17 +57,20 @@ public class BillService {
     }
 
     public Page<BillResponse> getAllBills(Pageable pageable) {
-        return billRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+        return referenceResolver.withCache(() ->
+                billRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse));
     }
 
     public Page<BillResponse> getAllBills(Long stationId, LocalDateTime start, LocalDateTime end, Pageable pageable) {
-        return billRepository.findAllFiltered(stationId, start, end, pageable)
-                .map(this::toResponse);
+        return referenceResolver.withCache(() ->
+                billRepository.findAllFiltered(stationId, start, end, pageable)
+                        .map(this::toResponse));
     }
 
     public BillResponse getBillById(Long id) {
-        return toResponse(billRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Bill not found")));
+        return referenceResolver.withCache(() ->
+                toResponse(billRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Bill not found"))));
     }
 
     @Transactional(readOnly = true)
@@ -72,6 +79,7 @@ public class BillService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Bill bill = billRepository.findByIdAndCustomerId(id, customer.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
+        bill = referenceResolver.hydrate(bill);
         byte[] pdf = invoicePdfService.generateInvoice(bill);
         return new InvoiceFile(pdf, buildFileName(bill));
     }
@@ -80,6 +88,7 @@ public class BillService {
     public InvoiceFile getInvoiceForAdmin(Long id) {
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
+        bill = referenceResolver.hydrate(bill);
         byte[] pdf = invoicePdfService.generateInvoice(bill);
         return new InvoiceFile(pdf, buildFileName(bill));
     }
@@ -93,7 +102,10 @@ public class BillService {
         LocalDateTime start = from != null ? from.atStartOfDay() : null;
         LocalDateTime endExclusive = to != null ? to.plusDays(1).atStartOfDay() : null;
 
-        List<Bill> bills = billRepository.findStatementBillsForCustomer(customer.getId(), start, endExclusive);
+        List<Bill> bills = referenceResolver.withCache(() ->
+                billRepository.findStatementBillsForCustomer(customer.getId(), start, endExclusive).stream()
+                        .map(referenceResolver::hydrateBillSummary)
+                        .toList());
         String csv = buildStatementCsv(bills);
         String filename = buildStatementFileName(from, to);
         return new StatementFile(csv.getBytes(StandardCharsets.UTF_8), filename, bills.size());
@@ -103,12 +115,13 @@ public class BillService {
     public BillResponse markAsPaid(Long id) {
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
+        bill = referenceResolver.hydrate(bill);
         if (bill.getPaymentStatus() == PaymentStatus.PAID) {
             throw new BadRequestException("Bill is already paid");
         }
         bill.setPaymentStatus(PaymentStatus.PAID);
         bill.setPaidAt(LocalDateTime.now());
-        bill = billRepository.saveAndFlush(bill);
+        bill = billRepository.save(bill);
 
         final Long billId = bill.getId();
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -138,26 +151,32 @@ public class BillService {
     }
 
     private BillResponse toResponse(Bill b) {
+        b = referenceResolver.hydrateBillSummary(b);
+        ChargingSession session = b.getSession();
+        User customer = b.getCustomer();
+        Station station = b.getStation();
         Long durationSeconds = null;
-        if (b.getSession() != null && b.getSession().getStartTime() != null && b.getSession().getEndTime() != null) {
-            long seconds = Duration.between(b.getSession().getStartTime(), b.getSession().getEndTime()).getSeconds();
+        if (session != null && session.getStartTime() != null && session.getEndTime() != null) {
+            long seconds = Duration.between(session.getStartTime(), session.getEndTime()).getSeconds();
             durationSeconds = Math.max(0, seconds);
+        } else if (b.getDurationMinutes() != null) {
+            durationSeconds = Math.max(0, b.getDurationMinutes() * 60L);
         }
         return BillResponse.builder()
                 .id(b.getId())
                 .invoiceNumber(b.getInvoiceNumber())
-                .sessionId(b.getSession().getId())
-                .customerId(b.getCustomer().getId())
-                .customerName(b.getCustomer().getFullName())
-                .stationId(b.getStation().getId())
-                .stationName(b.getStation().getName())
+                .sessionId(session != null ? session.getId() : b.getSessionId())
+                .customerId(customer != null ? customer.getId() : b.getCustomerId())
+                .customerName(customer != null ? customer.getFullName() : null)
+                .stationId(station != null ? station.getId() : b.getStationId())
+                .stationName(station != null ? station.getName() : null)
                 .energyKwh(b.getEnergyKwh())
                 .durationMinutes(b.getDurationMinutes())
                 .durationSeconds(durationSeconds)
                 .rateApplied(b.getRateApplied())
                 .rateType(b.getRateType())
                 .totalAmount(b.getTotalAmount())
-                .paymentStatus(b.getPaymentStatus().name())
+                .paymentStatus(b.getPaymentStatus() != null ? b.getPaymentStatus().name() : null)
                 .createdAt(b.getCreatedAt())
                 .paidAt(b.getPaidAt())
                 .build();

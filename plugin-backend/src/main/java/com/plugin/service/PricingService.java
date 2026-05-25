@@ -27,6 +27,7 @@ public class PricingService {
     private final ChargingPointRepository chargingPointRepository;
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
+    private final EntityReferenceResolver referenceResolver;
 
     public List<PricingResponse> getByStation(Long stationId) {
         stationRepository.findById(stationId)
@@ -43,9 +44,15 @@ public class PricingService {
 
     public List<PricingResponse> getAll(String actorEmail) {
         var actor = stationOperatorAccessService.getActor(actorEmail);
-        List<Pricing> pricing = stationOperatorAccessService.isAdmin(actor)
-                ? pricingRepository.findAll()
-                : pricingRepository.findByStationManagerId(actor.getId());
+        List<Pricing> pricing;
+        if (stationOperatorAccessService.isAdmin(actor)) {
+            pricing = pricingRepository.findAll();
+        } else {
+            List<Long> stationIds = stationRepository.findByManagerId(actor.getId()).stream()
+                    .map(Station::getId)
+                    .toList();
+            pricing = stationIds.isEmpty() ? List.of() : pricingRepository.findByStationIdIn(stationIds);
+        }
         return pricing.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
@@ -82,10 +89,12 @@ public class PricingService {
     }
 
     private PricingResponse toResponse(Pricing p) {
+        p = referenceResolver.hydrate(p);
+        Station station = p.getStation();
         return PricingResponse.builder()
                 .id(p.getId())
-                .stationId(p.getStation().getId())
-                .stationName(p.getStation().getName())
+                .stationId(station != null ? station.getId() : p.getStationId())
+                .stationName(station != null ? station.getName() : null)
                 .pointType(p.getPointType().name())
                 .pricingModel(p.getPricingModel().name())
                 .ratePerUnit(p.getRatePerUnit())

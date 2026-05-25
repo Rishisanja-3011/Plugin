@@ -104,7 +104,7 @@ export default function App() {
           <Route path="/admin/audit-logs" element={<ProtectedRoute role="ADMIN"><AdminAuditLogs /></ProtectedRoute>} />
           <Route path="/admin/notifications" element={<ProtectedRoute role="ADMIN"><AdminNotifications /></ProtectedRoute>} />
         </Routes>
-        <Footer compact={isLogin} userSide={!isAdminRoute} adminSide={isAdminRoute} />
+        {!isAdminRoute && <Footer compact={isLogin} userSide />}
       </BillingLock>
     </>
   );

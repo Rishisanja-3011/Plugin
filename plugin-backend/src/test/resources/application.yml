@@ -1,13 +1,8 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-  sql:
-    init:
-      mode: never
+  data:
+    mongodb:
+      uri: "${MONGODB_TEST_URI:mongodb://localhost:27017/plugin_test}"
+      database: "${MONGODB_TEST_DATABASE:plugin_test}"
 
 app:
   jwt:

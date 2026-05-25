@@ -59,7 +59,8 @@ public class SecurityConfig {
                     "http://172.31.*.*:*",
                     "http://192.168.*.*:*",
                     "https://plugin-ashen.vercel.app",
-                    "https://*.vercel.app"
+                    "https://*.vercel.app",
+                    "http://54.144.208.197"
 
                 ));
                 config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));

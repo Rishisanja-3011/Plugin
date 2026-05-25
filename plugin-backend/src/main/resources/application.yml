@@ -1,31 +1,19 @@
 server:
-  port: ${SERVER_PORT:8081}
+  port: "${SERVER_PORT:8081}"
 
 spring:
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/plugin_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:45srt}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      continue-on-error: true
+  config:
+    import: "optional:file:./application-local.yml"
+  data:
+    mongodb:
+      uri: "${MONGODB_URI:mongodb://localhost:27017/plugin_db}"
+      database: "${MONGODB_DATABASE:plugin_db}"
 
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:plugin.available@gmail.com}
-    password: ${MAIL_PASSWORD:ohfvjfltmpdodbxv}
+    host: "${MAIL_HOST:smtp.gmail.com}"
+    port: "${MAIL_PORT:587}"
+    username: "${MAIL_USERNAME:plugin.available@gmail.com}"
+    password: "${MAIL_PASSWORD:}"
     properties:
       mail:
         smtp:
@@ -34,22 +22,22 @@ spring:
             enable: true
             required: true
           ssl:
-            trust: ${MAIL_HOST:smtp.gmail.com}
+            trust: "${MAIL_HOST:smtp.gmail.com}"
 
 app:
   mail:
-    from: ${MAIL_FROM:${MAIL_USERNAME:plugin.available@gmail.com}}
+    from: "${MAIL_FROM:${MAIL_USERNAME:plugin.available@gmail.com}}"
   confirm:
-    base-url: ${APP_BASE_URL:http://localhost:8081}
+    base-url: "${APP_BASE_URL:http://localhost:8081}"
   billing:
-    default-rate-per-kwh: ${DEFAULT_RATE_PER_KWH:15}
-    efficiency-factor: ${CHARGING_EFFICIENCY_FACTOR:0.92}
+    default-rate-per-kwh: "${DEFAULT_RATE_PER_KWH:15}"
+    efficiency-factor: "${CHARGING_EFFICIENCY_FACTOR:0.92}"
   support:
-    email: ${SUPPORT_EMAIL:plugin.onservice@gmail.com}
+    email: "${SUPPORT_EMAIL:plugin.onservice@gmail.com}"
   website:
-    url: ${WEBSITE_URL:www.plugin.com}
+    url: "${WEBSITE_URL:www.plugin.com}"
   jwt:
-    secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}
+    secret: "${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}"
     expiration-ms: 86400000
     refresh-expiration-ms: 604800000
 

@@ -23,6 +23,7 @@ public class ChargingPointService {
     private final StationRepository stationRepository;
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
+    private final EntityReferenceResolver referenceResolver;
 
     public List<ChargingPointResponse> getByStation(Long stationId) {
         stationRepository.findById(stationId)
@@ -94,11 +95,13 @@ public class ChargingPointService {
     }
 
     private ChargingPointResponse toResponse(ChargingPoint cp) {
+        cp = referenceResolver.hydrate(cp);
+        Station station = cp.getStation();
         return ChargingPointResponse.builder()
                 .id(cp.getId())
                 .identifier(cp.getIdentifier())
-                .stationId(cp.getStation().getId())
-                .stationName(cp.getStation().getName())
+                .stationId(station != null ? station.getId() : cp.getStationId())
+                .stationName(station != null ? station.getName() : null)
                 .pointType(cp.getPointType().name())
                 .maxPowerKw(cp.getMaxPowerKw())
                 .connectorType(cp.getConnectorType())

@@ -76,7 +76,7 @@ export default function Dashboard() {
     const loadDashboard = async (showLoading = true) => {
       if (showLoading) setLoading(true);
       try {
-        const [activeRes, bookingsRes, sessionsRes, billsRes] = await Promise.all([
+        const [activeRes, bookingsRes, sessionsRes, billsRes] = await Promise.allSettled([
           sessionsApi.getMyActive(),
           bookingsApi.getMy(0, 5),
           sessionsApi.getMy(0, 100),
@@ -85,11 +85,14 @@ export default function Dashboard() {
 
         if (cancelled) return;
 
-        const activeList = Array.isArray(activeRes.data) ? activeRes.data : activeRes.data?.content ?? [];
-        const bookingsData = bookingsRes.data;
+        const activeData = activeRes.status === 'fulfilled' ? activeRes.value.data : [];
+        const bookingsData = bookingsRes.status === 'fulfilled' ? bookingsRes.value.data : [];
+        const sessionsData = sessionsRes.status === 'fulfilled' ? sessionsRes.value.data : [];
+        const billsData = billsRes.status === 'fulfilled' ? billsRes.value.data : [];
+        const activeList = Array.isArray(activeData) ? activeData : activeData?.content ?? [];
         const bookingsList = bookingsData?.content ?? (Array.isArray(bookingsData) ? bookingsData : []);
-        const sessionsList = sessionsRes.data?.content ?? (Array.isArray(sessionsRes.data) ? sessionsRes.data : []);
-        const billsList = billsRes.data?.content ?? (Array.isArray(billsRes.data) ? billsRes.data : []);
+        const sessionsList = sessionsData?.content ?? (Array.isArray(sessionsData) ? sessionsData : []);
+        const billsList = billsData?.content ?? (Array.isArray(billsData) ? billsData : []);
 
         const energy = sessionsList.reduce((acc, session) => acc + (session.energyDeliveredKwh ?? session.energyDelivered ?? 0), 0);
         const spent = billsList.reduce((acc, bill) => acc + (bill.totalAmount ?? bill.amount ?? 0), 0);

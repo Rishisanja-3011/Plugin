@@ -8,6 +8,7 @@ import com.plugin.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class SessionService {
     private final PricingSnapshotService pricingSnapshotService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final EntityReferenceResolver referenceResolver;
 
     @Value("${app.billing.default-rate-per-kwh:15}")
     private BigDecimal defaultRatePerKwh;
@@ -41,6 +44,7 @@ public class SessionService {
     public SessionResponse startSession(Long bookingId, String customerEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = referenceResolver.hydrate(booking);
 
         if (!booking.getCustomer().getEmail().equals(customerEmail)) {
             throw new BadRequestException("You can only start sessions for your own bookings");
@@ -84,6 +88,7 @@ public class SessionService {
     public SessionResponse endSession(Long sessionId, String performedBy) {
         ChargingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        session = referenceResolver.hydrate(session);
 
         if (session.getStatus() != SessionStatus.IN_PROGRESS) {
             throw new BadRequestException("Session is not in progress");
@@ -129,27 +134,33 @@ public class SessionService {
     public Page<SessionResponse> getMySessions(String email, Pageable pageable) {
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return sessionRepository.findByCustomerIdOrderByStartTimeDesc(customer.getId(), pageable)
-                .map(this::toResponse);
+        return withReferenceCache(() -> toSessionResponsePage(
+                sessionRepository.findByCustomerIdOrderByStartTimeDesc(customer.getId(), pageable), pageable));
     }
 
     public List<SessionResponse> getMyActiveSessions(String email) {
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return sessionRepository.findByCustomerIdAndStatus(customer.getId(), SessionStatus.IN_PROGRESS)
-                .stream().map(this::toResponse).toList();
+        return withReferenceCache(() -> {
+            List<ChargingSession> sessions = sessionRepository.findByCustomerIdAndStatus(customer.getId(), SessionStatus.IN_PROGRESS);
+            referenceResolver.preloadForSessions(sessions);
+            return sessions.stream().map(this::toResponse).toList();
+        });
     }
 
     public Page<SessionResponse> getAllSessions(Pageable pageable) {
-        return sessionRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+        return withReferenceCache(() -> toSessionResponsePage(
+                sessionRepository.findAllByOrderByCreatedAtDesc(pageable), pageable));
     }
 
     public SessionResponse getSessionById(Long id) {
-        return toResponse(sessionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found")));
+        return withReferenceCache(() ->
+                toResponse(sessionRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session not found"))));
     }
 
     private void generateBill(ChargingSession session) {
+        session = referenceResolver.hydrate(session);
         Booking booking = session.getBooking();
         ensureLockedPricing(booking, "Session " + session.getId() + " ended.");
         ChargingPoint cp = session.getChargingPoint();
@@ -189,13 +200,16 @@ public class SessionService {
     }
 
     private SessionResponse toResponse(ChargingSession s) {
+        s = referenceResolver.hydrate(s);
+        Booking booking = s.getBooking();
+        ChargingPoint chargingPoint = s.getChargingPoint();
+        User customer = s.getCustomer();
         BigDecimal estimateRate = null;
         String estimateRateType = null;
         BigDecimal estimatedAmount = null;
-        UserVehicle bookingVehicle = s.getBooking().getVehicle();
+        UserVehicle bookingVehicle = booking != null ? booking.getVehicle() : null;
 
-        if (s.getStatus() == SessionStatus.IN_PROGRESS) {
-            Booking booking = s.getBooking();
+        if (s.getStatus() == SessionStatus.IN_PROGRESS && booking != null && chargingPoint != null) {
             estimateRate = booking.getLockedRatePerUnit();
             estimateRateType = booking.getLockedRateType();
             if (estimateRate == null || estimateRateType == null || estimateRateType.isBlank()) {
@@ -205,7 +219,7 @@ public class SessionService {
             estimateRateType = PricingModel.PER_KWH.name();
 
             long elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
-            BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(s.getChargingPoint().getMaxPowerKw())
+            BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(chargingPoint.getMaxPowerKw())
                     .multiply(BigDecimal.valueOf(normalizedEfficiency()))
                     .multiply(BigDecimal.valueOf(elapsedSeconds))
                     .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
@@ -213,24 +227,24 @@ public class SessionService {
             estimatedAmount = estimatedAmount.setScale(2, RoundingMode.HALF_UP);
         }
 
-        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : s.getCustomer().getVehicleMake();
-        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : s.getCustomer().getVehicleModel();
+        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : customer != null ? customer.getVehicleMake() : null;
+        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : customer != null ? customer.getVehicleModel() : null;
         String vehicleNickname = bookingVehicle != null ? bookingVehicle.getVehicleNickname() : null;
         String vehicleRegistration = bookingVehicle != null
                 ? bookingVehicle.getVehicleRegistration()
-                : s.getCustomer().getVehicleRegistration();
+                : customer != null ? customer.getVehicleRegistration() : null;
 
         return SessionResponse.builder()
                 .id(s.getId())
-                .bookingId(s.getBooking().getId())
-                .bookingReference(s.getBooking().getReferenceId())
-                .chargingPointId(s.getChargingPoint().getId())
-                .chargingPointIdentifier(s.getChargingPoint().getIdentifier())
-                .chargingPointType(s.getChargingPoint().getPointType().name())
-                .chargingPointMaxPowerKw(s.getChargingPoint().getMaxPowerKw())
-                .customerId(s.getCustomer().getId())
-                .customerName(s.getCustomer().getFullName())
-                .stationName(s.getChargingPoint().getStation().getName())
+                .bookingId(booking != null ? booking.getId() : s.getBookingId())
+                .bookingReference(booking != null ? booking.getReferenceId() : null)
+                .chargingPointId(chargingPoint != null ? chargingPoint.getId() : s.getChargingPointId())
+                .chargingPointIdentifier(chargingPoint != null ? chargingPoint.getIdentifier() : null)
+                .chargingPointType(chargingPoint != null && chargingPoint.getPointType() != null ? chargingPoint.getPointType().name() : null)
+                .chargingPointMaxPowerKw(chargingPoint != null ? chargingPoint.getMaxPowerKw() : null)
+                .customerId(customer != null ? customer.getId() : s.getCustomerId())
+                .customerName(customer != null ? customer.getFullName() : null)
+                .stationName(chargingPoint != null && chargingPoint.getStation() != null ? chargingPoint.getStation().getName() : null)
                 .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
                 .vehicleNickname(vehicleNickname)
                 .vehicleMake(vehicleMake)
@@ -242,7 +256,7 @@ public class SessionService {
                 .estimateRate(estimateRate)
                 .estimateRateType(estimateRateType)
                 .estimatedAmount(estimatedAmount)
-                .status(s.getStatus().name())
+                .status(s.getStatus() != null ? s.getStatus().name() : null)
                 .build();
     }
 
@@ -250,6 +264,17 @@ public class SessionService {
         if (billingEfficiencyFactor < 0.0) return 0.0;
         if (billingEfficiencyFactor > 1.0) return 1.0;
         return billingEfficiencyFactor;
+    }
+
+    private Page<SessionResponse> toSessionResponsePage(Page<ChargingSession> page, Pageable pageable) {
+        List<ChargingSession> sessions = page.getContent();
+        referenceResolver.preloadForSessions(sessions);
+        List<SessionResponse> content = sessions.stream().map(this::toResponse).toList();
+        return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    private <T> T withReferenceCache(Supplier<T> supplier) {
+        return referenceResolver != null ? referenceResolver.withCache(supplier) : supplier.get();
     }
 
     private void ensureLockedPricing(Booking booking, String context) {

@@ -10,6 +10,7 @@ import com.plugin.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 @Slf4j
@@ -37,6 +39,7 @@ public class BookingService {
     private final PricingSnapshotService pricingSnapshotService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final EntityReferenceResolver referenceResolver;
 
     @Transactional
     public BookingResponse createBooking(BookingRequest request, String customerEmail) {
@@ -71,6 +74,7 @@ public class BookingService {
             // Specific point requested
             chargingPoint = cpRepository.findById(request.getChargingPointId())
                     .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+            chargingPoint = hydrate(chargingPoint);
 
             if (!chargingPoint.getStation().getId().equals(station.getId())) {
                 throw new BadRequestException("Charging point does not belong to this station");
@@ -130,6 +134,7 @@ public class BookingService {
     public BookingResponse modifyBooking(Long bookingId, BookingRequest request, String customerEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (!booking.getCustomer().getEmail().equals(customerEmail)) {
             throw new BadRequestException("You can only modify your own bookings");
@@ -160,6 +165,7 @@ public class BookingService {
                 ? cpRepository.findById(request.getChargingPointId())
                     .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"))
                 : booking.getChargingPoint();
+        targetPoint = hydrate(targetPoint);
         if (!targetPoint.getStation().getId().equals(station.getId())) {
             throw new BadRequestException("Charging point does not belong to this station");
         }
@@ -207,6 +213,7 @@ public class BookingService {
     public BookingResponse requestReschedule(Long bookingId, BookingRescheduleRequest request, String customerEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (!booking.getCustomer().getEmail().equals(customerEmail)) {
             throw new BadRequestException("You can only request changes for your own bookings");
@@ -265,6 +272,7 @@ public class BookingService {
     public BookingResponse cancelBooking(Long bookingId, String customerEmail, String reason) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (!booking.getCustomer().getEmail().equals(customerEmail)) {
             throw new BadRequestException("You can only cancel your own bookings");
@@ -302,6 +310,7 @@ public class BookingService {
     public BookingResponse cancelBookingAsAdmin(Long bookingId, String adminEmail, String reason) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new BadRequestException("Booking is already cancelled");
@@ -343,6 +352,7 @@ public class BookingService {
     public BookingResponse approveRescheduleRequest(Long bookingId, String adminEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (booking.getRescheduleRequestStatus() != RescheduleRequestStatus.PENDING) {
             throw new BadRequestException("No pending reschedule request for this booking");
@@ -396,6 +406,7 @@ public class BookingService {
     public BookingResponse rejectRescheduleRequest(Long bookingId, String adminEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        booking = hydrate(booking);
 
         if (booking.getRescheduleRequestStatus() != RescheduleRequestStatus.PENDING) {
             throw new BadRequestException("No pending reschedule request for this booking");
@@ -418,25 +429,27 @@ public class BookingService {
     public Page<BookingResponse> getMyBookings(String email, Pageable pageable) {
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return bookingRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId(), pageable)
-                .map(this::toResponse);
+        return withReferenceCache(() -> toBookingResponsePage(
+                bookingRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId(), pageable), pageable));
     }
 
     public BookingResponse getBookingById(Long id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-        return toResponse(booking);
+        return withReferenceCache(() -> toResponse(booking));
     }
 
     public Page<BookingResponse> getAllBookings(Pageable pageable, BookingStatus status) {
-        if (status == null) {
-            return bookingRepository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
-        }
-        return bookingRepository.findByStatusOrderByCreatedAtDesc(status, pageable).map(this::toResponse);
+        return withReferenceCache(() -> {
+            if (status == null) {
+                return toBookingResponsePage(bookingRepository.findAllByOrderByCreatedAtDesc(pageable), pageable);
+            }
+            return toBookingResponsePage(bookingRepository.findByStatusOrderByCreatedAtDesc(status, pageable), pageable);
+        });
     }
 
     public Page<BookingResponse> getBookingsByStation(Long stationId, Pageable pageable) {
-        return bookingRepository.findByStationId(stationId, pageable).map(this::toResponse);
+        return withReferenceCache(() -> toBookingResponsePage(bookingRepository.findByStationId(stationId, pageable), pageable));
     }
 
     public Map<String, Long> getBookingStats() {
@@ -458,6 +471,7 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         ChargingPoint chargingPoint = cpRepository.findById(pointId)
                 .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+        chargingPoint = hydrate(chargingPoint);
 
         if (!chargingPoint.getStation().getId().equals(station.getId())) {
             throw new BadRequestException("Charging point does not belong to this station");
@@ -502,7 +516,8 @@ public class BookingService {
             candidates = cpRepository.findByStationId(stationId);
         }
 
-        for (ChargingPoint cp : candidates) {
+        for (ChargingPoint candidate : candidates) {
+            ChargingPoint cp = hydrate(candidate);
             if (isPointBlockedForBooking(cp.getStatus())) continue;
             List<Booking> overlapping = bookingRepository.findOverlappingBookings(cp.getId(), startTime, endTime);
             if (overlapping.isEmpty()) {
@@ -534,24 +549,28 @@ public class BookingService {
     }
 
     private BookingResponse toResponse(Booking b) {
+        b = hydrate(b);
+        User customer = b.getCustomer();
+        Station station = b.getStation();
+        ChargingPoint chargingPoint = b.getChargingPoint();
         UserVehicle bookingVehicle = resolveResponseVehicle(b);
         String vehicleNickname = bookingVehicle != null ? bookingVehicle.getVehicleNickname() : null;
-        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : b.getCustomer().getVehicleMake();
-        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : b.getCustomer().getVehicleModel();
+        String vehicleMake = bookingVehicle != null ? bookingVehicle.getVehicleMake() : customer != null ? customer.getVehicleMake() : null;
+        String vehicleModel = bookingVehicle != null ? bookingVehicle.getVehicleModel() : customer != null ? customer.getVehicleModel() : null;
         String vehicleRegistration = bookingVehicle != null
                 ? bookingVehicle.getVehicleRegistration()
-                : b.getCustomer().getVehicleRegistration();
+                : customer != null ? customer.getVehicleRegistration() : null;
 
         return BookingResponse.builder()
                 .id(b.getId())
                 .referenceId(b.getReferenceId())
-                .customerId(b.getCustomer().getId())
-                .customerName(b.getCustomer().getFullName())
-                .stationId(b.getStation().getId())
-                .stationName(b.getStation().getName())
-                .chargingPointId(b.getChargingPoint().getId())
-                .chargingPointIdentifier(b.getChargingPoint().getIdentifier())
-                .pointType(b.getChargingPoint().getPointType().name())
+                .customerId(customer != null ? customer.getId() : b.getCustomerId())
+                .customerName(customer != null ? customer.getFullName() : null)
+                .stationId(station != null ? station.getId() : b.getStationId())
+                .stationName(station != null ? station.getName() : null)
+                .chargingPointId(chargingPoint != null ? chargingPoint.getId() : b.getChargingPointId())
+                .chargingPointIdentifier(chargingPoint != null ? chargingPoint.getIdentifier() : null)
+                .pointType(chargingPoint != null && chargingPoint.getPointType() != null ? chargingPoint.getPointType().name() : null)
                 .vehicleId(bookingVehicle != null ? bookingVehicle.getId() : null)
                 .vehicleNickname(vehicleNickname)
                 .vehicleMake(vehicleMake)
@@ -561,7 +580,7 @@ public class BookingService {
                 .endTime(b.getEndTime())
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
                 .lockedRateType(b.getLockedRateType())
-                .status(b.getStatus().name())
+                .status(b.getStatus() != null ? b.getStatus().name() : null)
                 .cancellationReason(b.getCancellationReason())
                 .rescheduleRequestStatus((b.getRescheduleRequestStatus() != null ? b.getRescheduleRequestStatus() : RescheduleRequestStatus.NONE).name())
                 .rescheduleRequestedStartTime(b.getRescheduleRequestedStartTime())
@@ -580,12 +599,14 @@ public class BookingService {
             return booking.getVehicle();
         }
 
-        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
         if (customerId == null) {
             return null;
         }
 
-        return userVehicleRepository.findFirstByUserIdOrderByCreatedAtAscIdAsc(customerId).orElse(null);
+        return referenceResolver != null
+                ? referenceResolver.resolveFirstVehicleForUser(customerId)
+                : userVehicleRepository.findFirstByUserIdOrderByCreatedAtAscIdAsc(customerId).orElse(null);
     }
 
     private void validateRescheduleSlot(Booking booking, LocalDateTime requestedStartTime, LocalDateTime requestedEndTime) {
@@ -652,6 +673,27 @@ public class BookingService {
 
     private boolean isPointBlockedForBooking(PointStatus status) {
         return status == PointStatus.OUT_OF_SERVICE || status == PointStatus.UNAVAILABLE;
+    }
+
+    private Booking hydrate(Booking booking) {
+        return referenceResolver != null ? referenceResolver.hydrate(booking) : booking;
+    }
+
+    private ChargingPoint hydrate(ChargingPoint chargingPoint) {
+        return referenceResolver != null ? referenceResolver.hydrate(chargingPoint) : chargingPoint;
+    }
+
+    private <T> T withReferenceCache(Supplier<T> supplier) {
+        return referenceResolver != null ? referenceResolver.withCache(supplier) : supplier.get();
+    }
+
+    private Page<BookingResponse> toBookingResponsePage(Page<Booking> page, Pageable pageable) {
+        List<Booking> bookings = page.getContent();
+        if (referenceResolver != null) {
+            referenceResolver.preloadForBookings(bookings);
+        }
+        List<BookingResponse> content = bookings.stream().map(this::toResponse).toList();
+        return new PageImpl<>(content, pageable, page.getTotalElements());
     }
 
     private void ensurePointAvailableForBooking(ChargingPoint chargingPoint) {

@@ -7,12 +7,17 @@ import com.plugin.enums.Role;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.BookingRepository;
+import com.plugin.repository.BookingRepositoryCustom;
 import com.plugin.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -27,23 +32,22 @@ public class AdminCustomerService {
         boolean hasName = normalizedName != null && !normalizedName.isEmpty();
 
         if (active != null && hasName) {
-            return userRepository.findByRoleAndActiveAndFullNameContainingIgnoreCase(
+            return toResponsePage(userRepository.findByRoleAndActiveAndFullNameContainingIgnoreCase(
                     Role.CUSTOMER, active, normalizedName, pageable
-            ).map(this::toResponse);
+            ), pageable);
         }
 
         if (active != null) {
-            return userRepository.findByRoleAndActive(Role.CUSTOMER, active, pageable)
-                    .map(this::toResponse);
+            return toResponsePage(userRepository.findByRoleAndActive(Role.CUSTOMER, active, pageable), pageable);
         }
 
         if (hasName) {
-            return userRepository.findByRoleAndFullNameContainingIgnoreCase(
+            return toResponsePage(userRepository.findByRoleAndFullNameContainingIgnoreCase(
                     Role.CUSTOMER, normalizedName, pageable
-            ).map(this::toResponse);
+            ), pageable);
         }
 
-        return userRepository.findByRole(Role.CUSTOMER, pageable).map(this::toResponse);
+        return toResponsePage(userRepository.findByRole(Role.CUSTOMER, pageable), pageable);
     }
 
     @Transactional
@@ -72,13 +76,31 @@ public class AdminCustomerService {
         return toResponse(customer);
     }
 
-    private AdminCustomerResponse toResponse(User user) {
-        long completedBookings = bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.COMPLETED);
-        long cancelledBookings = bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.CANCELLED);
-        long activeBookings =
-                bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.CONFIRMED)
-                + bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.MODIFIED);
+    private Page<AdminCustomerResponse> toResponsePage(Page<User> page, Pageable pageable) {
+        List<User> users = page.getContent();
+        List<Long> customerIds = users.stream().map(User::getId).toList();
+        Map<Long, BookingRepositoryCustom.CustomerBookingCounts> bookingCounts =
+                bookingRepository.countBookingsByCustomerIds(customerIds);
+        List<AdminCustomerResponse> content = users.stream()
+                .map(user -> toResponse(user, bookingCounts.getOrDefault(
+                        user.getId(),
+                        new BookingRepositoryCustom.CustomerBookingCounts(0, 0, 0, 0)
+                )))
+                .toList();
+        return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
 
+    private AdminCustomerResponse toResponse(User user) {
+        return toResponse(user, new BookingRepositoryCustom.CustomerBookingCounts(
+                bookingRepository.countByCustomerId(user.getId()),
+                bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.COMPLETED),
+                bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.CANCELLED),
+                bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.CONFIRMED)
+                        + bookingRepository.countByCustomerIdAndStatus(user.getId(), BookingStatus.MODIFIED)
+        ));
+    }
+
+    private AdminCustomerResponse toResponse(User user, BookingRepositoryCustom.CustomerBookingCounts counts) {
         return AdminCustomerResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
@@ -89,10 +111,10 @@ public class AdminCustomerService {
                 .vehicleRegistration(user.getVehicleRegistration())
                 .active(Boolean.TRUE.equals(user.getActive()))
                 .createdAt(user.getCreatedAt())
-                .totalBookings(bookingRepository.countByCustomerId(user.getId()))
-                .completedBookings(completedBookings)
-                .cancelledBookings(cancelledBookings)
-                .activeBookings(activeBookings)
+                .totalBookings(counts.total())
+                .completedBookings(counts.completed())
+                .cancelledBookings(counts.cancelled())
+                .activeBookings(counts.active())
                 .build();
     }
 }
