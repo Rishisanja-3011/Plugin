@@ -55,6 +55,10 @@ const DIRECT_NAMES = new Set([
   'info',
   'success',
   'error',
+  'user',
+  'vehicle',
+  'lock',
+  'settings',
   'dot',
 ]);
 
@@ -242,6 +246,34 @@ function IconSvg({ name, className }) {
         <svg {...common}>
           <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
           <path d="m9.2 9.2 5.6 5.6m0-5.6-5.6 5.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+    case 'user':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8.4" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M5.6 19.4c.8-3.2 3.3-5 6.4-5s5.6 1.8 6.4 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+    case 'vehicle':
+      return (
+        <svg {...common}>
+          <path d="M5.4 15.6h13.2M7.1 15.6l1.5-5.1h6.8l1.5 5.1M7.5 18.4h.02M16.5 18.4h.02" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5.2 15.6v3.1h13.6v-3.1l-1.8-2.4H7z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'lock':
+      return (
+        <svg {...common}>
+          <rect x="5.4" y="10.2" width="13.2" height="9" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M8.3 10.2V7.7a3.7 3.7 0 0 1 7.4 0v2.5M12 14.2v2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+    case 'settings':
+      return (
+        <svg {...common}>
+          <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M18.4 13.4c.1-.5.1-.9 0-1.4l1.7-1.3-1.7-3-2 .8c-.4-.3-.8-.6-1.2-.7L14.9 5h-3.8l-.3 2.1c-.5.2-.9.4-1.2.7l-2-.8-1.7 3L7.6 12c-.1.5-.1.9 0 1.4l-1.7 1.3 1.7 3 2-.8c.4.3.8.6 1.2.7l.3 2.1h3.8l.3-2.1c.5-.2.9-.4 1.2-.7l2 .8 1.7-3z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
         </svg>
       );
     default:

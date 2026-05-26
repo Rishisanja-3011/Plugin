@@ -266,6 +266,11 @@
   white-space: nowrap;
 }
 
+.session-status__confirm-modal {
+  width: min(420px, calc(100vw - 32px));
+  max-width: min(420px, calc(100vw - 32px));
+}
+
 @media (max-width: 1024px) {
   .session-status__history-row {
     grid-template-columns: 1.8fr 1fr 1fr 1fr;

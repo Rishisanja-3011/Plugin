@@ -9,6 +9,8 @@ import './SessionStatus.css';
 const HISTORY_PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
+const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15000;
+const SESSION_HISTORY_REFRESH_INTERVAL_MS = 30000;
 
 const DATE_FILTERS = [
   { value: 'ALL', label: 'All' },
@@ -27,8 +29,8 @@ function formatDurationFromMs(ms) {
 
 function formatDurationBetween(startTime, endTime) {
   if (!startTime || !endTime) return '\u2014';
-  const start = new Date(startTime).getTime();
-  const end = new Date(endTime).getTime();
+  const start = parseDateTime(startTime)?.getTime();
+  const end = parseDateTime(endTime)?.getTime();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return '\u2014';
 
   const totalSeconds = Math.floor((end - start) / 1000);
@@ -40,10 +42,25 @@ function formatDurationBetween(startTime, endTime) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
 }
 
+function parseDateTime(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getActiveSessionStartTimeMs(session) {
+  const elapsedSeconds = Number(session?.elapsedSeconds);
+  if (Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    return Date.now() - elapsedSeconds * 1000;
+  }
+
+  return parseDateTime(session?.startTime)?.getTime() ?? Date.now();
+}
+
 function formatDateTime(value) {
   if (!value) return '\u2014';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '\u2014';
+  const date = parseDateTime(value);
+  if (!date) return '\u2014';
   return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
@@ -76,8 +93,8 @@ function matchesDateFilter(session, filter) {
   const reference = session.endTime ?? session.startTime;
   if (!reference) return false;
 
-  const sessionDate = new Date(reference);
-  if (Number.isNaN(sessionDate.getTime())) return false;
+  const sessionDate = parseDateTime(reference);
+  if (!sessionDate) return false;
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -198,14 +215,14 @@ export default function SessionStatus() {
   useEffect(() => {
     const activePoll = setInterval(() => {
       fetchActive();
-    }, 5000);
+    }, ACTIVE_SESSION_REFRESH_INTERVAL_MS);
     return () => clearInterval(activePoll);
   }, []);
 
   useEffect(() => {
     const historyPoll = setInterval(() => {
       fetchHistoryAndBills(false);
-    }, 20000);
+    }, SESSION_HISTORY_REFRESH_INTERVAL_MS);
     return () => clearInterval(historyPoll);
   }, []);
 
@@ -477,7 +494,7 @@ export default function SessionStatus() {
         {pendingEndSession && (
           <div className="modal-overlay" onClick={() => setPendingEndSession(null)}>
             <motion.div
-              className="modal card"
+              className="modal card session-status__confirm-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               onClick={(e) => e.stopPropagation()}
@@ -516,12 +533,14 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
   const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
-    const startTimeMs = session.startTime ? new Date(session.startTime).getTime() : Date.now();
+    const startTimeMs = getActiveSessionStartTimeMs(session);
     const updateElapsed = () => setElapsedMs(Date.now() - startTimeMs);
     updateElapsed();
     const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [session.startTime]);
+  }, [session.startTime, session.elapsedSeconds]);
+
+  const displayedStartTime = new Date(Date.now() - elapsedMs);
 
   return (
     <motion.div className="session-status__active-card card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -535,7 +554,7 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
       <div className="session-status__active-meta">
         <div className="session-status__active-meta-item">
           <span>Start Time</span>
-          <strong>{formatDateTime(session.startTime)}</strong>
+          <strong>{formatDateTime(displayedStartTime)}</strong>
         </div>
         <div className="session-status__active-meta-item">
           <span>Point ID</span>

@@ -5,6 +5,7 @@ import com.plugin.enums.RescheduleRequestStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -12,7 +13,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Document(collection = "bookings")
-@CompoundIndex(name = "idx_booking_point_time", def = "{'chargingPoint.id': 1, 'startTime': 1, 'endTime': 1}")
+@CompoundIndexes({
+        @CompoundIndex(name = "idx_booking_point_time", def = "{'chargingPoint.id': 1, 'startTime': 1, 'endTime': 1}"),
+        @CompoundIndex(name = "idx_booking_point_id_time", def = "{'chargingPointId': 1, 'startTime': 1, 'endTime': 1}"),
+        @CompoundIndex(name = "idx_booking_created_desc", def = "{'createdAt': -1}"),
+        @CompoundIndex(name = "idx_booking_status_created_desc", def = "{'status': 1, 'createdAt': -1}"),
+        @CompoundIndex(name = "idx_booking_customer_created_desc", def = "{'customerId': 1, 'createdAt': -1}"),
+        @CompoundIndex(name = "idx_booking_station_created_desc", def = "{'stationId': 1, 'createdAt': -1}")
+})
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Booking {
 
@@ -51,6 +59,8 @@ public class Booking {
 
     private BookingStatus status;
 
+    private Boolean startNotificationSent;
+
     private String cancellationReason;
 
     private RescheduleRequestStatus rescheduleRequestStatus;
@@ -75,6 +85,7 @@ public class Booking {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (status == null) status = BookingStatus.CONFIRMED;
+        if (startNotificationSent == null) startNotificationSent = false;
         if (rescheduleRequestStatus == null) rescheduleRequestStatus = RescheduleRequestStatus.NONE;
     }
 

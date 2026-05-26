@@ -17,6 +17,8 @@ const DURATION_OPTIONS = [
 
 const STEPS = ['Select Point', 'Schedule', 'Review', 'Complete'];
 const BLOCKED_POINT_STATUSES = new Set(['OUT_OF_SERVICE', 'UNAVAILABLE']);
+const STATION_REFRESH_INTERVAL_MS = 15000;
+const SLOT_REFRESH_INTERVAL_MS = 15000;
 
 function isPointBlockedForBooking(status) {
   return BLOCKED_POINT_STATUSES.has((status ?? '').toString().trim().toUpperCase());
@@ -79,7 +81,7 @@ export default function BookingFlow() {
     fetchData(true);
     const pollInterval = setInterval(() => {
       fetchData(false);
-    }, 500);
+    }, STATION_REFRESH_INTERVAL_MS);
 
     return () => {
       cancelled = true;
@@ -104,7 +106,7 @@ export default function BookingFlow() {
     };
 
     fetchSlots();
-    const pollInterval = setInterval(fetchSlots, 500);
+    const pollInterval = setInterval(fetchSlots, SLOT_REFRESH_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(pollInterval);

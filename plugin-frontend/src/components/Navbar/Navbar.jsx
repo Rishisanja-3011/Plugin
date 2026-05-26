@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBillingLock } from '../BillingLock/BillingLock';
 import { sessionsApi } from '../../api/bookings';
+import NotificationBell from '../NotificationBell/NotificationBell';
 import './Navbar.css';
+
+const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15000;
 
 const HomeIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -40,10 +43,14 @@ export default function Navbar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
+  const accountMenuRef = useRef(null);
+  const mobileAccountMenuRef = useRef(null);
   const blockLogout = isCustomer && (hasUnpaid || hasActiveSession);
   const panelLabel = user?.role === 'STATION_OPERATOR' ? 'Manager Panel' : 'Admin Panel';
+  const settingsPath = isAdmin ? '/admin/dashboard' : '/customer/profile';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -71,17 +78,41 @@ export default function Navbar() {
         });
     };
     fetchActive();
-    const pollInterval = setInterval(fetchActive, 5000);
+    const pollInterval = setInterval(fetchActive, ACTIVE_SESSION_REFRESH_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(pollInterval);
     };
   }, [user, isCustomer]);
 
+  useEffect(() => {
+    setAccountMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const handleOutsideClick = (event) => {
+      const clickedDesktopMenu = accountMenuRef.current?.contains(event.target);
+      const clickedMobileMenu = mobileAccountMenuRef.current?.contains(event.target);
+      if (!clickedDesktopMenu && !clickedMobileMenu) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [accountMenuOpen]);
+
   const handleLogout = () => {
     if (blockLogout) return;
+    setAccountMenuOpen(false);
     setShowLogoutConfirm(true);
     setMobileOpen(false);
+  };
+
+  const handleOpenSettings = () => {
+    setAccountMenuOpen(false);
+    setMobileOpen(false);
+    navigate(settingsPath, { state: { settingsHome: Date.now() } });
   };
 
   const confirmLogout = () => {
@@ -143,6 +174,7 @@ export default function Navbar() {
           <div className="navbar__actions">
             {user ? (
               <div className="navbar__user-menu">
+                {(isAdmin || isCustomer) && <NotificationBell />}
                 <div className="navbar__user-info">
                   <div className="navbar__user-details">
                     <span className="navbar__user-name">
@@ -153,28 +185,50 @@ export default function Navbar() {
                     )}
                   </div>
                 </div>
-                <Link
-                  to={isAdmin ? '/admin/dashboard' : '/customer/profile'}
-                  className="navbar__user-avatar"
-                  aria-label="Profile"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {getInitial(user.fullName)}
-                </Link>
-                <button
-                  className="btn btn--ghost btn--sm"
-                  onClick={handleLogout}
-                  disabled={blockLogout}
-                  title={
-                    blockLogout
-                      ? hasUnpaid
-                        ? 'Please pay your pending invoice to continue'
-                        : 'Please end your active session to continue'
-                      : 'Logout'
-                  }
-                >
-                  Logout
-                </button>
+                <div className="navbar__account" ref={accountMenuRef}>
+                  <button
+                    type="button"
+                    className={`navbar__user-avatar${accountMenuOpen ? ' navbar__user-avatar--active' : ''}`}
+                    aria-label="Account menu"
+                    aria-haspopup="menu"
+                    aria-expanded={accountMenuOpen}
+                    onClick={() => setAccountMenuOpen((prev) => !prev)}
+                  >
+                    {getInitial(user.fullName)}
+                  </button>
+                  <AnimatePresence>
+                    {accountMenuOpen && (
+                      <motion.div
+                        className="navbar__account-menu"
+                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                        transition={{ duration: 0.18 }}
+                        role="menu"
+                      >
+                        <button type="button" className="navbar__account-item" role="menuitem" onClick={handleOpenSettings}>
+                          Settings
+                        </button>
+                        <button
+                          type="button"
+                          className="navbar__account-item navbar__account-item--danger"
+                          role="menuitem"
+                          onClick={handleLogout}
+                          disabled={blockLogout}
+                          title={
+                            blockLogout
+                              ? hasUnpaid
+                                ? 'Please pay your pending invoice to continue'
+                                : 'Please end your active session to continue'
+                              : 'Logout'
+                          }
+                        >
+                          Logout
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             ) : (
               <>
@@ -241,13 +295,53 @@ export default function Navbar() {
             <span className="navbar__mobile-tab-icon"><CalendarIcon /></span>
             <span>Bookings</span>
           </Link>
-          <Link
-            to="/customer/profile"
-            className={`navbar__mobile-tab ${isActive('/customer/profile') ? 'navbar__mobile-tab--active' : ''}`}
-          >
-            <span className="navbar__mobile-tab-icon"><ProfileIcon /></span>
-            <span>Profile</span>
-          </Link>
+          <div className="navbar__mobile-account" ref={mobileAccountMenuRef}>
+            <button
+              type="button"
+              className={`navbar__mobile-tab ${isActive('/customer/profile') || accountMenuOpen ? 'navbar__mobile-tab--active' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+              onClick={() => {
+                setMobileOpen(false);
+                setAccountMenuOpen((prev) => !prev);
+              }}
+            >
+              <span className="navbar__mobile-tab-icon"><ProfileIcon /></span>
+              <span>Profile</span>
+            </button>
+            <AnimatePresence>
+              {accountMenuOpen && (
+                <motion.div
+                  className="navbar__mobile-account-menu"
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
+                  role="menu"
+                >
+                  <button type="button" className="navbar__account-item" role="menuitem" onClick={handleOpenSettings}>
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    className="navbar__account-item navbar__account-item--danger"
+                    role="menuitem"
+                    onClick={handleLogout}
+                    disabled={blockLogout}
+                    title={
+                      blockLogout
+                        ? hasUnpaid
+                          ? 'Please pay your pending invoice to continue'
+                          : 'Please end your active session to continue'
+                        : 'Logout'
+                    }
+                  >
+                    Logout
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       )}
     </nav>

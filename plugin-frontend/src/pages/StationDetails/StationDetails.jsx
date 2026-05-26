@@ -40,6 +40,7 @@ const itemVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0 },
 };
+const STATION_DETAILS_REFRESH_INTERVAL_MS = 15000;
 
 export default function StationDetails() {
   const { id } = useParams();
@@ -86,7 +87,7 @@ export default function StationDetails() {
     fetchData(true);
     const pollInterval = setInterval(() => {
       fetchData(false);
-    }, 500);
+    }, STATION_DETAILS_REFRESH_INTERVAL_MS);
 
     return () => {
       cancelled = true;

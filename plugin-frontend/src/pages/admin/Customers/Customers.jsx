@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import { getAdminSidebarLinks } from '../adminNavigation';
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog';
 import './Customers.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
@@ -43,15 +44,16 @@ export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [statusUpdating, setStatusUpdating] = useState(null);
+  const [pendingCustomerAction, setPendingCustomerAction] = useState(null);
   const latestRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!selected) return undefined;
+    if (!selected && !pendingCustomerAction) return undefined;
     document.body.classList.add('modal-open');
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [selected]);
+  }, [selected, pendingCustomerAction]);
 
   const fetchCustomers = async (p = page, name = searchTerm, status = statusFilter) => {
     const requestId = latestRequestRef.current + 1;
@@ -113,7 +115,18 @@ export default function Customers() {
   const statusBadgeClass = (active) => (active ? 'badge--success' : 'badge--danger');
   const statusLabel = (active) => (active ? 'Active' : 'Deleted');
 
-  const handleToggleStatus = async (customer) => {
+  const requestToggleStatus = (customer) => {
+    if (!customer?.id) return;
+    setPendingCustomerAction(customer);
+  };
+
+  const closeCustomerAction = () => {
+    if (statusUpdating === pendingCustomerAction?.id) return;
+    setPendingCustomerAction(null);
+  };
+
+  const confirmToggleStatus = async () => {
+    const customer = pendingCustomerAction;
     if (!customer?.id) return;
     const nextStatus = !customer.active;
     setStatusUpdating(customer.id);
@@ -126,6 +139,7 @@ export default function Customers() {
         setSelected((prev) => (prev ? { ...prev, ...updated } : prev));
       }
 
+      setPendingCustomerAction(null);
       fetchCustomers(page, searchTerm, statusFilter);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update customer status');
@@ -222,7 +236,7 @@ export default function Customers() {
                           disabled={statusUpdating === c.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleStatus(c);
+                            requestToggleStatus(c);
                           }}
                         >
                           {statusUpdating === c.id ? 'Updating...' : c.active ? 'Delete' : 'Restore'}
@@ -319,7 +333,7 @@ export default function Customers() {
                       type="button"
                       className={`btn ${selected.active ? 'btn--danger' : 'btn--accent'}`}
                       disabled={statusUpdating === selected.id}
-                      onClick={() => handleToggleStatus(selected)}
+                      onClick={() => requestToggleStatus(selected)}
                     >
                       {statusUpdating === selected.id ? 'Updating...' : selected.active ? 'Delete User' : 'Restore User'}
                     </button>
@@ -329,6 +343,30 @@ export default function Customers() {
             )}
           </>
         )}
+        <AnimatePresence>
+          {pendingCustomerAction && (
+            <ConfirmDialog
+              open
+              title={pendingCustomerAction.active ? 'Delete user?' : 'Restore user?'}
+              message={
+                <>
+                  Are you sure you want to {pendingCustomerAction.active ? 'delete' : 'restore'}{' '}
+                  <strong>{pendingCustomerAction.fullName || pendingCustomerAction.email || 'this user'}</strong>?
+                </>
+              }
+              meta={
+                pendingCustomerAction.active
+                  ? 'This will mark the customer account as deleted and remove active access.'
+                  : 'This will restore the customer account access.'
+              }
+              confirmLabel={pendingCustomerAction.active ? 'Delete User' : 'Restore User'}
+              variant={pendingCustomerAction.active ? 'danger' : 'accent'}
+              loading={statusUpdating === pendingCustomerAction.id}
+              onCancel={closeCustomerAction}
+              onConfirm={confirmToggleStatus}
+            />
+          )}
+        </AnimatePresence>
       </motion.main>
     </div>
   );

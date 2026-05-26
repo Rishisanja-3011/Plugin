@@ -142,6 +142,7 @@ const operatorSteps = [
   { title: 'Review', desc: 'Admin validates the submitted documents and station readiness.' },
   { title: 'Operate', desc: 'Approved accounts move into station operations and management.' },
 ];
+const LIVE_SUMMARY_POLL_INTERVAL_MS = 30000;
 
 const floatingVariants = (delay = 0, y = 0) => ({
   initial: { opacity: 0, y: 20 },
@@ -218,7 +219,7 @@ export default function Landing() {
     };
 
     fetchStatus();
-    const pollInterval = setInterval(fetchStatus, 800);
+    const pollInterval = setInterval(fetchStatus, LIVE_SUMMARY_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
@@ -237,7 +238,7 @@ export default function Landing() {
         minute: '2-digit',
         second: '2-digit',
       })}`
-      : 'Live status updates every second';
+      : 'Live status updates every 30 seconds';
   const totalConnectors = statusSummary.connectorCount || (statusSummary.available + statusSummary.busy + statusSummary.outOfService);
   const getStatusShare = (key) => {
     if (!totalConnectors) return 0;

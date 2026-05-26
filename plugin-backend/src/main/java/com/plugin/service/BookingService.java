@@ -9,9 +9,11 @@ import com.plugin.exception.*;
 import com.plugin.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,10 @@ public class BookingService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final EntityReferenceResolver referenceResolver;
+    private final ChargingSessionRepository sessionRepository;
+
+    @Value("${app.notifications.booking-start-lookback-minutes:180}")
+    private long bookingStartNotificationLookbackMinutes;
 
     @Transactional
     public BookingResponse createBooking(BookingRequest request, String customerEmail) {
@@ -108,6 +114,7 @@ public class BookingService {
                 .lockedRatePerUnit(lockedPricing.ratePerUnit())
                 .lockedRateType(lockedPricing.rateType())
                 .status(BookingStatus.CONFIRMED)
+                .startNotificationSent(false)
                 .build();
 
         booking = bookingRepository.save(booking);
@@ -188,6 +195,7 @@ public class BookingService {
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
         booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
+        booking.setStartNotificationSent(false);
         clearRescheduleRequestFields(booking);
         resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
@@ -378,6 +386,7 @@ public class BookingService {
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
         booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
+        booking.setStartNotificationSent(false);
         booking.setCancellationReason(null);
         booking.setRescheduleReviewedBy(adminEmail);
         booking.setRescheduleReviewedAt(LocalDateTime.now());
@@ -461,6 +470,92 @@ public class BookingService {
                 "completed", completed,
                 "cancelled", cancelled
         );
+    }
+
+    @Scheduled(initialDelayString = "${app.notifications.booking-start-initial-delay-ms:10000}",
+            fixedDelayString = "${app.notifications.booking-start-check-ms:30000}")
+    @Transactional
+    public void sendBookingStartNotifications() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime from = now.minusMinutes(Math.max(1, bookingStartNotificationLookbackMinutes));
+        List<Booking> dueBookings = bookingRepository.findDueStartNotifications(
+                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), from, now);
+
+        for (Booking booking : dueBookings) {
+            Booking hydrated = hydrate(booking);
+            Long customerId = hydrated.getCustomer() != null ? hydrated.getCustomer().getId() : hydrated.getCustomerId();
+            if (customerId == null) {
+                log.warn("Skipping start notification for booking {} because customer is missing", hydrated.getId());
+                continue;
+            }
+
+            String stationName = hydrated.getStation() != null && hydrated.getStation().getName() != null
+                    ? hydrated.getStation().getName()
+                    : "your station";
+            try {
+                String selectedTime = hydrated.getStartTime() != null
+                        ? hydrated.getStartTime().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))
+                        : "your selected time";
+                notificationService.send(customerId, "Session Time Arrived",
+                        "Your booking " + hydrated.getReferenceId() + " at " + stationName +
+                                " is ready now for " + selectedTime +
+                                ". Open My Bookings to start your charging session.");
+                hydrated.setStartNotificationSent(true);
+                bookingRepository.save(hydrated);
+            } catch (Exception ex) {
+                log.warn("Failed to send start notification for booking {}", hydrated.getId(), ex);
+            }
+        }
+    }
+
+    @Scheduled(initialDelayString = "${app.bookings.expiry-initial-delay-ms:15000}",
+            fixedDelayString = "${app.bookings.expiry-check-ms:30000}")
+    @Transactional
+    public void expireMissedBookings() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Booking> expiredBookings = bookingRepository.findExpiredStartableBookings(
+                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), now);
+
+        for (Booking booking : expiredBookings) {
+            Booking hydrated = hydrate(booking);
+            if (hydrated.getId() != null && sessionRepository.findByBookingId(hydrated.getId()).isPresent()) {
+                continue;
+            }
+            expireMissedBooking(hydrated, "Booking expired because the reserved charging window was missed.");
+        }
+    }
+
+    private Booking expireMissedBooking(Booking booking, String reason) {
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.MODIFIED) {
+            return booking;
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancellationReason(reason);
+        booking = bookingRepository.save(booking);
+
+        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
+        if (customerId != null) {
+            String stationName = booking.getStation() != null && booking.getStation().getName() != null
+                    ? booking.getStation().getName()
+                    : "your station";
+            try {
+                notificationService.send(customerId, "Booking Cancelled",
+                        "Your booking " + booking.getReferenceId() + " at " + stationName +
+                                " was cancelled because the selected charging time was missed.");
+            } catch (Exception ex) {
+                log.warn("Failed to send missed booking notification for booking {}", booking.getId(), ex);
+            }
+        }
+
+        try {
+            auditService.log("EXPIRE_BOOKING", "BOOKING", booking.getId(), "system",
+                    "Booking expired automatically: " + booking.getReferenceId());
+        } catch (Exception ex) {
+            log.warn("Failed to write missed booking audit log for booking {}", booking.getId(), ex);
+        }
+
+        return booking;
     }
 
     /**

@@ -757,3 +757,413 @@ body.modal-open {
   background: var(--color-accent);
   color: var(--color-text-inverse);
 }
+
+/* =========================================================
+   RESPONSIVE HARDENING - Plugin
+   Keeps existing desktop styling intact while preventing
+   viewport overflow and tightening tablet/phone behavior.
+   ========================================================= */
+
+/* === GLOBAL FLUID BASE === */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+select,
+textarea,
+button,
+.btn,
+.card,
+.container,
+.page-wrapper,
+.page-content,
+.admin-content,
+.table-container {
+  max-width: 100%;
+}
+
+.admin-content,
+.card,
+.modal,
+.table-container,
+.stat-card,
+.empty-state,
+.page-header,
+.navbar__links,
+.navbar__actions,
+.navbar__user-menu,
+.dashboard__session-item,
+.dashboard__booking-item,
+.billing__invoice,
+.billing__statement,
+.station-details__hero,
+.station-manager__shell,
+.station-manager__content {
+  min-width: 0;
+}
+
+.table-container,
+.billing .table-container,
+.analytics-chart {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  max-width: none;
+}
+
+.page-header__title,
+.stat-card__value,
+.dashboard__summary-value,
+.station-details__hero-title {
+  overflow-wrap: anywhere;
+}
+
+.modal {
+  width: min(100%, 520px);
+  max-width: min(520px, calc(100vw - 32px));
+}
+
+/* === LARGE SCREENS === */
+@media (min-width: 1441px) {
+  .container {
+    max-width: var(--max-width);
+  }
+
+  .admin-content {
+    padding-left: clamp(var(--space-2xl), 3vw, var(--space-4xl));
+    padding-right: clamp(var(--space-2xl), 3vw, var(--space-4xl));
+  }
+}
+
+/* === NAVBAR === */
+@media (max-width: 1024px) {
+  .navbar__brand {
+    margin-left: 0;
+  }
+
+  .navbar__inner {
+    padding-inline: clamp(12px, 3vw, var(--space-lg));
+  }
+
+  .navbar__links {
+    gap: 2px;
+  }
+
+  .navbar__link {
+    padding-inline: 12px;
+  }
+
+  .navbar__actions,
+  .navbar__user-menu {
+    gap: var(--space-sm);
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .navbar__user-details {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar__inner {
+    padding-inline: 12px;
+  }
+
+  .navbar__logo-img {
+    height: clamp(74px, 24vw, 96px);
+  }
+
+  .logout-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .logout-modal__actions .btn {
+    width: 100%;
+  }
+}
+
+/* === ADMIN SHELL === */
+@media (max-width: 1024px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    position: sticky;
+    top: var(--navbar-height);
+    width: 100%;
+    height: auto;
+    display: flex;
+    overflow-x: auto;
+    padding: var(--space-sm) 0;
+    z-index: 90;
+  }
+
+  .admin-sidebar__title {
+    display: none;
+  }
+
+  .admin-sidebar > nav {
+    display: flex;
+    min-width: max-content;
+  }
+
+  .admin-sidebar__link {
+    white-space: nowrap;
+    padding: 10px var(--space-md);
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+  }
+
+  .admin-sidebar__link--active {
+    border-left-color: transparent;
+    border-bottom-color: var(--color-on-accent);
+  }
+
+  .admin-content {
+    width: 100%;
+    margin-left: 0;
+    padding: var(--space-xl) clamp(16px, 3vw, var(--space-2xl));
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-content {
+    padding: var(--space-lg) 12px;
+  }
+
+  .admin-sidebar__link {
+    min-height: 44px;
+  }
+}
+
+/* === TABLES, TOOLBARS, AND ACTION ROWS === */
+@media (max-width: 767px) {
+  .table {
+    min-width: 680px;
+  }
+
+  .table-actions,
+  .customers-toolbar,
+  .booking-toolbar,
+  .revenue-filters,
+  .billing__statement-presets,
+  .billing__table-actions,
+  .modal__actions,
+  .pagination {
+    flex-wrap: wrap;
+  }
+
+  .customers-toolbar__search,
+  .customers-toolbar__filter,
+  .billing__statement-toggle-btn,
+  .billing__statement-download,
+  .search__bar,
+  .search__btn,
+  .station-details__book-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pagination {
+    gap: var(--space-xs);
+  }
+
+  .pagination__info {
+    order: -1;
+    width: 100%;
+    text-align: center;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal {
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+  }
+
+  .modal__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .modal__actions .btn,
+  .pagination__btn {
+    width: 100%;
+  }
+}
+
+/* === RESPONSIVE GRIDS === */
+@media (max-width: 1024px) {
+  .search__grid,
+  .station-details__points-grid,
+  .dashboard__actions-grid,
+  .dashboard__summary-grid,
+  .station-manager__header-grid,
+  .station-manager__features,
+  .station-manager__documents-grid,
+  .station-manager__file-grid,
+  .station-manager__review-grid,
+  .manager-review__meta-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .stat-grid,
+  .search__grid,
+  .station-details__info-grid,
+  .station-details__points-grid,
+  .station-details__pricing-grid,
+  .dashboard__actions-grid,
+  .dashboard__summary-grid,
+  .cp-grid,
+  .station-form__grid,
+  .customer-detail-grid,
+  .manager-review__meta-bar,
+  .manager-review__detail-grid,
+  .manager-review__credential-grid,
+  .station-manager__hero,
+  .station-manager__header-grid,
+  .station-manager__features,
+  .station-manager__documents-grid,
+  .station-manager__file-grid,
+  .station-manager__review-grid,
+  .station-manager-intro__hero,
+  .station-manager-intro__split,
+  .station-manager-intro__steps,
+  .station-manager-intro__grid,
+  .profile__grid,
+  .profile__vehicle-grid,
+  .booking-flow__grid,
+  .booking-flow__points-grid,
+  .my-bookings__meta-grid,
+  .my-bookings__detail-grid,
+  .session-status__active-grid,
+  .session-status__history-row,
+  .billing__statement-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .stat-grid,
+  .landing__stats,
+  .landing__status-grid,
+  .dashboard__actions-grid,
+  .dashboard__summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === FORMS AND TOUCH TARGETS === */
+@media (max-width: 767px) {
+  button,
+  .btn,
+  .navbar__link,
+  .admin-sidebar__link,
+  .pagination__btn,
+  .search__chip,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  .btn {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .form-input,
+  .form-select,
+  .billing__statement-input,
+  .customers-toolbar__search,
+  .customers-toolbar__filter {
+    width: 100%;
+  }
+}
+
+/* === PAGE-SPECIFIC OVERFLOW FIXES === */
+@media (max-width: 767px) {
+  .station-details__hero {
+    margin-inline: 0;
+  }
+
+  .station-details__point-header,
+  .billing__invoice-total,
+  .manager-review__page-hero,
+  .customer-modal__header,
+  .booking-modal__header,
+  .dashboard__session-item,
+  .dashboard__booking-item {
+    align-items: flex-start;
+  }
+
+  .station-details__point-header,
+  .billing__invoice-total,
+  .manager-review__page-hero,
+  .customer-modal__header,
+  .booking-modal__header {
+    flex-direction: column;
+  }
+
+  .manager-review__preview-frame,
+  .manager-review__preview-image,
+  .manager-review__preview-empty,
+  .manager-review__preview-surface {
+    max-width: 100%;
+  }
+
+  .station-manager {
+    padding-left: clamp(12px, 4vw, var(--sm-space-6));
+    padding-right: clamp(12px, 4vw, var(--sm-space-6));
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header__title {
+    font-size: clamp(1.5rem, 9vw, var(--font-size-2xl));
+  }
+
+  .page-header__subtitle,
+  .station-details__hero-city {
+    font-size: clamp(0.95rem, 4vw, var(--font-size-base));
+  }
+
+  .stat-card,
+  .dashboard__summary-card,
+  .dashboard__action-card,
+  .dashboard__active,
+  .dashboard__bookings,
+  .billing__invoice,
+  .billing__statement,
+  .station-details__info-card,
+  .station-details__point-card,
+  .station-details__pricing-card {
+    padding: var(--space-md);
+  }
+}

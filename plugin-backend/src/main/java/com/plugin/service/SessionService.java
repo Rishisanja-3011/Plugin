@@ -6,10 +6,12 @@ import com.plugin.enums.*;
 import com.plugin.exception.*;
 import com.plugin.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SessionService {
 
     private final ChargingSessionRepository sessionRepository;
@@ -50,13 +53,19 @@ public class SessionService {
             throw new BadRequestException("You can only start sessions for your own bookings");
         }
 
-        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
+                || booking.getStatus() == BookingStatus.NO_SHOW) {
+            throw new BadRequestException("Cannot start session for " + booking.getStatus() + " booking");
+        }
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.MODIFIED) {
             throw new BadRequestException("Cannot start session for " + booking.getStatus() + " booking");
         }
 
         if (sessionRepository.findByBookingId(bookingId).isPresent()) {
             throw new ConflictException("Session already exists for this booking");
         }
+
+        validateBookingStartWindow(booking);
 
         if (booking.getChargingPoint().getStatus() == PointStatus.OUT_OF_SERVICE
                 || booking.getChargingPoint().getStatus() == PointStatus.UNAVAILABLE) {
@@ -94,7 +103,13 @@ public class SessionService {
             throw new BadRequestException("Session is not in progress");
         }
 
-        session.setEndTime(LocalDateTime.now());
+        return completeSession(session, performedBy, false);
+    }
+
+    private SessionResponse completeSession(ChargingSession session, String performedBy, boolean automatic) {
+        session = referenceResolver.hydrate(session);
+        LocalDateTime now = LocalDateTime.now();
+        session.setEndTime(resolveAllowedSessionEndTime(session, now));
         session.setStatus(SessionStatus.COMPLETED);
 
         // Simulate energy delivered
@@ -121,14 +136,91 @@ public class SessionService {
         // Generate bill
         generateBill(session);
 
-        auditService.log("END_SESSION", "SESSION", session.getId(), performedBy,
-                "Session ended. Energy: " + session.getEnergyDeliveredKwh() + " kWh");
+        auditService.log(automatic ? "AUTO_END_SESSION" : "END_SESSION", "SESSION", session.getId(), performedBy,
+                (automatic ? "Session auto-ended at booking end time. " : "Session ended. ") +
+                        "Energy: " + session.getEnergyDeliveredKwh() + " kWh");
 
         notificationService.send(session.getCustomer().getId(), "Charging Complete",
-                "Your charging session is complete. Energy delivered: " +
-                session.getEnergyDeliveredKwh() + " kWh");
+                automatic
+                        ? "Your booked charging time has ended. Energy delivered: " + session.getEnergyDeliveredKwh() + " kWh"
+                        : "Your charging session is complete. Energy delivered: " + session.getEnergyDeliveredKwh() + " kWh");
 
         return toResponse(session);
+    }
+
+    @Scheduled(initialDelayString = "${app.sessions.auto-complete-initial-delay-ms:15000}",
+            fixedDelayString = "${app.sessions.auto-complete-check-ms:10000}")
+    @Transactional
+    public void autoCompleteExpiredSessions() {
+        LocalDateTime now = LocalDateTime.now();
+        List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
+
+        for (ChargingSession session : activeSessions) {
+            ChargingSession hydrated = referenceResolver.hydrate(session);
+            Booking booking = hydrated.getBooking();
+            if (booking == null || booking.getEndTime() == null || booking.getEndTime().isAfter(now)) {
+                continue;
+            }
+            try {
+                completeSession(hydrated, "system", true);
+            } catch (Exception ex) {
+                log.warn("Failed to auto-complete expired session {}", hydrated.getId(), ex);
+            }
+        }
+    }
+
+    private void validateBookingStartWindow(Booking booking) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startTime = booking.getStartTime();
+        LocalDateTime endTime = booking.getEndTime();
+
+        if (startTime != null && now.isBefore(startTime)) {
+            throw new BadRequestException("Session can only be started at the selected booking time.");
+        }
+
+        if (endTime != null && !now.isBefore(endTime)) {
+            cancelMissedBooking(booking);
+            throw new BadRequestException("This booking time has expired and the session can no longer be started.");
+        }
+    }
+
+    private void cancelMissedBooking(Booking booking) {
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.MODIFIED) {
+            return;
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancellationReason("Booking expired because the reserved charging window was missed.");
+        bookingRepository.save(booking);
+
+        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
+        if (customerId != null) {
+            String stationName = booking.getChargingPoint() != null && booking.getChargingPoint().getStation() != null
+                    ? booking.getChargingPoint().getStation().getName()
+                    : "your station";
+            try {
+                notificationService.send(customerId, "Booking Cancelled",
+                        "Your booking " + booking.getReferenceId() + " at " + stationName +
+                                " was cancelled because the selected charging time was missed.");
+            } catch (Exception ex) {
+                log.warn("Failed to send missed booking notification for booking {}", booking.getId(), ex);
+            }
+        }
+
+        try {
+            auditService.log("EXPIRE_BOOKING", "BOOKING", booking.getId(), "system",
+                    "Booking expired automatically: " + booking.getReferenceId());
+        } catch (Exception ex) {
+            log.warn("Failed to write missed booking audit log for booking {}", booking.getId(), ex);
+        }
+    }
+
+    private LocalDateTime resolveAllowedSessionEndTime(ChargingSession session, LocalDateTime now) {
+        Booking booking = session.getBooking();
+        if (booking != null && booking.getEndTime() != null && now.isAfter(booking.getEndTime())) {
+            return booking.getEndTime();
+        }
+        return now;
     }
 
     public Page<SessionResponse> getMySessions(String email, Pageable pageable) {
@@ -233,6 +325,10 @@ public class SessionService {
         String vehicleRegistration = bookingVehicle != null
                 ? bookingVehicle.getVehicleRegistration()
                 : customer != null ? customer.getVehicleRegistration() : null;
+        Long elapsedSeconds = null;
+        if (s.getStartTime() != null && s.getStatus() == SessionStatus.IN_PROGRESS) {
+            elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
+        }
 
         return SessionResponse.builder()
                 .id(s.getId())
@@ -252,6 +348,7 @@ public class SessionService {
                 .vehicleRegistration(vehicleRegistration)
                 .startTime(s.getStartTime())
                 .endTime(s.getEndTime())
+                .elapsedSeconds(elapsedSeconds)
                 .energyDeliveredKwh(s.getEnergyDeliveredKwh())
                 .estimateRate(estimateRate)
                 .estimateRateType(estimateRateType)

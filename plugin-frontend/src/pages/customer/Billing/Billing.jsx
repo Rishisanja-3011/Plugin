@@ -8,6 +8,7 @@ import './Billing.css';
 
 const PAGE_SIZE = 10;
 const STATEMENT_STORAGE_KEY = 'plugin_billing_statement_filters_v1';
+const BILLING_REFRESH_INTERVAL_MS = 30000;
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   month: 'short',
@@ -87,7 +88,7 @@ export default function Billing() {
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetchBills(false);
-    }, 5000);
+    }, BILLING_REFRESH_INTERVAL_MS);
     return () => clearInterval(pollInterval);
   }, [page]);
 

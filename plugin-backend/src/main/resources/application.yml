@@ -6,8 +6,9 @@ spring:
     import: "optional:file:./application-local.yml"
   data:
     mongodb:
-      uri: "${MONGODB_URI:mongodb://localhost:27017/plugin_db}"
-      database: "${MONGODB_DATABASE:plugin_db}"
+      uri: "${MONGODB_URI:mongodb://localhost:27017/plugindb}"
+      database: "${MONGODB_DATABASE:plugindb}"
+      auto-index-creation: false
 
   mail:
     host: "${MAIL_HOST:smtp.gmail.com}"
@@ -21,6 +22,9 @@ spring:
           starttls:
             enable: true
             required: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
           ssl:
             trust: "${MAIL_HOST:smtp.gmail.com}"
 
@@ -36,6 +40,16 @@ app:
     email: "${SUPPORT_EMAIL:plugin.onservice@gmail.com}"
   website:
     url: "${WEBSITE_URL:www.plugin.com}"
+  notifications:
+    booking-start-initial-delay-ms: "${BOOKING_START_NOTIFICATION_INITIAL_DELAY_MS:10000}"
+    booking-start-check-ms: "${BOOKING_START_NOTIFICATION_CHECK_MS:30000}"
+    booking-start-lookback-minutes: "${BOOKING_START_NOTIFICATION_LOOKBACK_MINUTES:180}"
+  bookings:
+    expiry-initial-delay-ms: "${BOOKING_EXPIRY_INITIAL_DELAY_MS:15000}"
+    expiry-check-ms: "${BOOKING_EXPIRY_CHECK_MS:30000}"
+  sessions:
+    auto-complete-initial-delay-ms: "${SESSION_AUTO_COMPLETE_INITIAL_DELAY_MS:15000}"
+    auto-complete-check-ms: "${SESSION_AUTO_COMPLETE_CHECK_MS:10000}"
   jwt:
     secret: "${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}"
     expiration-ms: 86400000

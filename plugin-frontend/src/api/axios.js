@@ -1,9 +1,11 @@
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 20000);
 
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: API_TIMEOUT_MS,
   headers: { 'Content-Type': 'application/json' },
 });
 

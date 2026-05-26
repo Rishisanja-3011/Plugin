@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const BillingLockContext = createContext({ hasUnpaid: false, loading: false });
 const BILLING_LOCK_CACHE_KEY = 'plugin_has_unpaid';
+const BILLING_LOCK_REFRESH_INTERVAL_MS = 30000;
 
 function readCachedBillingLock() {
   const cached = sessionStorage.getItem(BILLING_LOCK_CACHE_KEY);
@@ -56,7 +57,7 @@ export default function BillingLock({ children }) {
     refreshLock();
     const pollInterval = setInterval(() => {
       refreshLock();
-    }, 5000);
+    }, BILLING_LOCK_REFRESH_INTERVAL_MS);
 
     return () => { cancelled = true; clearInterval(pollInterval); };
   }, [loading, user, isCustomer]);

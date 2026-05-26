@@ -56,6 +56,7 @@ const CardIcon = ({ className = 'dashboard__icon-svg' }) => (
 );
 
 const formatRs = (amount) => `Rs ${new Intl.NumberFormat('en-IN').format(Math.round(amount ?? 0))}`;
+const DASHBOARD_REFRESH_INTERVAL_MS = 30000;
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -117,7 +118,7 @@ export default function Dashboard() {
     loadDashboard(true);
     const pollInterval = setInterval(() => {
       loadDashboard(false);
-    }, 5000);
+    }, DASHBOARD_REFRESH_INTERVAL_MS);
 
     return () => {
       cancelled = true;

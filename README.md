@@ -45,6 +45,9 @@ The backend reads MongoDB settings from environment variables:
 | `MONGODB_DATABASE` | Database name | `plugindb` |
 | `JWT_SECRET` | JWT signing secret | Use a long private value |
 | `SERVER_PORT` | Backend port | `8081` |
+| `MAIL_USERNAME` | SMTP account used for OTP emails | `plugin.available@gmail.com` |
+| `MAIL_PASSWORD` | SMTP/app password for OTP emails | Gmail app password or SMTP password |
+| `MAIL_FROM` | Sender address for OTP emails | Same as `MAIL_USERNAME` |
 
 For local development, you can also create `plugin-backend/application-local.yml`. This file is ignored by Git.
 
@@ -66,6 +69,9 @@ cd plugin-backend
 $env:MONGODB_URI="mongodb+srv://<username>:<password>@<cluster-host>/?appName=plugindb"
 $env:MONGODB_DATABASE="plugindb"
 $env:JWT_SECRET="replace-with-a-long-private-secret"
+$env:MAIL_USERNAME="plugin.available@gmail.com"
+$env:MAIL_PASSWORD="replace-with-mail-app-password"
+$env:MAIL_FROM="plugin.available@gmail.com"
 
 mvn clean install -DskipTests
 mvn spring-boot:run
@@ -98,14 +104,9 @@ Frontend URL:
 http://localhost:5173
 ```
 
-## Test Accounts
+## Accounts
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `plugin.bymain@gmail.com` | `Admin@123` |
-| Customer | `user@plugin.com` | `User@123` |
-
-Use the users stored in your Atlas database if you migrated existing production data.
+The application does not create demo users on startup. Use the users already stored in your MongoDB Atlas `plugindb` database.
 
 ## Main Collections
 

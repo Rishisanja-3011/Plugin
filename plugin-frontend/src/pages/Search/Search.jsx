@@ -9,6 +9,7 @@ import './Search.css';
 
 const CHARGER_FILTERS = ['All', 'Fast', 'Slow'];
 const PAGE_SIZE = 12;
+const STATION_SEARCH_REFRESH_INTERVAL_MS = 30000;
 
 export default function Search() {
   const toast = useToast();
@@ -69,17 +70,20 @@ export default function Search() {
 
       const stationList = Array.isArray(content) ? content : [];
 
-      const withDetails = await Promise.all(
-        stationList.map(async (station) => {
-          try {
-            const cpRes = await stationsApi.getChargingPoints(station.id);
-            const points = Array.isArray(cpRes.data) ? cpRes.data : cpRes.data?.content ?? [];
-            return { ...station, chargingPoints: points };
-          } catch {
-            return { ...station, chargingPoints: [] };
-          }
-        })
-      );
+      const shouldLoadPointDetails = chargerFilter !== 'All';
+      const withDetails = shouldLoadPointDetails
+        ? await Promise.all(
+            stationList.map(async (station) => {
+              try {
+                const cpRes = await stationsApi.getChargingPoints(station.id);
+                const points = Array.isArray(cpRes.data) ? cpRes.data : cpRes.data?.content ?? [];
+                return { ...station, chargingPoints: points };
+              } catch {
+                return { ...station, chargingPoints: [] };
+              }
+            })
+          )
+        : stationList.map((station) => ({ ...station, chargingPoints: station.chargingPoints ?? [] }));
 
       setStations(withDetails);
       setTotalPages(pages);
@@ -100,14 +104,14 @@ export default function Search() {
 
   useEffect(() => {
     fetchStations(page, true);
-  }, [query, page]);
+  }, [query, page, chargerFilter]);
 
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetchStations(page, false);
-    }, 5000);
+    }, STATION_SEARCH_REFRESH_INTERVAL_MS);
     return () => clearInterval(pollInterval);
-  }, [query, page]);
+  }, [query, page, chargerFilter]);
 
   const handleSearch = (e) => {
     e.preventDefault();

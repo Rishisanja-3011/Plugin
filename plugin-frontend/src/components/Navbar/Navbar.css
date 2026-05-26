@@ -116,6 +116,13 @@
   gap: var(--space-md);
 }
 
+.navbar__account {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .navbar__user-info {
   display: flex;
   align-items: center;
@@ -123,6 +130,7 @@
 }
 
 .navbar__user-avatar {
+  border: none;
   text-decoration: none;
   cursor: pointer;
   width: 36px;
@@ -142,9 +150,50 @@
   flex-shrink: 0;
 }
 
-.navbar__user-menu:hover .navbar__user-avatar {
+.navbar__user-menu:hover .navbar__user-avatar,
+.navbar__user-avatar--active {
   transform: scale(1.05);
   box-shadow: var(--shadow-accent-lg);
+}
+
+.navbar__account-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 180px;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.1);
+  box-shadow: var(--shadow-xl);
+  z-index: 260;
+}
+
+.navbar__account-item {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.navbar__account-item:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+}
+
+.navbar__account-item--danger {
+  color: var(--color-danger);
+}
+
+.navbar__account-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .navbar__user-details {
@@ -367,6 +416,14 @@
     padding: var(--space-md) 0;
   }
 
+  .navbar__account {
+    margin-left: auto;
+  }
+
+  .navbar__account-menu {
+    right: 0;
+  }
+
   .navbar__user-details {
     flex-direction: column;
     align-items: flex-start;
@@ -397,6 +454,11 @@
 
   .navbar__mobile-tab {
     min-height: 52px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-decoration: none;
+    cursor: pointer;
     border-radius: 12px;
     color: var(--color-text-secondary);
     font-size: 0.72rem;
@@ -426,5 +488,23 @@
   .navbar__mobile-tab--active {
     color: var(--color-text-primary);
     background: rgba(var(--color-accent-rgb), 0.14);
+  }
+
+  .navbar__mobile-account {
+    position: relative;
+    min-width: 0;
+  }
+
+  .navbar__mobile-account-menu {
+    position: absolute;
+    right: 6px;
+    bottom: calc(100% + 10px);
+    width: min(220px, calc(100vw - 20px));
+    padding: var(--space-sm);
+    border-radius: var(--radius-md);
+    background: var(--color-white);
+    border: 1px solid rgba(var(--color-primary-rgb), 0.1);
+    box-shadow: var(--shadow-xl);
+    z-index: 130;
   }
 }

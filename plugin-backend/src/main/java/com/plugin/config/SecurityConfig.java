@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -16,6 +17,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -34,45 +40,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(request -> {
-                var config = new org.springframework.web.cors.CorsConfiguration();
-                // Allow local dev + LAN origins (needed for testing on other devices)
-                config.setAllowedOriginPatterns(java.util.List.of(
-                    "http://localhost:*",
-                    "http://127.0.0.1:*",
-                    "http://10.*.*.*:*",
-                    "http://172.16.*.*:*",
-                    "http://172.17.*.*:*",
-                    "http://172.18.*.*:*",
-                    "http://172.19.*.*:*",
-                    "http://172.20.*.*:*",
-                    "http://172.21.*.*:*",
-                    "http://172.22.*.*:*",
-                    "http://172.23.*.*:*",
-                    "http://172.24.*.*:*",
-                    "http://172.25.*.*:*",
-                    "http://172.26.*.*:*",
-                    "http://172.27.*.*:*",
-                    "http://172.28.*.*:*",
-                    "http://172.29.*.*:*",
-                    "http://172.30.*.*:*",
-                    "http://172.31.*.*:*",
-                    "http://192.168.*.*:*",
-                    "https://plugin-ashen.vercel.app",
-                    "https://*.vercel.app",
-                    "http://54.144.208.197"
-
-                ));
-                config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-                config.setAllowedHeaders(java.util.List.of("*"));
-                config.setExposedHeaders(java.util.List.of("Content-Disposition", "X-Statement-Count"));
-                config.setAllowCredentials(true);
-                config.setMaxAge(3600L);
-                return config;
-            }))
+            .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/stations/**").permitAll()
@@ -102,11 +75,57 @@ public class SecurityConfig {
                 // Notifications
                 .requestMatchers("/api/notifications/**").authenticated()
 
+                .requestMatchers("/stations/**").permitAll()// Allow public access to station images and files(While AWS deploy Below one linr also)
+                .requestMatchers("/api/stations/**").permitAll()
                 .anyRequest().authenticated()
+
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://10.*.*.*:*",
+                "http://172.16.*.*:*",
+                "http://172.17.*.*:*",
+                "http://172.18.*.*:*",
+                "http://172.19.*.*:*",
+                "http://172.20.*.*:*",
+                "http://172.21.*.*:*",
+                "http://172.22.*.*:*",
+                "http://172.23.*.*:*",
+                "http://172.24.*.*:*",
+                "http://172.25.*.*:*",
+                "http://172.26.*.*:*",
+                "http://172.27.*.*:*",
+                "http://172.28.*.*:*",
+                "http://172.29.*.*:*",
+                "http://172.30.*.*:*",
+                "http://172.31.*.*:*",
+                "http://192.168.*.*:*",
+                "http://54.144.208.197",
+                "http://plugin-v1.s3-website-us-east-1.amazonaws.com",
+                "https://plugin-v1.s3-website-us-east-1.amazonaws.com",
+                "http://*.s3-website-us-east-1.amazonaws.com",
+                "http://*.s3-website.*.amazonaws.com",
+                "https://plugin-ashen.vercel.app",
+                "https://*.vercel.app"
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setExposedHeaders(List.of("Content-Disposition", "X-Statement-Count"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     @Bean

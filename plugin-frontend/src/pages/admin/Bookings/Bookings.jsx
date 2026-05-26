@@ -30,7 +30,8 @@ const rowVariants = {
   hidden: { opacity: 0, x: -16 },
   visible: (i) => ({ opacity: 1, x: 0, transition: { delay: i * 0.04, duration: 0.35 } }),
 };
-const BOOKING_POLL_INTERVAL_MS = 800;
+const BOOKING_POLL_INTERVAL_MS = 30000;
+const BOOKING_STATS_REFRESH_INTERVAL_MS = 120000;
 
 function hasPendingRescheduleRequest(booking) {
   return (booking?.rescheduleRequestStatus ?? '').toUpperCase() === 'PENDING';
@@ -53,19 +54,35 @@ export default function Bookings() {
   const [reviewLoading, setReviewLoading] = useState(null);
   const [stats, setStats] = useState({ total: 0, completed: 0, cancelled: 0 });
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [errorMessage, setErrorMessage] = useState('');
   const hasLoadedOnce = useRef(false);
   const latestRequestRef = useRef(0);
+  const lastStatsFetchRef = useRef(0);
 
-  const fetchBookings = async (p = page, filter = statusFilter, showLoader = !hasLoadedOnce.current) => {
+  const fetchBookingStats = async () => {
+    try {
+      const statsRes = await adminApi.getBookingStats();
+      lastStatsFetchRef.current = Date.now();
+      setStats({
+        total: statsRes.data?.total ?? 0,
+        completed: statsRes.data?.completed ?? 0,
+        cancelled: statsRes.data?.cancelled ?? 0,
+      });
+    } catch {
+      // Keep the bookings table usable even when summary counts are delayed.
+    }
+  };
+
+  const fetchBookings = async (p = page, filter = statusFilter, showLoader = !hasLoadedOnce.current, forceStats = false) => {
     const requestId = latestRequestRef.current + 1;
     latestRequestRef.current = requestId;
     if (showLoader) setLoading(true);
     const normalizedStatus = filter === 'ALL' ? '' : filter;
+    const now = Date.now();
+    const shouldFetchStats = forceStats || showLoader || (now - lastStatsFetchRef.current > BOOKING_STATS_REFRESH_INTERVAL_MS);
     try {
-      const [bookingsRes, statsRes] = await Promise.all([
-        adminApi.getAllBookings(p, 20, normalizedStatus),
-        adminApi.getBookingStats(),
-      ]);
+      setErrorMessage('');
+      const bookingsRes = await adminApi.getAllBookings(p, 20, normalizedStatus);
       if (requestId !== latestRequestRef.current) return;
       const list = bookingsRes.data?.content || bookingsRes.data || [];
       setBookings(list);
@@ -108,12 +125,16 @@ export default function Bookings() {
         }
         return updated;
       });
-      setStats({
-        total: statsRes.data?.total ?? 0,
-        completed: statsRes.data?.completed ?? 0,
-        cancelled: statsRes.data?.cancelled ?? 0,
-      });
-    } catch {
+      if (shouldFetchStats) {
+        fetchBookingStats();
+      }
+    } catch (err) {
+      if (requestId !== latestRequestRef.current) return;
+      const message = err.code === 'ECONNABORTED'
+        ? 'Bookings request timed out. Please retry after the backend finishes starting.'
+        : err.response?.data?.message || 'Unable to load bookings right now.';
+      setErrorMessage(message);
+      if (showLoader) toast.error(message);
     } finally {
       if (requestId !== latestRequestRef.current) return;
       if (showLoader) setLoading(false);
@@ -270,7 +291,7 @@ export default function Bookings() {
       toast.success('Booking cancelled');
       closeCancelModal();
       setSelected(res.data || b);
-      fetchBookings(page, statusFilter, false);
+      fetchBookings(page, statusFilter, false, true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to cancel booking');
     } finally {
@@ -285,7 +306,7 @@ export default function Bookings() {
       const res = await adminApi.approveRescheduleRequest(booking.id);
       toast.success('Reschedule request approved');
       setSelected(res.data || booking);
-      fetchBookings(page, statusFilter, false);
+      fetchBookings(page, statusFilter, false, true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve reschedule request');
     } finally {
@@ -323,6 +344,19 @@ export default function Bookings() {
 
         {loading ? (
           <div className="admin-loading"><div className="spinner" /><p>Loading bookings...</p></div>
+        ) : errorMessage ? (
+          <div className="empty-state">
+            <div className="empty-state__icon"><IconGlyph glyph={'\u26A0'} className="mono-icon mono-icon--lg" /></div>
+            <h3 className="empty-state__title">Could not load bookings</h3>
+            <p className="empty-state__text">{errorMessage}</p>
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={() => fetchBookings(page, statusFilter, true, true)}
+            >
+              Retry
+            </button>
+          </div>
         ) : !hasAnyBookings ? (
           <div className="empty-state">
             <div className="empty-state__icon"><IconGlyph glyph={'\u{1F4CB}'} className="mono-icon mono-icon--lg" /></div>

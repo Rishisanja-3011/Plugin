@@ -1,0 +1,30 @@
+.confirm-dialog {
+  max-width: 480px;
+}
+
+.confirm-dialog__message {
+  color: var(--color-text-primary);
+  line-height: 1.7;
+}
+
+.confirm-dialog__message strong {
+  font-weight: 700;
+}
+
+.confirm-dialog__meta {
+  margin-top: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.confirm-dialog__actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .confirm-dialog__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

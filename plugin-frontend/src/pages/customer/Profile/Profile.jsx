@@ -5,10 +5,16 @@ import { authApi } from '../../../api/auth';
 import { sessionsApi } from '../../../api/bookings';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import { useAuth } from '../../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './Profile.css';
 
 const MAX_VEHICLES = 3;
+const SETTINGS_SECTIONS = {
+  PROFILE: 'profile',
+  VEHICLE: 'vehicle',
+  SECURITY: 'security',
+  NOTIFICATIONS: 'notifications',
+};
 
 function normalizeRegistrationValue(value) {
   return value.toUpperCase().replace(/[\s-]/g, '');
@@ -58,6 +64,7 @@ export default function Profile() {
   const toast = useToast();
   const { logout, syncUserProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,7 +72,6 @@ export default function Profile() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showSecurityOptions, setShowSecurityOptions] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
   const [showVehiclesModal, setShowVehiclesModal] = useState(false);
@@ -78,8 +84,17 @@ export default function Profile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const menuRef = useRef(null);
+  const [activeSettingsSection, setActiveSettingsSection] = useState(SETTINGS_SECTIONS.PROFILE);
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    bookingConfirmations: true,
+    chargingComplete: true,
+    billingReminders: true,
+    promotionalOffers: false,
+  });
   const vehicleCounterRef = useRef(0);
+  const profileDetailsRef = useRef(null);
+  const vehicleDetailsRef = useRef(null);
+  const securitySettingsRef = useRef(null);
   const vehicleEditorRef = useRef(null);
   const vehicleNicknameInputRef = useRef(null);
 
@@ -274,18 +289,6 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    if (!showSecurityOptions) return;
-    const handleOutsideClick = (event) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(event.target)) {
-        setShowSecurityOptions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [showSecurityOptions]);
-
-  useEffect(() => {
     if (vehicles.length === 0) {
       if (activeVehicleKey !== null) {
         setActiveVehicleKey(null);
@@ -303,6 +306,12 @@ export default function Profile() {
     const timer = window.setTimeout(() => setSaveBanner(''), 5000);
     return () => window.clearTimeout(timer);
   }, [saveBanner]);
+
+  useEffect(() => {
+    if (location.state?.settingsHome) {
+      setActiveSettingsSection(SETTINGS_SECTIONS.PROFILE);
+    }
+  }, [location.state?.settingsHome]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.key === activeVehicleKey) ?? vehicles[0] ?? null;
   const selectedVehicleHasValue = hasVehicleAnyValue(selectedVehicle);
@@ -726,6 +735,20 @@ export default function Profile() {
     return typeof r === 'string' ? r : r?.name ?? 'Customer';
   };
 
+  const openSettingsSection = (section) => {
+    if (section === SETTINGS_SECTIONS.SECURITY) {
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    }
+    setActiveSettingsSection(section);
+  };
+
+  const toggleNotificationPref = (key) => {
+    setNotificationPrefs((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   if (loading) {
     return (
       <motion.main className="profile page-wrapper" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -749,42 +772,8 @@ export default function Profile() {
       <div className="container page-content">
         <div className="profile__header">
           <div className="page-header">
-            <h1 className="page-header__title">Profile</h1>
+            <h1 className="page-header__title">Settings</h1>
             <p className="page-header__subtitle">Manage your account and vehicle details</p>
-          </div>
-          <div className="profile__menu" ref={menuRef}>
-            <button
-              type="button"
-              className="profile__menu-btn"
-              aria-label="Account actions"
-              onClick={() => setShowSecurityOptions((prev) => !prev)}
-            >
-              <span className="profile__menu-icon" />
-            </button>
-            {showSecurityOptions && (
-              <div className="profile__menu-dropdown card">
-                <button
-                  type="button"
-                  className="profile__menu-item"
-                  onClick={() => {
-                    setShowPasswordModal(true);
-                    setShowSecurityOptions(false);
-                  }}
-                >
-                  Change Password
-                </button>
-                <button
-                  type="button"
-                  className="profile__menu-item profile__menu-item--danger"
-                  onClick={() => {
-                    setShowDeleteModal(true);
-                    setShowSecurityOptions(false);
-                  }}
-                >
-                  Delete Account
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -808,230 +797,378 @@ export default function Profile() {
           </div>
         )}
 
-        <motion.form
-          className="profile__form-grid"
-          onSubmit={handleSubmit}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <div className="profile__cards">
-            <div className="profile__card card">
-              <div className="profile__avatar-section">
-                <div className="profile__avatar">{getInitial()}</div>
-                <div className="profile__avatar-info">
-                  <h2 className="profile__name">{form.fullName || 'User'}</h2>
-                  <p className="profile__email">{form.email}</p>
-                  <span className="badge badge--info">{getRole()}</span>
-                </div>
-              </div>
-
-              <div className="profile__form">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="fullName">
-                    Full Name
-                  </label>
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    className={`form-input ${isFullNameLocked ? 'profile__input--readonly' : ''}`}
-                    value={form.fullName}
-                    onChange={handleChange}
-                    readOnly={isFullNameLocked}
-                  />
-                  {isFullNameLocked && <span className="profile__readonly-hint">Full name cannot be changed once saved</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="email">
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    className="form-input profile__input--readonly"
-                    value={form.email}
-                    readOnly
-                  />
-                  <span className="profile__readonly-hint">Email cannot be changed</span>
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="phone">
-                    Mobile Number
-                  </label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    className={`form-input ${isPhoneLocked ? 'profile__input--readonly' : ''}`}
-                    value={form.phone}
-                    onChange={handleChange}
-                    readOnly={isPhoneLocked}
-                  />
-                  {isPhoneLocked && <span className="profile__readonly-hint">Mobile number cannot be changed</span>}
-                </div>
-              </div>
+        <div className="profile__settings-layout">
+          <aside className="profile__settings-sidebar" aria-label="Settings navigation">
+            <div className="profile__settings-nav-group">
+              <p className="profile__settings-nav-label">Account</p>
+              <button
+                type="button"
+                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.PROFILE ? ' profile__settings-nav-item--active' : ''}`}
+                onClick={() => openSettingsSection(SETTINGS_SECTIONS.PROFILE)}
+                data-label="My Profile"
+                title="My Profile"
+              >
+                <span className="profile__settings-nav-icon"><IconGlyph glyph="user" className="mono-icon mono-icon--sm" /></span>
+                <span className="profile__settings-nav-text">
+                  <strong>My Profile</strong>
+                  <small>Name, email and mobile details</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.VEHICLE ? ' profile__settings-nav-item--active' : ''}`}
+                onClick={() => openSettingsSection(SETTINGS_SECTIONS.VEHICLE)}
+                data-label="Vehicle Details"
+                title="Vehicle Details"
+              >
+                <span className="profile__settings-nav-icon"><IconGlyph glyph="vehicle" className="mono-icon mono-icon--sm" /></span>
+                <span className="profile__settings-nav-text">
+                  <strong>Vehicle Details</strong>
+                  <small>Saved vehicles and active vehicle</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.SECURITY ? ' profile__settings-nav-item--active' : ''}`}
+                onClick={() => openSettingsSection(SETTINGS_SECTIONS.SECURITY)}
+                data-label="Password & Security"
+                title="Password & Security"
+              >
+                <span className="profile__settings-nav-icon"><IconGlyph glyph="lock" className="mono-icon mono-icon--sm" /></span>
+                <span className="profile__settings-nav-text">
+                  <strong>Password & Security</strong>
+                  <small>Security and account access</small>
+                </span>
+              </button>
             </div>
 
-            <div className="profile__column">
-              <div className="profile__card card">
-                <div className="profile__vehicle-header">
-                  <h3 className="profile__section-title">Vehicle Details</h3>
-                  <div className="profile__vehicle-header-actions">
+            <div className="profile__settings-nav-group profile__settings-nav-group--preferences">
+              <p className="profile__settings-nav-label">Preferences</p>
+              <button
+                type="button"
+                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.NOTIFICATIONS ? ' profile__settings-nav-item--active' : ''}`}
+                onClick={() => openSettingsSection(SETTINGS_SECTIONS.NOTIFICATIONS)}
+                data-label="Notifications"
+                title="Notifications"
+              >
+                <span className="profile__settings-nav-icon"><IconGlyph glyph="notifications" className="mono-icon mono-icon--sm" /></span>
+                <span className="profile__settings-nav-text">
+                  <strong>Notifications</strong>
+                  <small>Manage your alert preferences</small>
+                </span>
+              </button>
+            </div>
+          </aside>
+
+          <section className="profile__settings-content" aria-live="polite">
+            {activeSettingsSection === SETTINGS_SECTIONS.PROFILE && (
+              <motion.form
+                className="profile__settings-section"
+                onSubmit={handleSubmit}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22 }}
+              >
+                <div className="profile__settings-section-head">
+                  <h2>My Profile</h2>
+                  <p>Name, email and mobile details</p>
+                </div>
+                <div className="profile__settings-card" ref={profileDetailsRef}>
+                  <div className="profile__settings-identity">
+                    <div className="profile__avatar">{getInitial()}</div>
+                    <div>
+                      <h3 className="profile__name">{form.fullName || 'User'}</h3>
+                      <p className="profile__email">{form.email}</p>
+                      <span className="badge badge--info">{getRole()}</span>
+                    </div>
+                  </div>
+
+                  <div className="profile__settings-form-grid">
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="fullName">Full Name</label>
+                      <input
+                        id="fullName"
+                        name="fullName"
+                        type="text"
+                        className={`form-input ${isFullNameLocked ? 'profile__input--readonly' : ''}`}
+                        value={form.fullName}
+                        onChange={handleChange}
+                        readOnly={isFullNameLocked}
+                      />
+                      {isFullNameLocked && <span className="profile__readonly-hint">Full name cannot be changed once saved</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="phone">Mobile Number</label>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        className={`form-input ${isPhoneLocked ? 'profile__input--readonly' : ''}`}
+                        value={form.phone}
+                        onChange={handleChange}
+                        readOnly={isPhoneLocked}
+                      />
+                      {isPhoneLocked && <span className="profile__readonly-hint">Mobile number cannot be changed</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="email">Email Address</label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        className="form-input profile__input--readonly"
+                        value={form.email}
+                        readOnly
+                      />
+                      <span className="profile__readonly-hint">Email cannot be changed</span>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="city">City</label>
+                      <input
+                        id="city"
+                        name="city"
+                        type="text"
+                        className="form-input profile__input--readonly"
+                        value={profile?.city ?? ''}
+                        placeholder="Not provided"
+                        readOnly
+                      />
+                    </div>
+                  </div>
+
+                  <div className="profile__settings-actions">
+                    <button type="submit" className="btn profile__settings-primary-btn" disabled={saving}>
+                      {saving ? 'Saving...' : 'Save changes'}
+                    </button>
+                  </div>
+                </div>
+              </motion.form>
+            )}
+
+            {activeSettingsSection === SETTINGS_SECTIONS.VEHICLE && (
+              <motion.form
+                className="profile__settings-section"
+                onSubmit={handleSubmit}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22 }}
+              >
+                <div className="profile__settings-section-head">
+                  <h2>Vehicle Details</h2>
+                  <p>Saved vehicles and active vehicle</p>
+                </div>
+                <div className="profile__settings-card" ref={vehicleDetailsRef}>
+                  {selectedVehicle ? (
+                    <>
+                      <div className="profile__settings-vehicle-summary">
+                        <span className="profile__settings-vehicle-icon">
+                          <IconGlyph glyph="vehicle" className="mono-icon mono-icon--md" />
+                        </span>
+                        <div>
+                          <h3>{formatVehicleTitle(selectedVehicle, 0)}</h3>
+                          <p>{formatVehicleSubtitle(selectedVehicle)}</p>
+                        </div>
+                        <span className="profile__vehicle-active-pill">Active</span>
+                      </div>
+
+                      <div className="profile__settings-form-grid" ref={vehicleEditorRef}>
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="vehicleMake">Make</label>
+                          <input
+                            id="vehicleMake"
+                            name="vehicleMake"
+                            type="text"
+                            className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
+                            value={selectedVehicle.vehicleMake}
+                            onChange={handleVehicleChange}
+                            readOnly={isSelectedVehicleLocked}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="vehicleModel">Model</label>
+                          <input
+                            id="vehicleModel"
+                            name="vehicleModel"
+                            type="text"
+                            className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
+                            value={selectedVehicle.vehicleModel}
+                            onChange={handleVehicleChange}
+                            readOnly={isSelectedVehicleLocked}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="vehicleRegistration">Registration No.</label>
+                          <input
+                            id="vehicleRegistration"
+                            name="vehicleRegistration"
+                            type="text"
+                            className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
+                            value={selectedVehicle.vehicleRegistration}
+                            onChange={handleVehicleChange}
+                            onBlur={(e) => setRegistrationError(validateRegistration(e.target.value))}
+                            aria-invalid={Boolean(registrationError)}
+                            readOnly={isSelectedVehicleLocked}
+                            required
+                          />
+                          {registrationError && <span className="form-error">{registrationError}</span>}
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="batteryCapacity">Battery Capacity</label>
+                          <input
+                            id="batteryCapacity"
+                            name="batteryCapacity"
+                            type="text"
+                            className="form-input profile__input--readonly"
+                            value={selectedVehicle.batteryCapacity ?? ''}
+                            placeholder="Not provided"
+                            readOnly
+                          />
+                        </div>
+                      </div>
+
+                      {isSelectedVehicleLocked && (
+                        <span className="profile__readonly-hint">
+                          Saved vehicle make, model and registration cannot be edited. Only active vehicle selection can be managed.
+                        </span>
+                      )}
+                      {!selectedVehicleIsComplete && selectedVehicleHasValue && (
+                        <span className="profile__readonly-hint">All vehicle fields are required before saving.</span>
+                      )}
+                      {isSelectedVehicleLockedBySession && (
+                        <span className="profile__vehicle-session-lock">
+                          This active vehicle cannot be deleted while a charging session is running.
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <div className="profile__vehicle-empty-state">
+                      <div className="profile__vehicle-empty-icon">
+                        <IconGlyph glyph="vehicle" className="mono-icon mono-icon--lg" />
+                      </div>
+                      <h4 className="profile__vehicle-empty-title">No vehicles added yet</h4>
+                      <p className="profile__vehicle-empty">Add your first vehicle to speed up booking and billing.</p>
+                    </div>
+                  )}
+
+                  <div className="profile__settings-actions profile__settings-actions--split">
+                    <button type="submit" className="btn profile__settings-primary-btn" disabled={saving || !selectedVehicle}>
+                      {saving ? 'Updating...' : 'Update vehicle'}
+                    </button>
+                    <button type="button" className="btn btn--outline" onClick={() => setShowVehiclesModal(true)}>
+                      Show vehicles
+                    </button>
                     <button
                       type="button"
-                      className="btn btn--accent btn--sm"
+                      className="btn btn--outline"
                       onClick={handleAddVehicle}
                       disabled={saving || hasOpenDraftVehicle || hasReachedVehicleLimit}
                     >
-                      Add Vehicle
-                    </button>
-                    <button type="button" className="btn btn--accent btn--sm" onClick={() => setShowVehiclesModal(true)}>
-                      Show Vehicles
+                      Add vehicle
                     </button>
                   </div>
+                  <p className="profile__vehicle-status-note">{vehicleActionHint}</p>
                 </div>
-                <p className="profile__vehicle-note">
-                  Set active vehicle in Show Vehicles. New charging bookings will use that active vehicle.
-                </p>
-                <p className="profile__vehicle-status-note">{vehicleActionHint}</p>
+              </motion.form>
+            )}
 
-                {selectedVehicle ? (
-                  <div className={`profile__active-vehicle${selectedVehicleHasValue ? ' profile__active-vehicle--highlight' : ''}`}>
-                    {selectedVehicleHasValue ? (
-                      <>
-                        <span className="profile__vehicle-active-pill">Active</span>
-                        <div>
-                          <p className="profile__active-vehicle-title">{formatVehicleTitle(selectedVehicle, 0)}</p>
-                          <p className="profile__active-vehicle-subtitle">{formatVehicleSubtitle(selectedVehicle)}</p>
-                        </div>
-                      </>
-                    ) : (
-                      <div>
-                        <p className="profile__active-vehicle-title">New vehicle draft</p>
-                        <p className="profile__active-vehicle-subtitle">
-                          Fill make, model and registration, then click Save Changes to store it.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="profile__vehicle-empty-state">
-                    <div className="profile__vehicle-empty-icon">
-                      <IconGlyph glyph={'\u{1F697}'} className="mono-icon mono-icon--lg" />
-                    </div>
-                    <h4 className="profile__vehicle-empty-title">No vehicles added yet</h4>
-                    <p className="profile__vehicle-empty">
-                      Add your first vehicle to speed up booking and billing.
-                    </p>
-                  </div>
-                )}
-
-                {selectedVehicle && (
-                  <div className="profile__form" ref={vehicleEditorRef}>
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="vehicleNickname">
-                        Vehicle Nickname
-                      </label>
+            {activeSettingsSection === SETTINGS_SECTIONS.SECURITY && (
+              <motion.form
+                className="profile__settings-section"
+                onSubmit={handlePasswordSubmit}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22 }}
+                ref={securitySettingsRef}
+              >
+                <div className="profile__settings-section-head">
+                  <h2>Password & Security</h2>
+                  <p>Security and account access</p>
+                </div>
+                <div className="profile__settings-card">
+                  <div className="profile__settings-form-grid">
+                    <div className="form-group profile__settings-field--full">
+                      <label className="form-label" htmlFor="settingsCurrentPassword">Current Password</label>
                       <input
-                        id="vehicleNickname"
-                        name="vehicleNickname"
-                        type="text"
+                        id="settingsCurrentPassword"
+                        name="currentPassword"
+                        type="password"
                         className="form-input"
-                        value={selectedVehicle.vehicleNickname || ''}
-                        onChange={handleVehicleChange}
-                        ref={vehicleNicknameInputRef}
-                        placeholder="Home Car, Office Car"
-                        maxLength={50}
+                        value={passwordForm.currentPassword}
+                        onChange={handlePasswordChangeInput}
+                        autoComplete="current-password"
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label" htmlFor="vehicleMake">
-                        Vehicle Make
-                      </label>
+                      <label className="form-label" htmlFor="settingsNewPassword">New Password</label>
                       <input
-                        id="vehicleMake"
-                        name="vehicleMake"
-                        type="text"
-                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
-                        value={selectedVehicle.vehicleMake}
-                        onChange={handleVehicleChange}
-                        readOnly={isSelectedVehicleLocked}
-                        required
+                        id="settingsNewPassword"
+                        name="newPassword"
+                        type="password"
+                        className="form-input"
+                        value={passwordForm.newPassword}
+                        onChange={handlePasswordChangeInput}
+                        minLength={8}
+                        autoComplete="new-password"
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label" htmlFor="vehicleModel">
-                        Vehicle Model
-                      </label>
+                      <label className="form-label" htmlFor="settingsConfirmPassword">Confirm New Password</label>
                       <input
-                        id="vehicleModel"
-                        name="vehicleModel"
-                        type="text"
-                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
-                        value={selectedVehicle.vehicleModel}
-                        onChange={handleVehicleChange}
-                        readOnly={isSelectedVehicleLocked}
-                        required
+                        id="settingsConfirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        className="form-input"
+                        value={passwordForm.confirmPassword}
+                        onChange={handlePasswordChangeInput}
+                        minLength={8}
+                        autoComplete="new-password"
                       />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="vehicleRegistration">
-                        Registration
-                      </label>
-                      <input
-                        id="vehicleRegistration"
-                        name="vehicleRegistration"
-                        type="text"
-                        className={`form-input ${isSelectedVehicleLocked ? 'profile__input--readonly' : ''}`}
-                        value={selectedVehicle.vehicleRegistration}
-                        onChange={handleVehicleChange}
-                        onBlur={(e) => setRegistrationError(validateRegistration(e.target.value))}
-                        aria-invalid={Boolean(registrationError)}
-                        readOnly={isSelectedVehicleLocked}
-                        required
-                      />
-                      {registrationError && <span className="form-error">{registrationError}</span>}
-                      {isSelectedVehicleLocked && (
-                        <span className="profile__readonly-hint">
-                          Saved vehicle make, model and registration cannot be edited. Only nickname can be changed later.
-                        </span>
-                      )}
-                    </div>
-                    {!selectedVehicleIsComplete && selectedVehicleHasValue && (
-                      <span className="profile__readonly-hint">All vehicle fields are required before saving.</span>
-                    )}
-                    {isSelectedVehicleLockedBySession && (
-                      <span className="profile__vehicle-session-lock">
-                        This active vehicle cannot be deleted while a charging session is running.
-                      </span>
-                    )}
                   </div>
-                )}
-              </div>
-              {(isDraftVehicle || hasUnsavedChanges) && (
-                <div className={`profile__actions profile__actions--column${isDraftVehicle ? ' profile__actions--with-cancel' : ''}`}>
-                  {isDraftVehicle && (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={handleCancelVehicleDraft}
-                      disabled={saving}
-                    >
-                      Cancel
+                  <div className="profile__settings-actions">
+                    <button type="submit" className="btn profile__settings-primary-btn" disabled={changingPassword}>
+                      {changingPassword ? 'Updating...' : 'Change password'}
                     </button>
-                  )}
-                  {hasUnsavedChanges && (
-                    <button type="submit" className="btn btn--accent" disabled={saving}>
-                      {saving ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </motion.form>
+              </motion.form>
+            )}
+
+            {activeSettingsSection === SETTINGS_SECTIONS.NOTIFICATIONS && (
+              <motion.section
+                className="profile__settings-section"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22 }}
+              >
+                <div className="profile__settings-section-head">
+                  <h2>Notifications</h2>
+                  <p>Manage your alert preferences</p>
+                </div>
+                <div className="profile__settings-card profile__notification-card">
+                  {[
+                    ['bookingConfirmations', 'Booking confirmations'],
+                    ['chargingComplete', 'Charging complete alerts'],
+                    ['billingReminders', 'Billing & payment reminders'],
+                    ['promotionalOffers', 'Promotional offers'],
+                  ].map(([key, label]) => (
+                    <label className="profile__notification-row" key={key}>
+                      <span>{label}</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(notificationPrefs[key])}
+                        onChange={() => toggleNotificationPref(key)}
+                      />
+                      <span className="profile__notification-switch" aria-hidden="true" />
+                    </label>
+                  ))}
+                </div>
+              </motion.section>
+            )}
+          </section>
+        </div>
 
         {showVehiclesModal && (
           <div className="modal-overlay" onClick={() => setShowVehiclesModal(false)}>

@@ -3,6 +3,7 @@ package com.plugin.service;
 import com.plugin.dto.request.StationRequest;
 import com.plugin.dto.response.StationLiveSummaryResponse;
 import com.plugin.dto.response.StationResponse;
+import com.plugin.entity.ChargingPoint;
 import com.plugin.entity.Station;
 import com.plugin.entity.User;
 import com.plugin.enums.PointStatus;
@@ -16,12 +17,15 @@ import com.plugin.repository.StationManagerApplicationRepository;
 import com.plugin.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,17 +44,17 @@ public class StationService {
     public Page<StationResponse> getAllStations(String actorEmail, Pageable pageable) {
         User actor = stationOperatorAccessService.getActor(actorEmail);
         if (actor.getRole() == Role.ADMIN) {
-            return stationRepository.findAll(pageable).map(this::toResponse);
+            return toResponsePage(stationRepository.findAll(pageable), pageable);
         }
-        return stationRepository.findByManagerId(actor.getId(), pageable).map(this::toResponse);
+        return toResponsePage(stationRepository.findByManagerId(actor.getId(), pageable), pageable);
     }
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
-        return stationRepository.findAll(pageable).map(this::toResponse);
+        return toResponsePage(stationRepository.findAll(pageable), pageable);
     }
 
     public StationLiveSummaryResponse getLiveSummary() {
-        List<Long> activeStationIds = stationRepository.findByActiveTrue().stream()
+        List<Long> activeStationIds = stationRepository.findAll().stream()//(old-findByActiveTrue(),change for aws deployi)
                 .map(Station::getId)
                 .toList();
         long stationCount = activeStationIds.size();
@@ -84,9 +88,9 @@ public class StationService {
             if (trimmed.length() < 6) {
                 return Page.empty(pageable);
             }
-            return stationRepository.findByPincode(trimmed, pageable).map(this::toResponse);
+            return toResponsePage(stationRepository.findByPincode(trimmed, pageable), pageable);
         }
-        return stationRepository.searchStations(trimmed, pageable).map(this::toResponse);
+        return toResponsePage(stationRepository.searchStations(trimmed, pageable), pageable);
     }
 
     public StationResponse getStationById(Long id) {
@@ -186,6 +190,38 @@ public class StationService {
         station = referenceResolver.resolveStation(station, station.getId());
         long total = chargingPointRepository.countByStationId(station.getId());
         long available = chargingPointRepository.countByStationIdAndStatus(station.getId(), PointStatus.AVAILABLE);
+        return toResponse(station, total, available);
+    }
+
+    private Page<StationResponse> toResponsePage(Page<Station> stationPage, Pageable pageable) {
+        List<Station> stations = stationPage.getContent();
+        List<Long> stationIds = stations.stream()
+                .map(Station::getId)
+                .toList();
+        List<ChargingPoint> points = stationIds.isEmpty()
+                ? List.of()
+                : chargingPointRepository.findByStationIdIn(stationIds);
+        Map<Long, Long> totalCounts = points.stream()
+                .collect(Collectors.groupingBy(ChargingPoint::getStationId, Collectors.counting()));
+        Map<Long, Long> availableCounts = points.stream()
+                .filter(point -> point.getStatus() == PointStatus.AVAILABLE)
+                .collect(Collectors.groupingBy(ChargingPoint::getStationId, Collectors.counting()));
+
+        List<StationResponse> content = stations.stream()
+                .map(station -> {
+                    Station resolved = referenceResolver.resolveStation(station, station.getId());
+                    Long stationId = resolved.getId();
+                    return toResponse(
+                            resolved,
+                            totalCounts.getOrDefault(stationId, 0L),
+                            availableCounts.getOrDefault(stationId, 0L)
+                    );
+                })
+                .toList();
+        return new PageImpl<>(content, pageable, stationPage.getTotalElements());
+    }
+
+    private StationResponse toResponse(Station station, long total, long available) {
         return StationResponse.builder()
                 .id(station.getId())
                 .name(station.getName())

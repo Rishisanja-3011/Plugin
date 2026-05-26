@@ -5,6 +5,7 @@ import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import { useAuth } from '../../../context/AuthContext';
 import { getAdminSidebarLinks, getPanelTitle } from '../adminNavigation';
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog';
 import './Stations.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
@@ -63,6 +64,8 @@ export default function Stations() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [pendingStationAction, setPendingStationAction] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
   const canCreateOrDelete = user?.role === 'ADMIN';
 
   const fetchStations = (p = page) => {
@@ -78,12 +81,12 @@ export default function Stations() {
 
   useEffect(() => { fetchStations(); }, [page]);
   useEffect(() => {
-    if (showModal) {
+    if (showModal || pendingStationAction) {
       document.body.classList.add('modal-open');
       return () => document.body.classList.remove('modal-open');
     }
     document.body.classList.remove('modal-open');
-  }, [showModal]);
+  }, [showModal, pendingStationAction]);
   useEffect(() => {
     if (!showModal) return;
     const code = String(form.pincode || '').trim();
@@ -165,24 +168,40 @@ export default function Stations() {
     }
   };
 
-  const handleToggle = async (s) => {
-    try {
-      await adminApi.toggleStation(s.id);
-      toast.success(s.active ? 'Station deactivated' : 'Station activated');
-      fetchStations();
-    } catch {
-      toast.error('Toggle failed');
-    }
+  const getStationActionKey = (action) => (action ? `${action.type}-${action.station.id}` : null);
+
+  const requestToggle = (s) => {
+    setPendingStationAction({ type: 'toggle', station: s });
   };
 
-  const handleDelete = async (s) => {
-    if (!window.confirm('Delete station "' + s.name + '"?')) return;
+  const requestDelete = (s) => {
+    setPendingStationAction({ type: 'delete', station: s });
+  };
+
+  const closeStationAction = () => {
+    if (actionLoading === getStationActionKey(pendingStationAction)) return;
+    setPendingStationAction(null);
+  };
+
+  const confirmStationAction = async () => {
+    if (!pendingStationAction) return;
+    const { type, station } = pendingStationAction;
+    const actionKey = getStationActionKey(pendingStationAction);
+    setActionLoading(actionKey);
     try {
-      await adminApi.deleteStation(s.id);
-      toast.success('Station deleted');
+      if (type === 'toggle') {
+        await adminApi.toggleStation(station.id);
+        toast.success(station.active ? 'Station deactivated' : 'Station activated');
+      } else {
+        await adminApi.deleteStation(station.id);
+        toast.success('Station deleted');
+      }
+      setPendingStationAction(null);
       fetchStations();
     } catch {
-      toast.error('Delete failed');
+      toast.error(type === 'toggle' ? 'Toggle failed' : 'Delete failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -244,12 +263,12 @@ export default function Stations() {
                       </td>
                       <td>
                         <div className="table-actions">
-                          <button className="btn btn--sm btn--outline" onClick={() => handleToggle(s)}>
+                          <button className="btn btn--sm btn--outline" onClick={() => requestToggle(s)}>
                             {s.active ? 'Deactivate' : 'Activate'}
                           </button>
                           <button className="btn btn--sm btn--ghost" onClick={() => openEdit(s)}>Edit</button>
                           {canCreateOrDelete && (
-                            <button className="btn btn--sm btn--danger" onClick={() => handleDelete(s)}>Delete</button>
+                            <button className="btn btn--sm btn--danger" onClick={() => requestDelete(s)}>Delete</button>
                           )}
                         </div>
                       </td>
@@ -330,6 +349,47 @@ export default function Stations() {
                 </div>
               </motion.div>
             </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {pendingStationAction && (
+            <ConfirmDialog
+              open
+              title={
+                pendingStationAction.type === 'delete'
+                  ? 'Delete station?'
+                  : `${pendingStationAction.station.active ? 'Deactivate' : 'Activate'} station?`
+              }
+              message={
+                <>
+                  Are you sure you want to{' '}
+                  {pendingStationAction.type === 'delete'
+                    ? 'delete'
+                    : pendingStationAction.station.active
+                      ? 'deactivate'
+                      : 'activate'}{' '}
+                  <strong>{pendingStationAction.station.name || 'this station'}</strong>?
+                </>
+              }
+              meta={
+                pendingStationAction.type === 'delete'
+                  ? 'This removes the station from the admin network.'
+                  : pendingStationAction.station.active
+                    ? 'New charging activity will not be available for this station until it is activated again.'
+                    : 'This station will be available again after activation.'
+              }
+              confirmLabel={
+                pendingStationAction.type === 'delete'
+                  ? 'Delete Station'
+                  : pendingStationAction.station.active
+                    ? 'Deactivate'
+                    : 'Activate'
+              }
+              variant={pendingStationAction.type === 'toggle' && !pendingStationAction.station.active ? 'accent' : 'danger'}
+              loading={actionLoading === getStationActionKey(pendingStationAction)}
+              onCancel={closeStationAction}
+              onConfirm={confirmStationAction}
+            />
           )}
         </AnimatePresence>
       </motion.main>

@@ -11,7 +11,6 @@ const ADMIN_LINKS = [
   { to: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
   { to: '/admin/analytics', icon: '\u{1F4C8}', label: 'Analytics' },
   { to: '/admin/audit-logs', icon: '\u{1F4DD}', label: 'Audit Logs' },
-  { to: '/admin/notifications', icon: '\u{1F514}', label: 'Notifications' },
 ];
 
 const STATION_MANAGER_LINKS = [

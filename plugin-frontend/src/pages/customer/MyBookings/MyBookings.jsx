@@ -12,11 +12,13 @@ const STATUS_BADGE_MAP = {
   MODIFIED: 'badge--info',
   CANCELLED: 'badge--danger',
   COMPLETED: 'badge--info',
+  NO_SHOW: 'badge--danger',
 };
 
 const PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
+const BOOKINGS_REFRESH_INTERVAL_MS = 30000;
 
 function getStatusBadge(status) {
   const key = (status ?? '').toUpperCase();
@@ -62,6 +64,35 @@ function hasRejectedRescheduleRequest(booking) {
 function formatBookingDateTime(value) {
   if (!value) return '\u2014';
   return new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function parseBookingDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getBookingStartDate(booking) {
+  return parseBookingDateTime(booking?.startTime ?? booking?.bookingDate ?? booking?.date);
+}
+
+function getBookingEndDate(booking) {
+  return parseBookingDateTime(booking?.endTime);
+}
+
+function hasStartableStatus(booking) {
+  return ['CONFIRMED', 'MODIFIED'].includes(booking?.status ?? '');
+}
+
+function isBookingWindowOpen(booking, nowMs) {
+  const start = getBookingStartDate(booking);
+  const end = getBookingEndDate(booking);
+  return hasStartableStatus(booking) && start && end && start.getTime() <= nowMs && nowMs < end.getTime();
+}
+
+function isExpiredStartableBooking(booking, nowMs) {
+  const end = getBookingEndDate(booking);
+  return hasStartableStatus(booking) && end && nowMs >= end.getTime();
 }
 
 function sortBookingsByNewest(list) {
@@ -135,6 +166,7 @@ export default function MyBookings() {
   const [rescheduleLoading, setRescheduleLoading] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState('ALL');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const fetchBookings = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -168,8 +200,13 @@ export default function MyBookings() {
     const pollInterval = setInterval(() => {
       fetchBookings(false);
       fetchActiveSessions();
-    }, 5000);
+    }, BOOKINGS_REFRESH_INTERVAL_MS);
     return () => clearInterval(pollInterval);
+  }, []);
+
+  useEffect(() => {
+    const clockInterval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(clockInterval);
   }, []);
 
   useEffect(() => {
@@ -293,9 +330,10 @@ export default function MyBookings() {
     }
   };
 
-  const canCancel = (b) =>
-    ['PENDING', 'CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
-    new Date(b.startTime ?? b.bookingDate ?? b.date) > new Date();
+  const canCancel = (b) => {
+    const start = getBookingStartDate(b);
+    return ['PENDING', 'CONFIRMED', 'MODIFIED'].includes(b.status ?? '') && start && start.getTime() > nowMs;
+  };
   const activeSessionsByBookingId = useMemo(
     () => new Map(
       activeSessions
@@ -308,13 +346,12 @@ export default function MyBookings() {
   const hasActiveSessionForBooking = (booking) => Boolean(getActiveSessionForBooking(booking));
   const canStart = (b) =>
     !hasActiveSessionForBooking(b) &&
-    ['CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
-    new Date(b.startTime ?? b.bookingDate ?? b.date) <= new Date();
+    isBookingWindowOpen(b, nowMs);
   const canViewActiveSession = (b) => hasActiveSessionForBooking(b);
-  const canRequestReschedule = (b) =>
-    ['CONFIRMED', 'MODIFIED'].includes(b.status ?? '') &&
-    new Date(b.startTime ?? b.bookingDate ?? b.date) > new Date() &&
-    !hasPendingRescheduleRequest(b);
+  const canRequestReschedule = (b) => {
+    const start = getBookingStartDate(b);
+    return hasStartableStatus(b) && start && start.getTime() > nowMs && !hasPendingRescheduleRequest(b);
+  };
   const vehicleOptions = useMemo(
     () =>
       Array.from(
@@ -461,6 +498,9 @@ export default function MyBookings() {
                         )}
                         {hasRejectedRescheduleRequest(b) && (
                           <span className="badge badge--neutral">Reschedule Rejected</span>
+                        )}
+                        {isExpiredStartableBooking(b, nowMs) && (
+                          <span className="badge badge--danger">Time Expired</span>
                         )}
                       </div>
                       <h3 className="my-bookings__station">

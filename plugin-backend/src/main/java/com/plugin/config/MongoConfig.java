@@ -1,12 +1,17 @@
 package com.plugin.config;
 
+import org.bson.Document;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.MongoTransactionManager;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
+import org.springframework.data.mongodb.core.index.CompoundIndexDefinition;
+import org.springframework.data.mongodb.core.index.Index;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -27,6 +32,37 @@ public class MongoConfig {
                 new IntegerToLocalTimeConverter(),
                 new LongToLocalTimeConverter()
         ));
+    }
+
+    @Bean
+    public ApplicationRunner bookingIndexes(MongoTemplate mongoTemplate) {
+        return args -> {
+            var indexes = mongoTemplate.indexOps("bookings");
+            indexes.ensureIndex(new Index().on("createdAt", org.springframework.data.domain.Sort.Direction.DESC)
+                    .named("idx_booking_created_desc"));
+            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                    .append("status", 1)
+                    .append("createdAt", -1))
+                    .named("idx_booking_status_created_desc"));
+            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                    .append("customerId", 1)
+                    .append("createdAt", -1))
+                    .named("idx_booking_customer_created_desc"));
+            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                    .append("stationId", 1)
+                    .append("createdAt", -1))
+                    .named("idx_booking_station_created_desc"));
+            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                    .append("chargingPointId", 1)
+                    .append("startTime", 1)
+                    .append("endTime", 1))
+                    .named("idx_booking_point_id_time"));
+            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                    .append("chargingPoint.id", 1)
+                    .append("startTime", 1)
+                    .append("endTime", 1))
+                    .named("idx_booking_point_time"));
+        };
     }
 
     @ReadingConverter

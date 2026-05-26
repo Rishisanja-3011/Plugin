@@ -5,6 +5,7 @@ import com.plugin.enums.BookingStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -37,4 +38,10 @@ public interface BookingRepository extends MongoRepository<Booking, String>, Boo
     boolean existsByStationId(Long stationId);
 
     long countByStatus(BookingStatus status);
+
+    @Query("{ 'status': { $in: ?0 }, 'startTime': { $gte: ?1, $lte: ?2 }, '$or': [ { 'startNotificationSent': false }, { 'startNotificationSent': null }, { 'startNotificationSent': { $exists: false } } ] }")
+    List<Booking> findDueStartNotifications(List<BookingStatus> statuses, LocalDateTime from, LocalDateTime to);
+
+    @Query("{ 'status': { $in: ?0 }, 'endTime': { $lte: ?1 } }")
+    List<Booking> findExpiredStartableBookings(List<BookingStatus> statuses, LocalDateTime now);
 }

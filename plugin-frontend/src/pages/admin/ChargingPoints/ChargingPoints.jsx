@@ -5,6 +5,7 @@ import { useToast } from '../../../components/Toast/Toast';
 import { adminApi } from '../../../api/admin';
 import { useAuth } from '../../../context/AuthContext';
 import { getAdminSidebarLinks, getPanelTitle } from '../adminNavigation';
+import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog';
 import './ChargingPoints.css';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 
@@ -47,6 +48,8 @@ export default function ChargingPoints() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [pendingPointAction, setPendingPointAction] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => {
     adminApi.getAllStations(0, 100)
@@ -57,6 +60,14 @@ export default function ChargingPoints() {
       })
       .catch(() => toast.error('Failed to load stations'));
   }, []);
+
+  useEffect(() => {
+    if (showModal || pendingPointAction) {
+      document.body.classList.add('modal-open');
+      return () => document.body.classList.remove('modal-open');
+    }
+    document.body.classList.remove('modal-open');
+  }, [showModal, pendingPointAction]);
 
   useEffect(() => {
     if (!selectedStation) return;
@@ -114,24 +125,41 @@ export default function ChargingPoints() {
     }
   };
 
-  const handleStatusChange = async (p, status) => {
-    try {
-      await adminApi.updatePointStatus(p.id, status);
-      toast.success('Status updated');
-      refresh();
-    } catch {
-      toast.error('Status update failed');
-    }
+  const getPointActionKey = (action) => (action ? `${action.type}-${action.point.id}` : null);
+
+  const requestStatusChange = (p, status) => {
+    if (status === p.status) return;
+    setPendingPointAction({ type: 'status', point: p, status });
   };
 
-  const handleDelete = async (p) => {
-    if (!window.confirm('Delete this charging point?')) return;
+  const requestDelete = (p) => {
+    setPendingPointAction({ type: 'delete', point: p });
+  };
+
+  const closePointAction = () => {
+    if (actionLoading === getPointActionKey(pendingPointAction)) return;
+    setPendingPointAction(null);
+  };
+
+  const confirmPointAction = async () => {
+    if (!pendingPointAction) return;
+    const { type, point, status } = pendingPointAction;
+    const actionKey = getPointActionKey(pendingPointAction);
+    setActionLoading(actionKey);
     try {
-      await adminApi.deleteChargingPoint(p.id);
-      toast.success('Charging point deleted');
+      if (type === 'status') {
+        await adminApi.updatePointStatus(point.id, status);
+        toast.success('Status updated');
+      } else {
+        await adminApi.deleteChargingPoint(point.id);
+        toast.success('Charging point deleted');
+      }
+      setPendingPointAction(null);
       refresh();
     } catch {
-      toast.error('Delete failed');
+      toast.error(type === 'status' ? 'Status update failed' : 'Delete failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -194,11 +222,11 @@ export default function ChargingPoints() {
                   <div className="cp-card__detail"><span className="cp-card__label">Power</span><span className="cp-card__value">{p.maxPowerKw ? p.maxPowerKw + ' kW' : '-'}</span></div>
                 </div>
                 <div className="cp-card__actions">
-                  <select className="form-select form-select--sm" value={p.status} onChange={(e) => handleStatusChange(p, e.target.value)}>
+                  <select className="form-select form-select--sm" value={p.status} onChange={(e) => requestStatusChange(p, e.target.value)}>
                     {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <button className="btn btn--sm btn--ghost" onClick={() => openEdit(p)}>Edit</button>
-                  <button className="btn btn--sm btn--danger" onClick={() => handleDelete(p)}>Delete</button>
+                  <button className="btn btn--sm btn--danger" onClick={() => requestDelete(p)}>Delete</button>
                 </div>
               </motion.div>
             ))}
@@ -237,6 +265,41 @@ export default function ChargingPoints() {
                 </form>
               </motion.div>
             </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {pendingPointAction && (
+            <ConfirmDialog
+              open
+              title={pendingPointAction.type === 'status' ? 'Change point status?' : 'Delete charging point?'}
+              message={
+                pendingPointAction.type === 'status' ? (
+                  <>
+                    Change <strong>{pendingPointAction.point.identifier || `point #${pendingPointAction.point.id}`}</strong> from{' '}
+                    <strong>{pendingPointAction.point.status}</strong> to <strong>{pendingPointAction.status}</strong>?
+                  </>
+                ) : (
+                  <>
+                    Delete <strong>{pendingPointAction.point.identifier || `point #${pendingPointAction.point.id}`}</strong>?
+                  </>
+                )
+              }
+              meta={
+                pendingPointAction.type === 'status'
+                  ? 'This manual status change updates what admins and customers see for this connector.'
+                  : 'This removes the charging point from the selected station.'
+              }
+              confirmLabel={pendingPointAction.type === 'status' ? 'Update Status' : 'Delete Point'}
+              variant={
+                pendingPointAction.type === 'status'
+                  && !['OUT_OF_SERVICE', 'UNAVAILABLE'].includes(pendingPointAction.status)
+                  ? 'accent'
+                  : 'danger'
+              }
+              loading={actionLoading === getPointActionKey(pendingPointAction)}
+              onCancel={closePointAction}
+              onConfirm={confirmPointAction}
+            />
           )}
         </AnimatePresence>
       </motion.main>

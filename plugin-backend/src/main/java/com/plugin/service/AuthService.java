@@ -28,7 +28,6 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +47,9 @@ public class AuthService {
 
     @Value("${spring.mail.username:}")
     private String mailUsername;
+
+    @Value("${spring.mail.password:}")
+    private String mailPassword;
 
     private static final int CONFIRM_EXPIRY_MINUTES = 10;
 
@@ -82,7 +84,7 @@ public class AuthService {
         boolean delivered = sendConfirmationOtpEmail(pending.getEmail(), otp);
         if (!delivered) {
             pendingRegistrationRepository.delete(pending);
-            throw new BadRequestException("Email delivery is not configured. Please enable email sending.");
+            throw new BadRequestException("Could not send signup OTP email. Please check email configuration and try again.");
         }
 
         return Map.of("message", "OTP sent to your email. Please confirm your account to complete registration.");
@@ -164,7 +166,7 @@ public class AuthService {
 
         boolean delivered = sendConfirmationOtpEmail(pending.getEmail(), otp);
         if (!delivered) {
-            throw new BadRequestException("Email delivery is not configured. Please enable email sending.");
+            throw new BadRequestException("Could not send signup OTP email. Please check email configuration and try again.");
         }
 
         return Map.of("message", "OTP resent to your email.");
@@ -238,10 +240,16 @@ public class AuthService {
 
     private boolean sendConfirmationOtpEmail(String email, String otp) {
         if (mailSender == null) {
+            log.warn("JavaMailSender not configured; signup OTP email cannot be sent");
             return false;
         }
         String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom : mailUsername;
         if (from == null || from.isBlank()) {
+            log.warn("Mail from address not configured; signup OTP email cannot be sent");
+            return false;
+        }
+        if (mailUsername == null || mailUsername.isBlank() || mailPassword == null || mailPassword.isBlank()) {
+            log.warn("Mail username/password not configured; signup OTP email cannot be sent");
             return false;
         }
         String html = ""
@@ -253,19 +261,19 @@ public class AuthService {
                 + "<p>This OTP will expire in " + CONFIRM_EXPIRY_MINUTES + " minutes.</p>"
                 + "</div>";
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                var message = mailSender.createMimeMessage();
-                var helper = new MimeMessageHelper(message, "UTF-8");
-                helper.setTo(email);
-                helper.setFrom(from);
-                helper.setSubject("PLUGIN - Confirm your account");
-                helper.setText(html, true);
-                mailSender.send(message);
-            } catch (Exception e) {
-                log.warn("Failed to send confirmation OTP email to {}", email, e);
-            }
-        });
-        return true;
+        try {
+            var message = mailSender.createMimeMessage();
+            var helper = new MimeMessageHelper(message, "UTF-8");
+            helper.setTo(email);
+            helper.setFrom(from);
+            helper.setSubject("PLUGIN - Confirm your account");
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Signup confirmation OTP email sent to {}", email);
+            return true;
+        } catch (Exception e) {
+            log.warn("Failed to send signup confirmation OTP email to {}", email, e);
+            return false;
+        }
     }
 }
