@@ -1,5 +1,7 @@
 package com.plugin.service;
 
+import com.plugin.config.AppClock;
+
 import com.plugin.dto.response.SessionResponse;
 import com.plugin.entity.*;
 import com.plugin.enums.*;
@@ -26,6 +28,8 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 @Slf4j
 public class SessionService {
+
+    private static final long SESSION_START_GRACE_SECONDS = 60;
 
     private final ChargingSessionRepository sessionRepository;
     private final BookingRepository bookingRepository;
@@ -82,7 +86,7 @@ public class SessionService {
                 .booking(booking)
                 .chargingPoint(cp)
                 .customer(booking.getCustomer())
-                .startTime(LocalDateTime.now())
+                .startTime(AppClock.now())
                 .status(SessionStatus.IN_PROGRESS)
                 .energyDeliveredKwh(BigDecimal.ZERO)
                 .build();
@@ -108,7 +112,7 @@ public class SessionService {
 
     private SessionResponse completeSession(ChargingSession session, String performedBy, boolean automatic) {
         session = referenceResolver.hydrate(session);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = AppClock.now();
         session.setEndTime(resolveAllowedSessionEndTime(session, now));
         session.setStatus(SessionStatus.COMPLETED);
 
@@ -152,13 +156,16 @@ public class SessionService {
             fixedDelayString = "${app.sessions.auto-complete-check-ms:10000}")
     @Transactional
     public void autoCompleteExpiredSessions() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = AppClock.now();
         List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
 
         for (ChargingSession session : activeSessions) {
             ChargingSession hydrated = referenceResolver.hydrate(session);
             Booking booking = hydrated.getBooking();
-            if (booking == null || booking.getEndTime() == null || booking.getEndTime().isAfter(now)) {
+            LocalDateTime bookingEndTime = booking != null
+                    ? AppClock.fromStoredScheduleTime(booking.getEndTime())
+                    : null;
+            if (booking == null || bookingEndTime == null || bookingEndTime.isAfter(now)) {
                 continue;
             }
             try {
@@ -170,11 +177,11 @@ public class SessionService {
     }
 
     private void validateBookingStartWindow(Booking booking) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime startTime = booking.getStartTime();
-        LocalDateTime endTime = booking.getEndTime();
+        LocalDateTime now = AppClock.now();
+        LocalDateTime startTime = AppClock.fromStoredScheduleTime(booking.getStartTime());
+        LocalDateTime endTime = AppClock.fromStoredScheduleTime(booking.getEndTime());
 
-        if (startTime != null && now.isBefore(startTime)) {
+        if (startTime != null && now.plusSeconds(SESSION_START_GRACE_SECONDS).isBefore(startTime)) {
             throw new BadRequestException("Session can only be started at the selected booking time.");
         }
 
@@ -217,8 +224,11 @@ public class SessionService {
 
     private LocalDateTime resolveAllowedSessionEndTime(ChargingSession session, LocalDateTime now) {
         Booking booking = session.getBooking();
-        if (booking != null && booking.getEndTime() != null && now.isAfter(booking.getEndTime())) {
-            return booking.getEndTime();
+        LocalDateTime bookingEndTime = booking != null
+                ? AppClock.fromStoredScheduleTime(booking.getEndTime())
+                : null;
+        if (bookingEndTime != null && now.isAfter(bookingEndTime)) {
+            return bookingEndTime;
         }
         return now;
     }
@@ -310,7 +320,7 @@ public class SessionService {
             }
             estimateRateType = PricingModel.PER_KWH.name();
 
-            long elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
+            long elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), AppClock.now()).getSeconds());
             BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(chargingPoint.getMaxPowerKw())
                     .multiply(BigDecimal.valueOf(normalizedEfficiency()))
                     .multiply(BigDecimal.valueOf(elapsedSeconds))
@@ -327,7 +337,7 @@ public class SessionService {
                 : customer != null ? customer.getVehicleRegistration() : null;
         Long elapsedSeconds = null;
         if (s.getStartTime() != null && s.getStatus() == SessionStatus.IN_PROGRESS) {
-            elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), LocalDateTime.now()).getSeconds());
+            elapsedSeconds = Math.max(0, Duration.between(s.getStartTime(), AppClock.now()).getSeconds());
         }
 
         return SessionResponse.builder()

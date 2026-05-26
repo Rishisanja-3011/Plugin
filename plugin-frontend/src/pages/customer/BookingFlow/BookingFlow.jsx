@@ -8,17 +8,11 @@ import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import { useAuth } from '../../../context/AuthContext';
 import './BookingFlow.css';
 
-const DURATION_OPTIONS = [
-  { value: 30, label: '30 min' },
-  { value: 60, label: '1 hr' },
-  { value: 120, label: '2 hr' },
-  { value: 180, label: '3 hr' },
-];
-
 const STEPS = ['Select Point', 'Schedule', 'Review', 'Complete'];
 const BLOCKED_POINT_STATUSES = new Set(['OUT_OF_SERVICE', 'UNAVAILABLE']);
 const STATION_REFRESH_INTERVAL_MS = 15000;
-const SLOT_REFRESH_INTERVAL_MS = 15000;
+const MIN_DURATION_MINUTES = 1;
+const MAX_DURATION_MINUTES = 60;
 
 function isPointBlockedForBooking(status) {
   return BLOCKED_POINT_STATUSES.has((status ?? '').toString().trim().toUpperCase());
@@ -33,7 +27,6 @@ export default function BookingFlow() {
   const [station, setStation] = useState(null);
   const [chargingPoints, setChargingPoints] = useState([]);
   const [pricing, setPricing] = useState(null);
-  const [availableSlots, setAvailableSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState(null);
@@ -41,7 +34,7 @@ export default function BookingFlow() {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState('60');
   const [dateTimeError, setDateTimeError] = useState('');
 
   useEffect(() => {
@@ -89,33 +82,35 @@ export default function BookingFlow() {
     };
   }, [stationId, toast]);
 
-  useEffect(() => {
-    if (!(step === 2 && selectedPoint?.id && date)) return;
-    let cancelled = false;
-
-    const fetchSlots = async () => {
-      try {
-        const res = await bookingsApi.getAvailableSlots(stationId, selectedPoint.id, date);
-        const data = res.data;
-        if (cancelled) return;
-        setAvailableSlots(Array.isArray(data) ? data : data?.slots ?? data?.content ?? []);
-      } catch {
-        if (cancelled) return;
-        setAvailableSlots([]);
-      }
-    };
-
-    fetchSlots();
-    const pollInterval = setInterval(fetchSlots, SLOT_REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(pollInterval);
-    };
-  }, [step, stationId, selectedPoint?.id, date]);
-
   const availablePoints = chargingPoints.filter(
     (p) => !isPointBlockedForBooking(p.status)
   );
+  const durationMinutes = Number(duration);
+  const isDurationValid =
+    duration !== '' &&
+    Number.isInteger(durationMinutes) &&
+    durationMinutes >= MIN_DURATION_MINUTES &&
+    durationMinutes <= MAX_DURATION_MINUTES;
+  const durationError = duration === '' || !isDurationValid
+    ? `Enter ${MIN_DURATION_MINUTES} to ${MAX_DURATION_MINUTES} minutes.`
+    : '';
+
+  const handleDurationChange = (event) => {
+    const { value } = event.target;
+    if (value === '') {
+      setDuration('');
+      return;
+    }
+
+    const nextValue = Number(value);
+    if (!Number.isFinite(nextValue)) return;
+
+    const clampedValue = Math.min(
+      MAX_DURATION_MINUTES,
+      Math.max(MIN_DURATION_MINUTES, Math.trunc(nextValue))
+    );
+    setDuration(String(clampedValue));
+  };
 
   const validateDateTime = (nextDate = date, nextTime = time) => {
     if (!nextDate || !nextTime) {
@@ -140,6 +135,10 @@ export default function BookingFlow() {
       toast.error('Please complete all fields.');
       return;
     }
+    if (!isDurationValid) {
+      toast.error(`Enter duration between ${MIN_DURATION_MINUTES} and ${MAX_DURATION_MINUTES} minutes.`);
+      return;
+    }
     if (!validateDateTime()) {
       toast.error('Please select a future time.');
       return;
@@ -152,7 +151,7 @@ export default function BookingFlow() {
         stationId,
         chargingPointId: selectedPoint.id,
         startTime: startDateTime,
-        durationMinutes: duration,
+        durationMinutes,
       });
       setCreatedBookingId(res.data?.id ?? null);
       setStep(4);
@@ -387,26 +386,23 @@ export default function BookingFlow() {
                   {dateTimeError && <div className="form-error">{dateTimeError}</div>}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Duration</label>
-                  <select
-                    className="form-select"
+                  <label className="form-label" htmlFor="bookingDuration">Duration (minutes)</label>
+                  <input
+                    id="bookingDuration"
+                    type="number"
+                    className="form-input"
                     value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                  >
-                    {DURATION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={handleDurationChange}
+                    min={MIN_DURATION_MINUTES}
+                    max={MAX_DURATION_MINUTES}
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="60"
+                    aria-invalid={Boolean(durationError)}
+                  />
+                  {durationError && <div className="form-error">{durationError}</div>}
                 </div>
               </div>
-
-              {availableSlots.length > 0 && (
-                <p className="booking-flow__slots-hint">
-                  {availableSlots.length} slots found for this date.
-                </p>
-              )}
 
               <div className="booking-flow__actions">
                 <button type="button" className="btn btn--outline" onClick={() => setStep(1)}>
@@ -415,8 +411,12 @@ export default function BookingFlow() {
                 <button
                   type="button"
                   className="btn btn--accent"
-                  disabled={!date || !time || !!dateTimeError}
+                  disabled={!date || !time || !isDurationValid || !!dateTimeError}
                   onClick={() => {
+                    if (!isDurationValid) {
+                      toast.error(`Enter duration between ${MIN_DURATION_MINUTES} and ${MAX_DURATION_MINUTES} minutes.`);
+                      return;
+                    }
                     if (!validateDateTime()) {
                       toast.error('Please select a future time.');
                       return;
@@ -462,7 +462,7 @@ export default function BookingFlow() {
                 <div className="booking-flow__summary-row">
                   <span className="booking-flow__summary-label">Duration</span>
                   <span className="booking-flow__summary-value">
-                    {DURATION_OPTIONS.find((o) => o.value === duration)?.label ?? `${duration} min`}
+                    {`${durationMinutes} min`}
                   </span>
                 </div>
                 {matchedPricing?.ratePerUnit != null ? (

@@ -1,5 +1,6 @@
 package com.plugin.service;
 
+import com.plugin.config.AppClock;
 import com.plugin.dto.request.ChangePasswordRequest;
 import com.plugin.dto.request.DeleteAccountRequest;
 import com.plugin.dto.request.ProfileVehicleRequest;
@@ -170,7 +171,7 @@ public class ProfileService {
 
         Long userId = user.getId();
         boolean hasActiveBookings = bookingRepository.existsActiveByCustomerId(
-                userId, java.time.LocalDateTime.now());
+                userId, AppClock.toStoredScheduleTime(java.time.LocalDateTime.now()));
         boolean hasActiveSessions = chargingSessionRepository.existsByCustomerIdAndStatus(
                 userId, SessionStatus.IN_PROGRESS);
         boolean hasUnpaidBills = billRepository.existsByCustomerIdAndPaymentStatus(

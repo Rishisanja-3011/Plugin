@@ -1,5 +1,6 @@
 package com.plugin.service;
 
+import com.plugin.config.AppClock;
 import com.plugin.dto.request.BookingRequest;
 import com.plugin.dto.request.BookingRescheduleRequest;
 import com.plugin.dto.response.BookingResponse;
@@ -65,6 +66,8 @@ public class BookingService {
 
         LocalDateTime startTime = request.getStartTime();
         LocalDateTime endTime = startTime.plusMinutes(request.getDurationMinutes());
+        LocalDateTime storedStartTime = AppClock.toStoredScheduleTime(startTime);
+        LocalDateTime storedEndTime = AppClock.toStoredScheduleTime(endTime);
 
         // Validate within operating hours
         validateOperatingHours(station, startTime, endTime);
@@ -90,7 +93,7 @@ public class BookingService {
 
             // Check overlap
             List<Booking> overlapping = bookingRepository.findOverlappingBookings(
-                    chargingPoint.getId(), startTime, endTime);
+                    chargingPoint.getId(), storedStartTime, storedEndTime);
             if (!overlapping.isEmpty()) {
                 throw new ConflictException("Time slot is already booked for this charging point");
             }
@@ -109,8 +112,8 @@ public class BookingService {
                 .station(station)
                 .chargingPoint(chargingPoint)
                 .vehicle(activeVehicle)
-                .startTime(startTime)
-                .endTime(endTime)
+                .startTime(storedStartTime)
+                .endTime(storedEndTime)
                 .lockedRatePerUnit(lockedPricing.ratePerUnit())
                 .lockedRateType(lockedPricing.rateType())
                 .status(BookingStatus.CONFIRMED)
@@ -151,12 +154,14 @@ public class BookingService {
             throw new BadRequestException("Cannot modify a " + booking.getStatus() + " booking");
         }
 
-        if (booking.getStartTime().isBefore(LocalDateTime.now())) {
+        if (AppClock.fromStoredScheduleTime(booking.getStartTime()).isBefore(LocalDateTime.now())) {
             throw new BadRequestException("Cannot modify a booking that has already started");
         }
 
         LocalDateTime startTime = request.getStartTime();
         LocalDateTime endTime = startTime.plusMinutes(request.getDurationMinutes());
+        LocalDateTime storedStartTime = AppClock.toStoredScheduleTime(startTime);
+        LocalDateTime storedEndTime = AppClock.toStoredScheduleTime(endTime);
 
         Station station = booking.getStation();
         validateOperatingHours(station, startTime, endTime);
@@ -179,7 +184,7 @@ public class BookingService {
         ensurePointAvailableForBooking(targetPoint);
 
         List<Booking> overlapping = bookingRepository.findOverlappingBookingsExcluding(
-                pointId, startTime, endTime, booking.getId());
+                pointId, storedStartTime, storedEndTime, booking.getId());
         if (!overlapping.isEmpty()) {
             throw new ConflictException("New time slot conflicts with existing bookings");
         }
@@ -188,8 +193,8 @@ public class BookingService {
             booking.setChargingPoint(targetPoint);
         }
 
-        booking.setStartTime(startTime);
-        booking.setEndTime(endTime);
+        booking.setStartTime(storedStartTime);
+        booking.setEndTime(storedEndTime);
         PricingSnapshotService.PricingSnapshot lockedPricing =
                 pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
@@ -231,7 +236,7 @@ public class BookingService {
             throw new BadRequestException("Cannot reschedule a " + booking.getStatus() + " booking");
         }
 
-        if (!booking.getStartTime().isAfter(LocalDateTime.now())) {
+        if (!AppClock.fromStoredScheduleTime(booking.getStartTime()).isAfter(LocalDateTime.now())) {
             throw new BadRequestException("Cannot request reschedule for a booking that has already started");
         }
 
@@ -250,12 +255,14 @@ public class BookingService {
             throw new BadRequestException("Requested start time is required");
         }
         LocalDateTime requestedEndTime = requestedStartTime.plusMinutes(durationMinutes);
+        LocalDateTime storedRequestedStartTime = AppClock.toStoredScheduleTime(requestedStartTime);
+        LocalDateTime storedRequestedEndTime = AppClock.toStoredScheduleTime(requestedEndTime);
 
         validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
 
         booking.setRescheduleRequestStatus(RescheduleRequestStatus.PENDING);
-        booking.setRescheduleRequestedStartTime(requestedStartTime);
-        booking.setRescheduleRequestedEndTime(requestedEndTime);
+        booking.setRescheduleRequestedStartTime(storedRequestedStartTime);
+        booking.setRescheduleRequestedEndTime(storedRequestedEndTime);
         booking.setRescheduleRequestReason(normalizedReason);
         booking.setRescheduleRequestedAt(LocalDateTime.now());
         resetRescheduleReview(booking);
@@ -370,19 +377,21 @@ public class BookingService {
             throw new BadRequestException("Cannot reschedule a " + booking.getStatus() + " booking");
         }
 
-        LocalDateTime requestedStartTime = booking.getRescheduleRequestedStartTime();
-        LocalDateTime requestedEndTime = booking.getRescheduleRequestedEndTime();
-        if (requestedStartTime == null || requestedEndTime == null) {
+        LocalDateTime storedRequestedStartTime = booking.getRescheduleRequestedStartTime();
+        LocalDateTime storedRequestedEndTime = booking.getRescheduleRequestedEndTime();
+        if (storedRequestedStartTime == null || storedRequestedEndTime == null) {
             throw new BadRequestException("Requested reschedule slot is incomplete");
         }
+        LocalDateTime requestedStartTime = AppClock.fromStoredScheduleTime(storedRequestedStartTime);
+        LocalDateTime requestedEndTime = AppClock.fromStoredScheduleTime(storedRequestedEndTime);
 
         validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
 
         PricingSnapshotService.PricingSnapshot lockedPricing =
                 pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
 
-        booking.setStartTime(requestedStartTime);
-        booking.setEndTime(requestedEndTime);
+        booking.setStartTime(storedRequestedStartTime);
+        booking.setEndTime(storedRequestedEndTime);
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
         booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
@@ -478,8 +487,10 @@ public class BookingService {
     public void sendBookingStartNotifications() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime from = now.minusMinutes(Math.max(1, bookingStartNotificationLookbackMinutes));
+        LocalDateTime storedNow = AppClock.toStoredScheduleTime(now);
+        LocalDateTime storedFrom = AppClock.toStoredScheduleTime(from);
         List<Booking> dueBookings = bookingRepository.findDueStartNotifications(
-                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), from, now);
+                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), storedFrom, storedNow);
 
         for (Booking booking : dueBookings) {
             Booking hydrated = hydrate(booking);
@@ -494,7 +505,7 @@ public class BookingService {
                     : "your station";
             try {
                 String selectedTime = hydrated.getStartTime() != null
-                        ? hydrated.getStartTime().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))
+                        ? AppClock.fromStoredScheduleTime(hydrated.getStartTime()).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))
                         : "your selected time";
                 notificationService.send(customerId, "Session Time Arrived",
                         "Your booking " + hydrated.getReferenceId() + " at " + stationName +
@@ -513,8 +524,9 @@ public class BookingService {
     @Transactional
     public void expireMissedBookings() {
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime storedNow = AppClock.toStoredScheduleTime(now);
         List<Booking> expiredBookings = bookingRepository.findExpiredStartableBookings(
-                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), now);
+                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED), storedNow);
 
         for (Booking booking : expiredBookings) {
             Booking hydrated = hydrate(booking);
@@ -581,7 +593,9 @@ public class BookingService {
         }
 
         List<Booking> existingBookings = bookingRepository.findBookingsForPointOnDay(
-                pointId, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
+                pointId,
+                AppClock.toStoredScheduleTime(date.atStartOfDay()),
+                AppClock.toStoredScheduleTime(date.plusDays(1).atStartOfDay()));
 
         List<String> slots = new ArrayList<>();
         LocalDateTime cursor = dayStart;
@@ -591,7 +605,8 @@ public class BookingService {
             LocalDateTime slotEnd = cursor.plusMinutes(30);
             final LocalDateTime slotStart = cursor;
             boolean isAvailable = existingBookings.stream().noneMatch(b ->
-                    slotStart.isBefore(b.getEndTime()) && slotEnd.isAfter(b.getStartTime()));
+                    slotStart.isBefore(AppClock.fromStoredScheduleTime(b.getEndTime()))
+                            && slotEnd.isAfter(AppClock.fromStoredScheduleTime(b.getStartTime())));
             if (isAvailable) {
                 slots.add(cursor.format(fmt) + " - " + slotEnd.format(fmt));
             }
@@ -603,6 +618,8 @@ public class BookingService {
 
     private ChargingPoint autoAssignPoint(Long stationId, String typePreference,
                                            LocalDateTime startTime, LocalDateTime endTime) {
+        LocalDateTime storedStartTime = AppClock.toStoredScheduleTime(startTime);
+        LocalDateTime storedEndTime = AppClock.toStoredScheduleTime(endTime);
         List<ChargingPoint> candidates;
         if (typePreference != null && !typePreference.isEmpty()) {
             PointType pt = PointType.valueOf(typePreference);
@@ -614,7 +631,7 @@ public class BookingService {
         for (ChargingPoint candidate : candidates) {
             ChargingPoint cp = hydrate(candidate);
             if (isPointBlockedForBooking(cp.getStatus())) continue;
-            List<Booking> overlapping = bookingRepository.findOverlappingBookings(cp.getId(), startTime, endTime);
+            List<Booking> overlapping = bookingRepository.findOverlappingBookings(cp.getId(), storedStartTime, storedEndTime);
             if (overlapping.isEmpty()) {
                 return cp;
             }
@@ -671,15 +688,15 @@ public class BookingService {
                 .vehicleMake(vehicleMake)
                 .vehicleModel(vehicleModel)
                 .vehicleRegistration(vehicleRegistration)
-                .startTime(b.getStartTime())
-                .endTime(b.getEndTime())
+                .startTime(AppClock.fromStoredScheduleTime(b.getStartTime()))
+                .endTime(AppClock.fromStoredScheduleTime(b.getEndTime()))
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
                 .lockedRateType(b.getLockedRateType())
                 .status(b.getStatus() != null ? b.getStatus().name() : null)
                 .cancellationReason(b.getCancellationReason())
                 .rescheduleRequestStatus((b.getRescheduleRequestStatus() != null ? b.getRescheduleRequestStatus() : RescheduleRequestStatus.NONE).name())
-                .rescheduleRequestedStartTime(b.getRescheduleRequestedStartTime())
-                .rescheduleRequestedEndTime(b.getRescheduleRequestedEndTime())
+                .rescheduleRequestedStartTime(AppClock.fromStoredScheduleTime(b.getRescheduleRequestedStartTime()))
+                .rescheduleRequestedEndTime(AppClock.fromStoredScheduleTime(b.getRescheduleRequestedEndTime()))
                 .rescheduleRequestReason(b.getRescheduleRequestReason())
                 .rescheduleRequestedAt(b.getRescheduleRequestedAt())
                 .rescheduleReviewedAt(b.getRescheduleReviewedAt())
@@ -721,19 +738,24 @@ public class BookingService {
             throw new BadRequestException("Rescheduled start time must be in the future");
         }
 
-        if (requestedStartTime.equals(booking.getStartTime()) && requestedEndTime.equals(booking.getEndTime())) {
+        if (requestedStartTime.equals(AppClock.fromStoredScheduleTime(booking.getStartTime()))
+                && requestedEndTime.equals(AppClock.fromStoredScheduleTime(booking.getEndTime()))) {
             throw new BadRequestException("Please select a different slot for reschedule");
         }
 
+        LocalDateTime storedRequestedStartTime = AppClock.toStoredScheduleTime(requestedStartTime);
+        LocalDateTime storedRequestedEndTime = AppClock.toStoredScheduleTime(requestedEndTime);
         List<Booking> overlapping = bookingRepository.findOverlappingBookingsExcluding(
-                booking.getChargingPoint().getId(), requestedStartTime, requestedEndTime, booking.getId());
+                booking.getChargingPoint().getId(), storedRequestedStartTime, storedRequestedEndTime, booking.getId());
         if (!overlapping.isEmpty()) {
             throw new ConflictException("Requested time slot conflicts with existing bookings");
         }
     }
 
     private int getBookingDurationMinutes(Booking booking) {
-        long duration = Duration.between(booking.getStartTime(), booking.getEndTime()).toMinutes();
+        long duration = Duration.between(
+                AppClock.fromStoredScheduleTime(booking.getStartTime()),
+                AppClock.fromStoredScheduleTime(booking.getEndTime())).toMinutes();
         return duration > 0 ? (int) duration : 60;
     }
 

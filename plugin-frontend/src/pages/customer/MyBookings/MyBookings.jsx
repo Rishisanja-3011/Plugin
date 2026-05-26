@@ -61,15 +61,39 @@ function hasRejectedRescheduleRequest(booking) {
   return (booking?.rescheduleRequestStatus ?? '').toUpperCase() === 'REJECTED';
 }
 
+function parseWallClockDateTime(value) {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const match = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T|\s)(\d{2}):(\d{2})(?::(\d{2}))?/
+  );
+
+  if (match) {
+    const [, year, month, day, hour, minute, second = '0'] = match;
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    );
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const fallback = new Date(raw);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
 function formatBookingDateTime(value) {
-  if (!value) return '\u2014';
-  return new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  const date = parseWallClockDateTime(value);
+  if (!date) return '\u2014';
+  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function parseBookingDateTime(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseWallClockDateTime(value);
 }
 
 function getBookingStartDate(booking) {
@@ -97,8 +121,10 @@ function isExpiredStartableBooking(booking, nowMs) {
 
 function sortBookingsByNewest(list) {
   return [...list].sort((a, b) => {
-    const aTime = new Date(a.createdAt ?? a.startTime ?? a.bookingDate ?? a.date ?? 0).getTime();
-    const bTime = new Date(b.createdAt ?? b.startTime ?? b.bookingDate ?? b.date ?? 0).getTime();
+    const aAuditTime = parseWallClockDateTime(a.createdAt)?.getTime();
+    const bAuditTime = parseWallClockDateTime(b.createdAt)?.getTime();
+    const aTime = aAuditTime ?? parseBookingDateTime(a.startTime ?? a.bookingDate ?? a.date)?.getTime() ?? 0;
+    const bTime = bAuditTime ?? parseBookingDateTime(b.startTime ?? b.bookingDate ?? b.date)?.getTime() ?? 0;
     return bTime - aTime;
   });
 }
@@ -127,14 +153,15 @@ async function fetchAllBookingPages(fetchPage) {
 }
 
 function getBookingDurationMinutes(booking) {
-  const start = new Date(booking?.startTime ?? 0);
-  const end = new Date(booking?.endTime ?? 0);
+  const start = parseBookingDateTime(booking?.startTime);
+  const end = parseBookingDateTime(booking?.endTime);
+  if (!start || !end) return 60;
   const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
   return minutes > 0 ? minutes : 60;
 }
 
 function toLocalDateInputValue(value) {
-  const date = new Date(value ?? Date.now());
+  const date = parseWallClockDateTime(value) ?? new Date();
   if (Number.isNaN(date.getTime())) return '';
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -143,7 +170,7 @@ function toLocalDateInputValue(value) {
 }
 
 function toLocalTimeInputValue(value) {
-  const date = new Date(value ?? Date.now());
+  const date = parseWallClockDateTime(value) ?? new Date();
   if (Number.isNaN(date.getTime())) return '';
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -508,9 +535,7 @@ export default function MyBookings() {
                       </h3>
                       <p className="my-bookings__meta">
                         {b.chargingPointIdentifier ?? b.chargingPointName ?? 'Point'} {'\u2022'}{' '}
-                        {b.startTime
-                          ? new Date(b.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-                          : '\u2014'}
+                        {formatBookingDateTime(b.startTime)}
                       </p>
                       <p className="my-bookings__vehicle">Vehicle: {getBookingVehicleLabel(b)}</p>
                     </div>

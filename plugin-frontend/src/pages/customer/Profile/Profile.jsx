@@ -798,67 +798,69 @@ export default function Profile() {
         )}
 
         <div className="profile__settings-layout">
-          <aside className="profile__settings-sidebar" aria-label="Settings navigation">
-            <div className="profile__settings-nav-group">
-              <p className="profile__settings-nav-label">Account</p>
-              <button
-                type="button"
-                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.PROFILE ? ' profile__settings-nav-item--active' : ''}`}
-                onClick={() => openSettingsSection(SETTINGS_SECTIONS.PROFILE)}
-                data-label="My Profile"
-                title="My Profile"
-              >
-                <span className="profile__settings-nav-icon"><IconGlyph glyph="user" className="mono-icon mono-icon--sm" /></span>
-                <span className="profile__settings-nav-text">
-                  <strong>My Profile</strong>
-                  <small>Name, email and mobile details</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.VEHICLE ? ' profile__settings-nav-item--active' : ''}`}
-                onClick={() => openSettingsSection(SETTINGS_SECTIONS.VEHICLE)}
-                data-label="Vehicle Details"
-                title="Vehicle Details"
-              >
-                <span className="profile__settings-nav-icon"><IconGlyph glyph="vehicle" className="mono-icon mono-icon--sm" /></span>
-                <span className="profile__settings-nav-text">
-                  <strong>Vehicle Details</strong>
-                  <small>Saved vehicles and active vehicle</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.SECURITY ? ' profile__settings-nav-item--active' : ''}`}
-                onClick={() => openSettingsSection(SETTINGS_SECTIONS.SECURITY)}
-                data-label="Password & Security"
-                title="Password & Security"
-              >
-                <span className="profile__settings-nav-icon"><IconGlyph glyph="lock" className="mono-icon mono-icon--sm" /></span>
-                <span className="profile__settings-nav-text">
-                  <strong>Password & Security</strong>
-                  <small>Security and account access</small>
-                </span>
-              </button>
-            </div>
+          <div className="profile__settings-sidebar-shell">
+            <aside className="profile__settings-sidebar" aria-label="Settings navigation">
+              <div className="profile__settings-nav-group">
+                <p className="profile__settings-nav-label">Account</p>
+                <button
+                  type="button"
+                  className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.PROFILE ? ' profile__settings-nav-item--active' : ''}`}
+                  onClick={() => openSettingsSection(SETTINGS_SECTIONS.PROFILE)}
+                  data-label="My Profile"
+                  title="My Profile"
+                >
+                  <span className="profile__settings-nav-icon"><IconGlyph glyph="user" className="mono-icon mono-icon--sm" /></span>
+                  <span className="profile__settings-nav-text">
+                    <strong>My Profile</strong>
+                    <small>Name, email and mobile details</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.VEHICLE ? ' profile__settings-nav-item--active' : ''}`}
+                  onClick={() => openSettingsSection(SETTINGS_SECTIONS.VEHICLE)}
+                  data-label="Vehicle Details"
+                  title="Vehicle Details"
+                >
+                  <span className="profile__settings-nav-icon"><IconGlyph glyph="vehicle" className="mono-icon mono-icon--sm" /></span>
+                  <span className="profile__settings-nav-text">
+                    <strong>Vehicle Details</strong>
+                    <small>Saved vehicles and active vehicle</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.SECURITY ? ' profile__settings-nav-item--active' : ''}`}
+                  onClick={() => openSettingsSection(SETTINGS_SECTIONS.SECURITY)}
+                  data-label="Password & Security"
+                  title="Password & Security"
+                >
+                  <span className="profile__settings-nav-icon"><IconGlyph glyph="lock" className="mono-icon mono-icon--sm" /></span>
+                  <span className="profile__settings-nav-text">
+                    <strong>Password & Security</strong>
+                    <small>Security and account access</small>
+                  </span>
+                </button>
+              </div>
 
-            <div className="profile__settings-nav-group profile__settings-nav-group--preferences">
-              <p className="profile__settings-nav-label">Preferences</p>
-              <button
-                type="button"
-                className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.NOTIFICATIONS ? ' profile__settings-nav-item--active' : ''}`}
-                onClick={() => openSettingsSection(SETTINGS_SECTIONS.NOTIFICATIONS)}
-                data-label="Notifications"
-                title="Notifications"
-              >
-                <span className="profile__settings-nav-icon"><IconGlyph glyph="notifications" className="mono-icon mono-icon--sm" /></span>
-                <span className="profile__settings-nav-text">
-                  <strong>Notifications</strong>
-                  <small>Manage your alert preferences</small>
-                </span>
-              </button>
-            </div>
-          </aside>
+              <div className="profile__settings-nav-group profile__settings-nav-group--preferences">
+                <p className="profile__settings-nav-label">Preferences</p>
+                <button
+                  type="button"
+                  className={`profile__settings-nav-item${activeSettingsSection === SETTINGS_SECTIONS.NOTIFICATIONS ? ' profile__settings-nav-item--active' : ''}`}
+                  onClick={() => openSettingsSection(SETTINGS_SECTIONS.NOTIFICATIONS)}
+                  data-label="Notifications"
+                  title="Notifications"
+                >
+                  <span className="profile__settings-nav-icon"><IconGlyph glyph="notifications" className="mono-icon mono-icon--sm" /></span>
+                  <span className="profile__settings-nav-text">
+                    <strong>Notifications</strong>
+                    <small>Manage your alert preferences</small>
+                  </span>
+                </button>
+              </div>
+            </aside>
+          </div>
 
           <section className="profile__settings-content" aria-live="polite">
             {activeSettingsSection === SETTINGS_SECTIONS.PROFILE && (
@@ -972,6 +974,19 @@ export default function Profile() {
                       </div>
 
                       <div className="profile__settings-form-grid" ref={vehicleEditorRef}>
+                        <div className="form-group profile__settings-field--full">
+                          <label className="form-label" htmlFor="vehicleNickname">Car Nickname</label>
+                          <input
+                            id="vehicleNickname"
+                            name="vehicleNickname"
+                            type="text"
+                            className="form-input"
+                            value={selectedVehicle.vehicleNickname}
+                            onChange={handleVehicleChange}
+                            placeholder="Example: Family EV"
+                            ref={vehicleNicknameInputRef}
+                          />
+                        </div>
                         <div className="form-group">
                           <label className="form-label" htmlFor="vehicleMake">Make</label>
                           <input
@@ -1030,7 +1045,7 @@ export default function Profile() {
 
                       {isSelectedVehicleLocked && (
                         <span className="profile__readonly-hint">
-                          Saved vehicle make, model and registration cannot be edited. Only active vehicle selection can be managed.
+                          Saved vehicle make, model and registration cannot be edited. Nickname and active vehicle selection can be managed.
                         </span>
                       )}
                       {!selectedVehicleIsComplete && selectedVehicleHasValue && (

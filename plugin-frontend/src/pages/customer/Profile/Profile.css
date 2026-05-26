@@ -331,18 +331,26 @@
 
 /* === SETTINGS LAYOUT === */
 .profile__settings-layout {
+  --profile-settings-sidebar-width: 240px;
   display: flex;
   align-items: flex-start;
   gap: var(--space-lg);
   width: 100%;
 }
 
+.profile__settings-sidebar-shell {
+  width: var(--profile-settings-sidebar-width);
+  flex: 0 0 var(--profile-settings-sidebar-width);
+  align-self: flex-start;
+  margin-top: 68px;
+}
+
 .profile__settings-sidebar {
-  width: 240px;
-  flex: 0 0 240px;
+  width: var(--profile-settings-sidebar-width);
   position: sticky;
   top: calc(var(--navbar-height) + var(--space-lg));
-  align-self: flex-start;
+  max-height: calc(100vh - var(--navbar-height) - var(--space-2xl));
+  overflow-y: auto;
   padding: var(--space-md);
   background: var(--color-white);
   border: 1px solid var(--color-border-light);
@@ -805,12 +813,16 @@
 /* === SETTINGS TABLET === */
 @media (min-width: 768px) and (max-width: 1023px) {
   .profile__settings-layout {
+    --profile-settings-sidebar-width: 48px;
     gap: var(--space-lg);
   }
 
+  .profile__settings-sidebar-shell {
+    width: var(--profile-settings-sidebar-width);
+    flex-basis: var(--profile-settings-sidebar-width);
+  }
+
   .profile__settings-sidebar {
-    width: 48px;
-    flex-basis: 48px;
     padding: 4px;
   }
 
@@ -943,10 +955,15 @@
     gap: var(--space-md);
   }
 
+  .profile__settings-sidebar-shell {
+    width: 100%;
+    flex: none;
+    margin-top: 0;
+  }
+
   .profile__settings-sidebar {
     position: static;
     width: 100%;
-    flex: none;
     display: flex;
     gap: var(--space-sm);
     overflow-x: auto;

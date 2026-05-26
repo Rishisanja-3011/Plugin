@@ -282,12 +282,6 @@
   color: var(--color-text-primary);
 }
 
-.booking-flow__slots-hint {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-lg);
-}
-
 .booking-flow__success {
   background: linear-gradient(145deg, rgba(var(--color-accent-rgb), 0.08), rgba(var(--color-accent-rgb), 0.03));
   border: 1px solid rgba(var(--color-accent-rgb), 0.18);
