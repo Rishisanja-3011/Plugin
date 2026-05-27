@@ -21,7 +21,7 @@ const DATE_FILTERS = [
 ];
 
 function formatRemainingFromMs(ms) {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
@@ -65,8 +65,8 @@ function formatDurationFromSeconds(value) {
 
 function formatBilledDuration(bill) {
   if (!bill) return null;
-  if (bill.durationMinutes != null) return formatDurationFromSeconds(Number(bill.durationMinutes) * 60);
   if (bill.durationSeconds != null) return formatDurationFromSeconds(bill.durationSeconds);
+  if (bill.durationMinutes != null) return formatDurationFromSeconds(Number(bill.durationMinutes) * 60);
   return null;
 }
 

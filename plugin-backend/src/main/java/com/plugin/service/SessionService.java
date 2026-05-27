@@ -132,8 +132,7 @@ public class SessionService {
         LocalDateTime now = AppClock.now();
 
         if (automatic) {
-            // For auto-completed sessions, use the exact scheduled end time
-            // so billing duration matches the booked duration perfectly.
+            // Auto-completed sessions must stop at the absolute booking end time.
             LocalDateTime scheduledEnd = resolveScheduledSessionEndTime(session);
             session.setEndTime(scheduledEnd != null ? scheduledEnd : now);
         } else {
@@ -141,13 +140,12 @@ public class SessionService {
         }
         session.setStatus(SessionStatus.COMPLETED);
 
-        // Simulate energy delivered for the billable slot, not late-click seconds.
-        long durationMinutes = automatic
-                ? Math.max(1, (resolveBookedDurationSeconds(session) + 59) / 60)
-                : resolveBillingDurationMinutes(session);
-
         double powerKw = session.getChargingPoint().getMaxPowerKw();
-        double theoreticalEnergyKwh = (powerKw * durationMinutes) / 60.0;
+        long durationSeconds = resolveBillingDurationSeconds(session);
+        if (durationSeconds <= 0) {
+            durationSeconds = Math.max(1, resolveBillingDurationMinutes(session)) * 60;
+        }
+        double theoreticalEnergyKwh = (powerKw * durationSeconds) / 3600.0;
         double energyKwh = theoreticalEnergyKwh * normalizedEfficiency();
         session.setEnergyDeliveredKwh(BigDecimal.valueOf(energyKwh).setScale(2, RoundingMode.HALF_UP));
 
@@ -164,8 +162,8 @@ public class SessionService {
         booking.setStatus(BookingStatus.COMPLETED);
         bookingRepository.save(booking);
 
-        // Generate bill — pass automatic flag so it uses exact booked duration
-        generateBill(session, automatic);
+        // Generate bill
+        generateBill(session);
 
         auditService.log(automatic ? "AUTO_END_SESSION" : "END_SESSION", "SESSION", session.getId(), performedBy,
                 (automatic ? "Session auto-ended at the selected booking end time. " : "Session ended. ") +
@@ -259,16 +257,13 @@ public class SessionService {
     }
 
     private LocalDateTime resolveScheduledSessionEndTime(ChargingSession session) {
-        if (session == null || session.getStartTime() == null) {
+        Booking booking = session != null ? session.getBooking() : null;
+        if (booking == null) {
             return null;
         }
 
-        long bookedSeconds = resolveBookedDurationSeconds(session);
-        if (bookedSeconds <= 0) {
-            return null;
-        }
-        // Session startTime is already truncated to whole seconds at creation.
-        return session.getStartTime().withNano(0).plusSeconds(bookedSeconds);
+        LocalDateTime bookingEndTime = AppClock.fromStoredScheduleTime(booking.getEndTime());
+        return bookingEndTime != null ? bookingEndTime.withNano(0) : null;
     }
 
     private LocalDateTime resolveScheduledBookingStartTime(ChargingSession session) {
@@ -315,7 +310,7 @@ public class SessionService {
                         .orElseThrow(() -> new ResourceNotFoundException("Session not found"))));
     }
 
-    private void generateBill(ChargingSession session, boolean autoCompleted) {
+    private void generateBill(ChargingSession session) {
         session = referenceResolver.hydrate(session);
         if (session.getId() != null && billRepository.existsBySessionId(session.getId())) {
             return;
@@ -329,22 +324,10 @@ public class SessionService {
         BigDecimal rate = booking.getLockedRatePerUnit();
         BigDecimal energyKwh = session.getEnergyDeliveredKwh();
 
-        // When session auto-completed at its scheduled end, use the exact
-        // booked duration so billing matches what the user selected (e.g.
-        // 1 min = exactly 60 seconds, never 57 or 63).
-        long bookedSeconds = resolveBookedDurationSeconds(session);
-        long durationSeconds;
-        long durationMinutes;
-
-        if (autoCompleted && bookedSeconds > 0) {
-            durationSeconds = bookedSeconds;
-            durationMinutes = Math.max(1, (bookedSeconds + 59) / 60);
-        } else {
-            durationSeconds = resolveBillingDurationSeconds(session);
-            durationMinutes = resolveBillingDurationMinutes(session);
-            if (durationSeconds <= 0 && durationMinutes > 0) {
-                durationSeconds = durationMinutes * 60;
-            }
+        long durationSeconds = resolveBillingDurationSeconds(session);
+        long durationMinutes = resolveBillingDurationMinutes(session);
+        if (durationSeconds <= 0 && durationMinutes > 0) {
+            durationSeconds = durationMinutes * 60;
         }
 
         if (rate == null || rateType == null || rateType.isBlank()) {
@@ -482,22 +465,10 @@ public class SessionService {
 
     private long resolveBillingDurationSeconds(ChargingSession session) {
         long bookedSeconds = resolveBookedDurationSeconds(session);
-        LocalDateTime scheduledEndTime = resolveScheduledSessionEndTime(session);
-
-        // If the session ran to its scheduled end (or within 2 seconds of it),
-        // bill exactly the booked duration — no more, no less.
-        if (bookedSeconds > 0
-                && session.getEndTime() != null
-                && scheduledEndTime != null) {
-            long diffSeconds = Math.abs(Duration.between(session.getEndTime(), scheduledEndTime).getSeconds());
-            if (diffSeconds <= 2) {
-                return bookedSeconds;
-            }
-        }
-
         if (session.getStartTime() != null && session.getEndTime() != null) {
             long actualSeconds = Duration.between(session.getStartTime(), session.getEndTime()).toSeconds();
-            return Math.max(0, actualSeconds);
+            actualSeconds = Math.max(0, actualSeconds);
+            return bookedSeconds > 0 ? Math.min(actualSeconds, bookedSeconds) : actualSeconds;
         }
 
         return bookedSeconds;
@@ -543,9 +514,7 @@ public class SessionService {
             return;
         }
 
-        // Schedule 200ms AFTER the end time to guarantee the scheduler never
-        // fires a fraction of a second early (which would cause re-scheduling).
-        var triggerAt = scheduledEndTime.atZone(AppClock.BUSINESS_ZONE).toInstant().plusMillis(200);
+        var triggerAt = scheduledEndTime.atZone(AppClock.BUSINESS_ZONE).toInstant();
         ScheduledFuture<?> task = taskScheduler.schedule(() -> autoCompleteSessionById(sessionId), triggerAt);
         if (task != null) {
             completionTasks.put(sessionId, task);
