@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
 import { billsApi, sessionsApi } from '../../../api/bookings';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
+import { formatScheduleDateTime, parseScheduleDateTime } from '../../../utils/dateTime';
 import './SessionStatus.css';
 
 const HISTORY_PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
-const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15000;
-const SESSION_HISTORY_REFRESH_INTERVAL_MS = 30000;
+const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 1000;
+const SESSION_HISTORY_REFRESH_INTERVAL_MS = 10000;
 
 const DATE_FILTERS = [
   { value: 'ALL', label: 'All' },
@@ -19,7 +20,15 @@ const DATE_FILTERS = [
   { value: 'LAST_30_DAYS', label: 'Month' },
 ];
 
-function formatDurationFromMs(ms) {
+function formatRemainingFromMs(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+function formatElapsedFromMs(ms) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
@@ -42,26 +51,72 @@ function formatDurationBetween(startTime, endTime) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
 }
 
-function parseDateTime(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+function formatDurationFromSeconds(value) {
+  const totalSeconds = Math.max(0, Math.round(Number(value)));
+  if (!Number.isFinite(totalSeconds)) return null;
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours <= 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
 }
 
-function getActiveSessionStartTimeMs(session) {
-  const elapsedSeconds = Number(session?.elapsedSeconds);
-  if (Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
-    return Date.now() - elapsedSeconds * 1000;
+function formatBilledDuration(bill) {
+  if (!bill) return null;
+  if (bill.durationMinutes != null) return formatDurationFromSeconds(Number(bill.durationMinutes) * 60);
+  if (bill.durationSeconds != null) return formatDurationFromSeconds(bill.durationSeconds);
+  return null;
+}
+
+function parseDateTime(value) {
+  return parseScheduleDateTime(value);
+}
+
+function getActiveSessionEndTimeMs(session) {
+  const scheduledEndTime = parseDateTime(session?.scheduledEndTime ?? session?.endTime);
+  return scheduledEndTime?.getTime() ?? null;
+}
+
+function getActiveSessionRemainingMs(session) {
+  // Prefer scheduledEndTime for precise countdown target
+  const endTimeMs = getActiveSessionEndTimeMs(session);
+  if (endTimeMs != null) {
+    return Math.max(0, endTimeMs - Date.now());
   }
 
-  return parseDateTime(session?.startTime)?.getTime() ?? Date.now();
+  const remainingSeconds = Number(session?.remainingSeconds);
+  if (Number.isFinite(remainingSeconds) && remainingSeconds >= 0) {
+    return remainingSeconds * 1000;
+  }
+
+  const scheduledDurationSeconds = Number(session?.scheduledDurationSeconds);
+  const elapsedSeconds = Number(session?.elapsedSeconds);
+  if (
+    Number.isFinite(scheduledDurationSeconds) &&
+    scheduledDurationSeconds > 0 &&
+    Number.isFinite(elapsedSeconds) &&
+    elapsedSeconds >= 0
+  ) {
+    return Math.max(0, (scheduledDurationSeconds - elapsedSeconds) * 1000);
+  }
+
+  return null;
+}
+
+function getActiveSessionElapsedMs(session) {
+  const elapsedSeconds = Number(session?.elapsedSeconds);
+  if (Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    return elapsedSeconds * 1000;
+  }
+
+  const startTimeMs = parseDateTime(session?.startTime)?.getTime();
+  return startTimeMs != null ? Math.max(0, Date.now() - startTimeMs) : 0;
 }
 
 function formatDateTime(value) {
-  if (!value) return '\u2014';
-  const date = parseDateTime(value);
-  if (!date) return '\u2014';
-  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  return formatScheduleDateTime(value, '\u2014');
 }
 
 function formatStatusLabel(status) {
@@ -170,13 +225,35 @@ export default function SessionStatus() {
   const [endLoading, setEndLoading] = useState(null);
   const [invoiceLoading, setInvoiceLoading] = useState(null);
   const [pendingEndSession, setPendingEndSession] = useState(null);
+  const [autoRedirectingSessionId, setAutoRedirectingSessionId] = useState(null);
+  const activeSessionsRef = useRef([]);
+  const redirectingToBillingRef = useRef(false);
+
+  const redirectToBilling = (sessionId) => {
+    if (redirectingToBillingRef.current) return;
+    redirectingToBillingRef.current = true;
+    setAutoRedirectingSessionId(sessionId ?? 'completed');
+    navigate('/customer/billing', {
+      replace: true,
+      state: sessionId != null ? { sessionId } : undefined,
+    });
+  };
 
   const fetchActive = async () => {
     try {
       const res = await sessionsApi.getMyActive();
       const data = res.data;
       const list = Array.isArray(data) ? data : data?.content ?? [];
+      const previousActive = activeSessionsRef.current;
+      activeSessionsRef.current = list;
       setActiveSessions(list);
+      if (list.length > 0) {
+        setAutoRedirectingSessionId(null);
+        redirectingToBillingRef.current = false;
+      }
+      if (list.length === 0 && previousActive.length > 0) {
+        redirectToBilling(previousActive[0]?.id);
+      }
     } catch {
       setActiveSessions([]);
     }
@@ -340,7 +417,9 @@ export default function SessionStatus() {
             <h2 className="session-status__section-title">Active Sessions</h2>
           </div>
 
-          {activeSessions.length === 0 ? (
+          {autoRedirectingSessionId ? (
+            <p className="session-status__muted">Finalizing your invoice...</p>
+          ) : activeSessions.length === 0 ? (
             <p className="session-status__muted">No active sessions right now.</p>
           ) : (
             <motion.div
@@ -353,6 +432,7 @@ export default function SessionStatus() {
                   key={session.id}
                   session={session}
                   onRequestEnd={requestEndSession}
+                  onExpired={fetchActive}
                   endLoading={endLoading}
                 />
               ))}
@@ -436,7 +516,7 @@ export default function SessionStatus() {
                                 {vehicleLabel ? ` \u2022 ${vehicleLabel}` : ''}
                               </span>
                             </div>
-                            <div>{formatDurationBetween(session.startTime, session.endTime)}</div>
+                            <div>{formatBilledDuration(bill) ?? formatDurationBetween(session.startTime, session.endTime)}</div>
                             <div>{energy != null ? `${Number(energy).toFixed(2)} kWh` : '\u2014'}</div>
                             <div>{bill ? formatCurrency(bill.totalAmount) : '\u2014'}</div>
                             <div>
@@ -529,18 +609,75 @@ export default function SessionStatus() {
   );
 }
 
-function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
-  const [elapsedMs, setElapsedMs] = useState(0);
+function ActiveSessionCard({ session, onRequestEnd, onExpired, endLoading }) {
+  const [remainingMs, setRemainingMs] = useState(() => getActiveSessionRemainingMs(session));
+  const [elapsedMs, setElapsedMs] = useState(() => getActiveSessionElapsedMs(session));
+  const expiredRef = useRef(false);
+  const countdownTargetRef = useRef(null);
+  const expiryRetryRef = useRef(null);
 
   useEffect(() => {
-    const startTimeMs = getActiveSessionStartTimeMs(session);
-    const updateElapsed = () => setElapsedMs(Date.now() - startTimeMs);
-    updateElapsed();
-    const interval = setInterval(updateElapsed, 1000);
-    return () => clearInterval(interval);
-  }, [session.startTime, session.elapsedSeconds]);
+    const serverRemainingMs = getActiveSessionRemainingMs(session);
+    if (serverRemainingMs == null) {
+      countdownTargetRef.current = null;
+      setRemainingMs(null);
+      setElapsedMs(getActiveSessionElapsedMs(session));
+      return;
+    }
 
-  const displayedStartTime = new Date(Date.now() - elapsedMs);
+    const now = performance.now();
+    const currentRemainingMs = countdownTargetRef.current != null
+      ? Math.max(0, countdownTargetRef.current - now)
+      : null;
+
+    // Re-sync if the server value has drifted more than 1.5s from local countdown
+    if (currentRemainingMs == null || Math.abs(serverRemainingMs - currentRemainingMs) > 1500) {
+      countdownTargetRef.current = now + serverRemainingMs;
+      setRemainingMs(serverRemainingMs);
+    }
+  }, [session.id, session.remainingSeconds, session.scheduledEndTime, session.scheduledDurationSeconds]);
+
+  useEffect(() => {
+    expiredRef.current = false;
+    const updateRemaining = () => {
+      const serverRemainingMs = getActiveSessionRemainingMs(session);
+      if (serverRemainingMs == null) {
+        countdownTargetRef.current = null;
+        setRemainingMs(null);
+        setElapsedMs(getActiveSessionElapsedMs(session));
+        return;
+      }
+
+      const target = countdownTargetRef.current ?? (performance.now() + serverRemainingMs);
+      countdownTargetRef.current = target;
+      const nextRemainingMs = Math.max(0, target - performance.now());
+      setRemainingMs(nextRemainingMs);
+      // Trigger onExpired as soon as countdown reaches zero
+      if (nextRemainingMs <= 0 && !expiredRef.current) {
+        expiredRef.current = true;
+        // Call fetchActive immediately and retry quickly so the session
+        // disappears promptly instead of showing "Finalizing..." for ages
+        Promise.resolve(onExpired?.(session)).finally(() => {
+          expiryRetryRef.current = setTimeout(() => {
+            expiredRef.current = false;
+          }, 500);
+        });
+      }
+    };
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 250);
+    return () => {
+      clearInterval(interval);
+      if (expiryRetryRef.current) clearTimeout(expiryRetryRef.current);
+    };
+  }, [session.id, onExpired]);
+
+  const displayedStartTime = parseDateTime(session.startTime);
+  const timerText = remainingMs == null
+    ? formatElapsedFromMs(elapsedMs)
+    : remainingMs <= 0
+      ? 'Finalizing...'
+      : formatRemainingFromMs(remainingMs);
 
   return (
     <motion.div className="session-status__active-card card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -549,7 +686,7 @@ function ActiveSessionCard({ session, onRequestEnd, endLoading }) {
       </span>
 
       <h3 className="session-status__active-station">{session.stationName ?? 'Station'}</h3>
-      <div className="session-status__active-timer">{formatDurationFromMs(elapsedMs)}</div>
+      <div className="session-status__active-timer">{timerText}</div>
 
       <div className="session-status__active-meta">
         <div className="session-status__active-meta-item">

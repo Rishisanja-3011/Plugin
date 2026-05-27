@@ -30,11 +30,9 @@
   transform: translateX(-50%);
   width: 140%;
   height: 70%;
-  background: radial-gradient(
-    ellipse 80% 50% at 50% 20%,
-    rgba(var(--color-accent-rgb), 0.08) 0%,
-    transparent 60%
-  );
+  background: radial-gradient(ellipse 80% 50% at 50% 20%,
+      rgba(var(--color-accent-rgb), 0.08) 0%,
+      transparent 60%);
   pointer-events: none;
 }
 
@@ -51,10 +49,33 @@
   background: rgba(var(--color-accent-rgb), 0.15);
 }
 
-.landing__float-dot--0 { width: 6px; height: 6px; top: 18%; left: 12%; }
-.landing__float-dot--1 { width: 4px; height: 4px; top: 25%; right: 18%; }
-.landing__float-dot--2 { width: 8px; height: 8px; bottom: 35%; left: 8%; }
-.landing__float-dot--3 { width: 5px; height: 5px; bottom: 28%; right: 12%; }
+.landing__float-dot--0 {
+  width: 6px;
+  height: 6px;
+  top: 18%;
+  left: 12%;
+}
+
+.landing__float-dot--1 {
+  width: 4px;
+  height: 4px;
+  top: 25%;
+  right: 18%;
+}
+
+.landing__float-dot--2 {
+  width: 8px;
+  height: 8px;
+  bottom: 35%;
+  left: 8%;
+}
+
+.landing__float-dot--3 {
+  width: 5px;
+  height: 5px;
+  bottom: 28%;
+  right: 12%;
+}
 
 .landing__hero-content {
   max-width: var(--max-width);
@@ -295,9 +316,17 @@
 }
 
 @keyframes landingPulse {
-  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.32); }
-  70% { box-shadow: 0 0 0 9px rgba(22, 163, 74, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.32);
+  }
+
+  70% {
+    box-shadow: 0 0 0 9px rgba(22, 163, 74, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
 }
 
 .landing__status-grid {
@@ -568,13 +597,11 @@
   width: calc(100% - 180px);
   max-width: 360px;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-border) 15%,
-    var(--color-border) 85%,
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      var(--color-border) 15%,
+      var(--color-border) 85%,
+      transparent);
   pointer-events: none;
 }
 

@@ -749,6 +749,15 @@ export default function Profile() {
     setNotificationPrefs((current) => ({ ...current, [key]: !current[key] }));
   };
 
+  const handleBack = () => {
+    if ((window.history.state?.idx ?? 0) > 0) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/customer/dashboard');
+  };
+
   if (loading) {
     return (
       <motion.main className="profile page-wrapper" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -770,6 +779,10 @@ export default function Profile() {
       transition={{ duration: 0.3 }}
     >
       <div className="container page-content">
+        <button type="button" className="page-back profile__back" onClick={handleBack}>
+          <span className="page-back__icon">{'\u2190'}</span>
+          Back
+        </button>
         <div className="profile__header">
           <div className="page-header">
             <h1 className="page-header__title">Settings</h1>

@@ -27,6 +27,7 @@ public interface BillRepository extends MongoRepository<Bill, String>, BillRepos
 
     boolean existsByCustomerIdAndPaymentStatus(Long customerId, PaymentStatus status);
     boolean existsByStationId(Long stationId);
+    boolean existsBySessionId(Long sessionId);
 
     void deleteByCustomerId(Long customerId);
 }

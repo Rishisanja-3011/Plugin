@@ -38,6 +38,8 @@ public class Bill {
 
     private Long durationMinutes;
 
+    private Long durationSeconds;
+
     private BigDecimal rateApplied;
 
     private String rateType;

@@ -7,7 +7,7 @@ import { sessionsApi } from '../../api/bookings';
 import NotificationBell from '../NotificationBell/NotificationBell';
 import './Navbar.css';
 
-const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15000;
+const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 5000;
 
 const HomeIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">

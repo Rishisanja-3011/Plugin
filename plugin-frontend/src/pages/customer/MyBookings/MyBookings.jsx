@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../../components/Toast/Toast';
 import { bookingsApi, sessionsApi } from '../../../api/bookings';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
+import { formatInstantDateTime, formatScheduleDateTime, parseInstantDateTime, parseScheduleDateTime } from '../../../utils/dateTime';
 import './MyBookings.css';
 
 const STATUS_BADGE_MAP = {
@@ -19,6 +20,7 @@ const PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
 const BOOKINGS_REFRESH_INTERVAL_MS = 30000;
+const ACTIVE_SESSIONS_REFRESH_INTERVAL_MS = 1000;
 
 function getStatusBadge(status) {
   const key = (status ?? '').toUpperCase();
@@ -62,34 +64,13 @@ function hasRejectedRescheduleRequest(booking) {
 }
 
 function parseWallClockDateTime(value) {
-  if (!value) return null;
-
-  const raw = String(value).trim();
-  const match = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:T|\s)(\d{2}):(\d{2})(?::(\d{2}))?/
-  );
-
-  if (match) {
-    const [, year, month, day, hour, minute, second = '0'] = match;
-    const date = new Date(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second)
-    );
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const fallback = new Date(raw);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
+  return parseScheduleDateTime(value);
 }
 
-function formatBookingDateTime(value) {
-  const date = parseWallClockDateTime(value);
-  if (!date) return '\u2014';
-  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+function formatBookingDateTime(value, source = 'schedule') {
+  return source === 'instant'
+    ? formatInstantDateTime(value, '\u2014')
+    : formatScheduleDateTime(value, '\u2014');
 }
 
 function parseBookingDateTime(value) {
@@ -121,8 +102,8 @@ function isExpiredStartableBooking(booking, nowMs) {
 
 function sortBookingsByNewest(list) {
   return [...list].sort((a, b) => {
-    const aAuditTime = parseWallClockDateTime(a.createdAt)?.getTime();
-    const bAuditTime = parseWallClockDateTime(b.createdAt)?.getTime();
+    const aAuditTime = parseInstantDateTime(a.createdAt)?.getTime();
+    const bAuditTime = parseInstantDateTime(b.createdAt)?.getTime();
     const aTime = aAuditTime ?? parseBookingDateTime(a.startTime ?? a.bookingDate ?? a.date)?.getTime() ?? 0;
     const bTime = bAuditTime ?? parseBookingDateTime(b.startTime ?? b.bookingDate ?? b.date)?.getTime() ?? 0;
     return bTime - aTime;
@@ -226,8 +207,14 @@ export default function MyBookings() {
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetchBookings(false);
-      fetchActiveSessions();
     }, BOOKINGS_REFRESH_INTERVAL_MS);
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      fetchActiveSessions();
+    }, ACTIVE_SESSIONS_REFRESH_INTERVAL_MS);
     return () => clearInterval(pollInterval);
   }, []);
 
@@ -664,7 +651,7 @@ export default function MyBookings() {
                             <div className="my-bookings__detail-item">
                               <span className="my-bookings__detail-label">Booked On</span>
                               <span className="my-bookings__detail-value">
-                                {formatBookingDateTime(b.createdAt)}
+                                {formatBookingDateTime(b.createdAt, 'instant')}
                               </span>
                             </div>
                           </div>

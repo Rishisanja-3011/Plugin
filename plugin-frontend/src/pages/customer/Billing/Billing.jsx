@@ -4,19 +4,13 @@ import { motion } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
 import { billsApi } from '../../../api/bookings';
 import IconGlyph from '../../../components/IconGlyph/IconGlyph';
+import { formatInstantDateTime } from '../../../utils/dateTime';
 import './Billing.css';
 
 const PAGE_SIZE = 10;
 const STATEMENT_STORAGE_KEY = 'plugin_billing_statement_filters_v1';
 const BILLING_REFRESH_INTERVAL_MS = 30000;
-const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: true,
-});
+const BILLING_FINALIZE_REFRESH_INTERVAL_MS = 1000;
 
 const toDateInputValue = (date) => {
   const year = date.getFullYear();
@@ -59,6 +53,7 @@ export default function Billing() {
   const [downloadLoading, setDownloadLoading] = useState(null);
   const [statementLoading, setStatementLoading] = useState(false);
   const [showStatementPanel, setShowStatementPanel] = useState(false);
+  const [finalizingInvoice, setFinalizingInvoice] = useState(false);
   const [statementPreset, setStatementPreset] = useState(() => loadStoredStatementFilters()?.preset ?? '30d');
   const [statementFrom, setStatementFrom] = useState(() => loadStoredStatementFilters()?.from ?? toDateInputValue(addDays(new Date(), -29)));
   const [statementTo, setStatementTo] = useState(() => loadStoredStatementFilters()?.to ?? toDateInputValue(new Date()));
@@ -91,6 +86,12 @@ export default function Billing() {
     }, BILLING_REFRESH_INTERVAL_MS);
     return () => clearInterval(pollInterval);
   }, [page]);
+
+  useEffect(() => {
+    if (sessionIdFromNav != null && page !== 0) {
+      setPage(0);
+    }
+  }, [sessionIdFromNav, page]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -148,12 +149,24 @@ export default function Billing() {
   const getStatusBadge = (status) => (isPaid(status) ? 'badge--success' : 'badge--danger');
 
   const formatDuration = (minutes, seconds) => {
-    const hasSeconds = seconds != null && !Number.isNaN(Number(seconds));
-    const hasMinutes = minutes != null && !Number.isNaN(Number(minutes));
+    const secondsValue = Number(seconds);
+    const minutesValue = Number(minutes);
+    const hasSeconds = seconds != null && Number.isFinite(secondsValue) && secondsValue > 0;
+    const hasMinutes = minutes != null && Number.isFinite(minutesValue) && minutesValue > 0;
     if (!hasSeconds && !hasMinutes) return '-';
+
+    // Use durationSeconds as the primary source for accuracy.
+    // When durationSeconds matches the booked minutes exactly, show a clean label.
     const totalSeconds = hasSeconds
-      ? Math.max(0, Math.round(Number(seconds)))
-      : Math.max(0, Math.round(Number(minutes) * 60));
+      ? Math.max(0, Math.round(secondsValue))
+      : Math.max(0, Math.round(minutesValue * 60));
+
+    if (hasMinutes && totalSeconds === Math.round(minutesValue) * 60) {
+      // Exact match — show clean minutes (e.g. "1 min 00 sec")
+      const mins = Math.round(minutesValue);
+      return `${mins} min 00 sec`;
+    }
+
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins} min ${secs} sec`;
@@ -171,15 +184,7 @@ export default function Billing() {
     return rateType ? `${amount} / ${rateType}` : amount;
   };
 
-  const formatDateTime = (value) => {
-    if (!value) return '-';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return String(value);
-    return DATE_TIME_FORMATTER
-      .format(parsed)
-      .replace(' am', ' AM')
-      .replace(' pm', ' PM');
-  };
+  const formatDateTime = (value) => formatInstantDateTime(value, '-');
 
   const getFileNameFromContentDisposition = (headerValue, fallbackName) => {
     if (!headerValue) return fallbackName;
@@ -271,11 +276,33 @@ export default function Billing() {
   const hasUnpaid = unpaidBills.length > 0;
   const hasInvalidRange = statementFrom && statementTo && new Date(statementFrom) > new Date(statementTo);
   const sessionBill = sessionIdFromNav != null
-    ? bills.find((bill) => bill.sessionId === sessionIdFromNav)
+    ? bills.find((bill) => Number(bill.sessionId) === Number(sessionIdFromNav))
     : null;
   const focusedBill = hasUnpaid
     ? (sessionBill && !isPaid(sessionBill.paymentStatus) ? sessionBill : unpaidBills[0])
     : null;
+  const awaitingSessionBill = sessionIdFromNav != null && !sessionBill && finalizingInvoice;
+
+  useEffect(() => {
+    if (sessionIdFromNav == null || sessionBill) {
+      setFinalizingInvoice(false);
+      return undefined;
+    }
+
+    setFinalizingInvoice(true);
+    const pollInterval = setInterval(() => {
+      fetchBills(false);
+    }, BILLING_FINALIZE_REFRESH_INTERVAL_MS);
+    const timeout = setTimeout(() => {
+      setFinalizingInvoice(false);
+      clearInterval(pollInterval);
+    }, 12000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(timeout);
+    };
+  }, [sessionIdFromNav, sessionBill, page]);
 
   return (
     <motion.main
@@ -398,6 +425,14 @@ export default function Billing() {
           <div className="empty-state">
             <div className="empty-state__icon"><IconGlyph glyph={'\u23F3'} className="mono-icon mono-icon--lg" /></div>
             <h2 className="empty-state__title">Loading...</h2>
+          </div>
+        ) : awaitingSessionBill ? (
+          <div className="empty-state">
+            <div className="empty-state__icon"><IconGlyph glyph={'\u23F3'} className="mono-icon mono-icon--lg" /></div>
+            <h2 className="empty-state__title">Finalizing invoice...</h2>
+            <p className="empty-state__text">
+              Your session has ended. Preparing the billing details now.
+            </p>
           </div>
         ) : bills.length === 0 ? (
           <div className="empty-state">

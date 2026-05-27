@@ -322,6 +322,12 @@
   width: min(420px, calc(100vw - 32px));
 }
 
+.profile__back {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .profile__header {
   display: flex;
   align-items: flex-start;

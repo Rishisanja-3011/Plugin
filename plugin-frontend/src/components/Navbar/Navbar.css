@@ -277,6 +277,7 @@
     opacity: 0;
     transform: translate(-50%, -46%) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
@@ -378,22 +379,52 @@
     align-items: center;
   }
 
-  .navbar__links--open .navbar__link:nth-child(1) { animation-delay: 0.05s; }
-  .navbar__links--open .navbar__link:nth-child(2) { animation-delay: 0.08s; }
-  .navbar__links--open .navbar__link:nth-child(3) { animation-delay: 0.11s; }
-  .navbar__links--open .navbar__link:nth-child(4) { animation-delay: 0.14s; }
-  .navbar__links--open .navbar__link:nth-child(5) { animation-delay: 0.17s; }
-  .navbar__links--open .navbar__link:nth-child(6) { animation-delay: 0.2s; }
-  .navbar__links--open .navbar__link:nth-child(7) { animation-delay: 0.23s; }
-  .navbar__links--open .navbar__link:nth-child(8) { animation-delay: 0.26s; }
-  .navbar__links--open .navbar__link:nth-child(9) { animation-delay: 0.29s; }
-  .navbar__links--open .navbar__link:nth-child(10) { animation-delay: 0.32s; }
+  .navbar__links--open .navbar__link:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(2) {
+    animation-delay: 0.08s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(3) {
+    animation-delay: 0.11s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(4) {
+    animation-delay: 0.14s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(5) {
+    animation-delay: 0.17s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(6) {
+    animation-delay: 0.2s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(7) {
+    animation-delay: 0.23s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(8) {
+    animation-delay: 0.26s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(9) {
+    animation-delay: 0.29s;
+  }
+
+  .navbar__links--open .navbar__link:nth-child(10) {
+    animation-delay: 0.32s;
+  }
 
   @keyframes navbarLinkSlideIn {
     from {
       opacity: 0;
       transform: translateX(24px);
     }
+
     to {
       opacity: 1;
       transform: translateX(0);

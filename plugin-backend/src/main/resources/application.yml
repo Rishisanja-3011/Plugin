@@ -14,7 +14,7 @@ spring:
     host: "${MAIL_HOST:smtp.gmail.com}"
     port: "${MAIL_PORT:587}"
     username: "${MAIL_USERNAME:plugin.available@gmail.com}"
-    password: "${ohfvjfltmpdodbxv}"
+    password: "${MAIL_PASSWORD:ohfvjfltmpdodbxv}"
     properties:
       mail:
         smtp:
@@ -48,8 +48,8 @@ app:
     expiry-initial-delay-ms: "${BOOKING_EXPIRY_INITIAL_DELAY_MS:15000}"
     expiry-check-ms: "${BOOKING_EXPIRY_CHECK_MS:30000}"
   sessions:
-    auto-complete-initial-delay-ms: "${SESSION_AUTO_COMPLETE_INITIAL_DELAY_MS:15000}"
-    auto-complete-check-ms: "${SESSION_AUTO_COMPLETE_CHECK_MS:10000}"
+    auto-complete-initial-delay-ms: "${SESSION_AUTO_COMPLETE_INITIAL_DELAY_MS:1000}"
+    auto-complete-check-ms: "${SESSION_AUTO_COMPLETE_CHECK_MS:1000}"
   jwt:
     secret: "${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}"
     expiration-ms: 86400000

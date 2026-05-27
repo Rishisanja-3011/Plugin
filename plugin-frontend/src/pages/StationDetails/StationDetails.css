@@ -29,12 +29,10 @@
   margin: 0 calc(-1 * var(--space-lg));
   margin-bottom: var(--space-2xl);
   border-radius: var(--radius-xl);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-accent-rgb), 0.06) 0%,
-    rgba(var(--color-primary-rgb), 0.03) 50%,
-    rgba(var(--color-accent-rgb), 0.04) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(var(--color-accent-rgb), 0.06) 0%,
+      rgba(var(--color-primary-rgb), 0.03) 50%,
+      rgba(var(--color-accent-rgb), 0.04) 100%);
   border: 1px solid rgba(var(--color-accent-rgb), 0.12);
   overflow: hidden;
 }
@@ -46,12 +44,10 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(var(--color-accent-rgb), 0.3),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(var(--color-accent-rgb), 0.3),
+      transparent);
   opacity: 0.6;
 }
 
@@ -88,8 +84,15 @@
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .station-details__hero-title {
@@ -457,7 +460,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .station-details__loading-text {
@@ -473,12 +478,10 @@
 
 .skeleton-line {
   height: 12px;
-  background: linear-gradient(
-    90deg,
-    var(--color-border-light) 25%,
-    var(--color-border) 50%,
-    var(--color-border-light) 75%
-  );
+  background: linear-gradient(90deg,
+      var(--color-border-light) 25%,
+      var(--color-border) 50%,
+      var(--color-border-light) 75%);
   background-size: 200% 100%;
   border-radius: var(--radius-sm);
   animation: shimmer 1.5s infinite;
@@ -496,8 +499,13 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Responsive */

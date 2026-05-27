@@ -6,6 +6,7 @@ import { bookingsApi, sessionsApi } from '../../../api/bookings';
 import { billsApi } from '../../../api/bookings';
 import { useToast } from '../../../components/Toast/Toast';
 import { SkeletonCard } from '../../../components/SkeletonLoader/SkeletonLoader';
+import { formatScheduleDateTime } from '../../../utils/dateTime';
 import './Dashboard.css';
 
 const CalendarIcon = ({ className = 'dashboard__icon-svg' }) => (
@@ -312,7 +313,7 @@ export default function Dashboard() {
                   </div>
                   <span className="dashboard__booking-meta">
                     {booking.startTime
-                      ? new Date(booking.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                      ? formatScheduleDateTime(booking.startTime, dash)
                       : booking.bookingDate ?? dash}
                     {' '}{bullet}{' '}
                     {booking.chargingPointIdentifier ?? booking.chargingPointName ?? dash}

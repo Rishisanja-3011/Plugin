@@ -24,7 +24,11 @@ public class SessionResponse {
     private String vehicleRegistration;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private LocalDateTime scheduledStartTime;
+    private LocalDateTime scheduledEndTime;
     private Long elapsedSeconds;
+    private Long remainingSeconds;
+    private Long scheduledDurationSeconds;
     private BigDecimal energyDeliveredKwh;
     private BigDecimal estimateRate;
     private String estimateRateType;

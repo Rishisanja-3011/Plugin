@@ -28,7 +28,9 @@
   overflow: hidden;
 }
 
-.login__panel--brand::before { content: none; }
+.login__panel--brand::before {
+  content: none;
+}
 
 .login__video {
   width: 100%;
@@ -50,16 +52,63 @@
   animation: login-float 8s ease-in-out infinite;
 }
 
-.login__dot--1 { width: 12px; height: 12px; top: 18%; left: 22%; animation-delay: 0s; }
-.login__dot--2 { width: 8px; height: 8px; top: 45%; right: 18%; animation-delay: 1.5s; }
-.login__dot--3 { width: 16px; height: 16px; bottom: 25%; left: 15%; animation-delay: 3s; }
-.login__dot--4 { width: 6px; height: 6px; top: 70%; right: 28%; animation-delay: 0.8s; }
-.login__dot--5 { width: 10px; height: 10px; bottom: 40%; right: 35%; animation-delay: 2.2s; }
+.login__dot--1 {
+  width: 12px;
+  height: 12px;
+  top: 18%;
+  left: 22%;
+  animation-delay: 0s;
+}
+
+.login__dot--2 {
+  width: 8px;
+  height: 8px;
+  top: 45%;
+  right: 18%;
+  animation-delay: 1.5s;
+}
+
+.login__dot--3 {
+  width: 16px;
+  height: 16px;
+  bottom: 25%;
+  left: 15%;
+  animation-delay: 3s;
+}
+
+.login__dot--4 {
+  width: 6px;
+  height: 6px;
+  top: 70%;
+  right: 28%;
+  animation-delay: 0.8s;
+}
+
+.login__dot--5 {
+  width: 10px;
+  height: 10px;
+  bottom: 40%;
+  right: 35%;
+  animation-delay: 2.2s;
+}
 
 @keyframes login-float {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-  33% { transform: translate(8px, -12px) scale(1.1); opacity: 1; }
-  66% { transform: translate(-6px, 8px) scale(0.95); opacity: 0.8; }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+
+  33% {
+    transform: translate(8px, -12px) scale(1.1);
+    opacity: 1;
+  }
+
+  66% {
+    transform: translate(-6px, 8px) scale(0.95);
+    opacity: 0.8;
+  }
 }
 
 .login__brand {
@@ -135,9 +184,26 @@
 }
 
 @keyframes login-shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
-  20%, 40%, 60%, 80% { transform: translateX(6px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-6px);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(6px);
+  }
 }
 
 .login__field {
@@ -281,7 +347,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
   opacity: 0;
   transition: opacity var(--transition-fast);
 }
@@ -322,7 +388,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .login__forgot {

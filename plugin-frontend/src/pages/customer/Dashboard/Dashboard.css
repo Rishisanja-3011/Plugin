@@ -48,8 +48,17 @@
 }
 
 @keyframes dashboard-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.2); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
 }
 
 .dashboard__stat-card {
@@ -218,6 +227,7 @@
   margin: 0 auto;
   color: var(--color-accent);
 }
+
 .dashboard__action-label {
   font-weight: 600;
   color: var(--color-text-primary);

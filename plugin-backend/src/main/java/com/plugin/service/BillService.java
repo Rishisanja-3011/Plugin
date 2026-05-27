@@ -155,12 +155,14 @@ public class BillService {
         ChargingSession session = b.getSession();
         User customer = b.getCustomer();
         Station station = b.getStation();
-        Long durationSeconds = null;
-        if (session != null && session.getStartTime() != null && session.getEndTime() != null) {
+        Long durationSeconds = b.getDurationSeconds();
+        if (durationSeconds != null && durationSeconds > 0) {
+            durationSeconds = Math.max(0, durationSeconds);
+        } else if (b.getDurationMinutes() != null && b.getDurationMinutes() > 0) {
+            durationSeconds = Math.max(0, b.getDurationMinutes() * 60L);
+        } else if (session != null && session.getStartTime() != null && session.getEndTime() != null) {
             long seconds = Duration.between(session.getStartTime(), session.getEndTime()).getSeconds();
             durationSeconds = Math.max(0, seconds);
-        } else if (b.getDurationMinutes() != null) {
-            durationSeconds = Math.max(0, b.getDurationMinutes() * 60L);
         }
         return BillResponse.builder()
                 .id(b.getId())
@@ -228,13 +230,15 @@ public class BillService {
 
     private String formatDuration(Bill bill) {
         long seconds = 0;
-        if (bill.getSession() != null && bill.getSession().getStartTime() != null && bill.getSession().getEndTime() != null) {
+        if (bill.getDurationSeconds() != null && bill.getDurationSeconds() > 0) {
+            seconds = Math.max(0, bill.getDurationSeconds());
+        } else if (bill.getDurationMinutes() != null && bill.getDurationMinutes() > 0) {
+            seconds = Math.max(0, bill.getDurationMinutes() * 60);
+        } else if (bill.getSession() != null && bill.getSession().getStartTime() != null && bill.getSession().getEndTime() != null) {
             seconds = Math.max(0, Duration.between(
                     bill.getSession().getStartTime(),
                     bill.getSession().getEndTime()
             ).getSeconds());
-        } else if (bill.getDurationMinutes() != null) {
-            seconds = Math.max(0, bill.getDurationMinutes() * 60);
         }
         long mins = seconds / 60;
         long rem = seconds % 60;

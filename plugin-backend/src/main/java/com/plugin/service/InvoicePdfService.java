@@ -466,15 +466,18 @@ public class InvoicePdfService {
 
     private long resolveDurationSeconds(Bill bill) {
         if (bill == null) return 0;
+        if (bill.getDurationSeconds() != null && bill.getDurationSeconds() > 0) {
+            return Math.max(0, bill.getDurationSeconds());
+        }
+        if (bill.getDurationMinutes() != null && bill.getDurationMinutes() > 0) {
+            return Math.max(0, bill.getDurationMinutes() * 60);
+        }
         if (bill.getSession() != null && bill.getSession().getStartTime() != null && bill.getSession().getEndTime() != null) {
             long seconds = java.time.Duration.between(
                     bill.getSession().getStartTime(),
                     bill.getSession().getEndTime()
             ).getSeconds();
             return Math.max(0, seconds);
-        }
-        if (bill.getDurationMinutes() != null) {
-            return Math.max(0, bill.getDurationMinutes() * 60);
         }
         return 0;
     }
