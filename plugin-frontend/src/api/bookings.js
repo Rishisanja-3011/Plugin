@@ -26,10 +26,6 @@ export const billsApi = {
   getMyUnpaidCount: () => api.get('/bills/my/unpaid-count'),
   downloadInvoice: (id) => api.get(`/bills/my/${id}/invoice?t=${Date.now()}`, {
     responseType: 'blob',
-    headers: {
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-    },
   }),
   downloadStatement: ({ from, to } = {}) => {
     const query = new URLSearchParams();
@@ -38,10 +34,6 @@ export const billsApi = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return api.get(`/bills/my/statement${suffix}`, {
       responseType: 'blob',
-      headers: {
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
     });
   },
 };

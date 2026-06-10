@@ -113,13 +113,23 @@ public class SecurityConfig {
                 "http://54.144.208.197",
                 "http://plugin-v1.s3-website-us-east-1.amazonaws.com",
                 "https://plugin-v1.s3-website-us-east-1.amazonaws.com",
+                "http://plugin-frontend-v1.s3-website.ap-south-1.amazonaws.com",
+                "https://plugin-frontend-v1.s3-website.ap-south-1.amazonaws.com",
                 "http://*.s3-website-us-east-1.amazonaws.com",
                 "http://*.s3-website.*.amazonaws.com",
                 "https://plugin-ashen.vercel.app",
                 "https://*.vercel.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Cache-Control",
+                "Pragma"
+        ));
         config.setExposedHeaders(List.of("Content-Disposition", "X-Statement-Count"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
