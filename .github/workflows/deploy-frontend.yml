@@ -7,6 +7,8 @@ on:
 jobs:
   deploy-frontend:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
 
     defaults:
       run:
@@ -22,10 +24,20 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build frontend
-        run: npm run build
+        env:
+          SECRET_VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          SECRET_VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        run: |
+          if [ -n "$SECRET_VITE_API_BASE_URL" ]; then
+            export VITE_API_BASE_URL="$SECRET_VITE_API_BASE_URL"
+          fi
+          if [ -n "$SECRET_VITE_GOOGLE_CLIENT_ID" ]; then
+            export VITE_GOOGLE_CLIENT_ID="$SECRET_VITE_GOOGLE_CLIENT_ID"
+          fi
+          npm run build
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -36,3 +48,7 @@ jobs:
 
       - name: Deploy to S3
         run: aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }} --delete
+
+      - name: Invalidate CloudFront cache
+        if: env.CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
