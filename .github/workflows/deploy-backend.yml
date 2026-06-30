@@ -97,9 +97,14 @@ jobs:
           echo "EC2_SSH_HOST=$EC2_SSH_HOST" >> "$GITHUB_ENV"
           ssh-keyscan -T 20 -H "$EC2_SSH_HOST" >> ~/.ssh/known_hosts || true
 
+      - name: Prepare EC2 app directory
+        run: |
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
+            "sudo mkdir -p '$EC2_APP_DIR' && sudo chown -R '$EC2_USER:$EC2_USER' '$EC2_APP_DIR'"
+
       - name: Upload JAR to EC2
         run: |
-          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no target/*.jar "$EC2_USER@$EC2_SSH_HOST:$EC2_APP_DIR/plugin.jar"
+          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 target/*.jar "$EC2_USER@$EC2_SSH_HOST:$EC2_APP_DIR/plugin.jar"
 
       - name: Upload backend runtime environment to EC2
         run: |
@@ -126,8 +131,8 @@ jobs:
             printf 'RAZORPAY_BUSINESS_NAME=%s\n' "$RAZORPAY_BUSINESS_NAME"
             printf 'RAZORPAY_MINIMUM_AMOUNT=%s\n' "$RAZORPAY_MINIMUM_AMOUNT"
           } > plugin-backend.env
-          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no plugin-backend.env "$EC2_USER@$EC2_SSH_HOST:/tmp/plugin-backend.env"
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
+          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 plugin-backend.env "$EC2_USER@$EC2_SSH_HOST:/tmp/plugin-backend.env"
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
             sudo mkdir -p /etc/plugin
             sudo mv /tmp/plugin-backend.env /etc/plugin/plugin-backend.env
             sudo chown root:root /etc/plugin/plugin-backend.env
@@ -139,7 +144,7 @@ jobs:
 
       - name: Restart Spring Boot Service
         run: |
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
             sudo systemctl restart plugin-backend
             sudo systemctl status plugin-backend --no-pager
           EOF
