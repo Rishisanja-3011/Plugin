@@ -5,6 +5,7 @@ dist/
 # Java
 target/
 plugin-backend/application-local.yml
+plugin-backend/.env
 
 # Logs
 *.log
