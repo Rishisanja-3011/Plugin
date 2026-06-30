@@ -8,7 +8,12 @@ jobs:
   deploy-frontend:
     runs-on: ubuntu-latest
     env:
-      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api' }}
+      VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID || '380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
     defaults:
       run:
@@ -17,6 +22,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate frontend deployment secrets
+        run: |
+          missing=0
+          for name in VITE_API_BASE_URL VITE_GOOGLE_CLIENT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set in GitHub repository secrets"
+              missing=1
+            fi
+          done
+          exit $missing
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,28 +43,14 @@ jobs:
         run: npm ci
 
       - name: Build frontend
-        env:
-          SECRET_VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          SECRET_VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-        run: |
-          if [ -n "$SECRET_VITE_API_BASE_URL" ]; then
-            export VITE_API_BASE_URL="$SECRET_VITE_API_BASE_URL"
-          fi
-          if [ -n "$SECRET_VITE_GOOGLE_CLIENT_ID" ]; then
-            export VITE_GOOGLE_CLIENT_ID="$SECRET_VITE_GOOGLE_CLIENT_ID"
-          fi
-          npm run build
+        run: npm run build
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy to S3
-        run: aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }} --delete
-
-      - name: Invalidate CloudFront cache
-        if: env.CLOUDFRONT_DISTRIBUTION_ID != ''
-        run: aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
+        run: aws s3 sync dist/ "s3://$S3_BUCKET_NAME" --delete

@@ -223,12 +223,32 @@ export default function StationDetails() {
           </div>
           {coordinates && (
             <div className="station-details__info-card">
-              <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F310}'} className="mono-icon mono-icon--md" /></div>
+              <div className="station-details__info-icon"><IconGlyph glyph={'\u{1F4CD}'} className="mono-icon mono-icon--md" /></div>
               <h3 className="station-details__info-label">Coordinates</h3>
               <p className="station-details__info-value station-details__info-value--mono">{coordinates}</p>
             </div>
           )}
         </motion.div>
+
+        {(address !== '-' || coordinates) && (
+          <motion.section className="station-details__section" variants={itemVariants}>
+            <h2 className="station-details__section-title">Location</h2>
+            <div className="station-details__location-card">
+              <div>
+                <h3 className="station-details__location-label">Station Address</h3>
+                <p className="station-details__location-value">{address}</p>
+              </div>
+              {coordinates && (
+                <div>
+                  <h3 className="station-details__location-label">Coordinates</h3>
+                  <p className="station-details__location-value station-details__location-value--mono">
+                    {coordinates}
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.section>
+        )}
 
         <motion.section className="station-details__section" variants={itemVariants}>
           <h2 className="station-details__section-title">Charging Points</h2>
