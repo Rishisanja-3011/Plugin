@@ -1,5 +1,32 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
     "java.configuration.updateBuildConfiguration": "automatic",
-    "java.import.maven.enabled": true
+    "java.import.maven.enabled": true,
+    "java.import.gradle.enabled": false,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.expo/**",
+        "**/.gradle/**",
+        "**/.gradle-user-home/**",
+        "**/android/build/**",
+        "**/android/app/build/**",
+        "**/android/app/.cxx/**"
+    ],
+    "java.project.resourceFilters": [
+        "node_modules",
+        ".expo",
+        ".gradle",
+        ".gradle-user-home",
+        "build",
+        ".cxx"
+    ],
+    "files.watcherExclude": {
+        "**/plugin_app/node_modules/**": true,
+        "**/plugin_app/.expo/**": true,
+        "**/plugin_app/android/.gradle/**": true,
+        "**/plugin_app/android/.gradle-user-home/**": true,
+        "**/plugin_app/android/build/**": true,
+        "**/plugin_app/android/app/build/**": true,
+        "**/plugin_app/android/app/.cxx/**": true
+    }
 }
