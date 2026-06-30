@@ -12,7 +12,7 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
-      SERVER_PORT: ${{ secrets.SERVER_PORT || '8091' }}
+      SERVER_PORT: ${{ secrets.SERVER_PORT || '8081' }}
       SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS || '0.0.0.0' }}
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE || 'plugindb' }}
@@ -23,6 +23,7 @@ jobs:
       MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
       MAIL_FROM: ${{ secrets.MAIL_FROM || 'plugin.available@gmail.com' }}
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      PUBLIC_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api' }}
       DEFAULT_RATE_PER_KWH: ${{ secrets.DEFAULT_RATE_PER_KWH || '15' }}
       CHARGING_EFFICIENCY_FACTOR: ${{ secrets.CHARGING_EFFICIENCY_FACTOR || '0.92' }}
       SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL || 'plugin.onservice@gmail.com' }}
@@ -72,24 +73,36 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          EC2_SSH_HOST="${EC2_HOST#http://}"
-          EC2_SSH_HOST="${EC2_SSH_HOST#https://}"
-          EC2_SSH_HOST="${EC2_SSH_HOST%%/*}"
-          if [ -z "$EC2_SSH_HOST" ]; then
+          EC2_SSH_HOSTS=""
+          for raw_host in $(printf '%s' "$EC2_HOST" | tr ',' ' '); do
+            host="${raw_host#http://}"
+            host="${host#https://}"
+            host="${host%%/*}"
+            if [ -n "$host" ]; then
+              EC2_SSH_HOSTS="$EC2_SSH_HOSTS $host"
+            fi
+          done
+          if [ -z "$EC2_SSH_HOSTS" ]; then
             echo "::error::EC2_HOST is empty or invalid"
             exit 1
           fi
-          echo "EC2_SSH_HOST=$EC2_SSH_HOST" >> "$GITHUB_ENV"
-          ssh-keyscan -T 20 -H "$EC2_SSH_HOST" >> ~/.ssh/known_hosts || true
+          echo "EC2_SSH_HOSTS=$EC2_SSH_HOSTS" >> "$GITHUB_ENV"
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            ssh-keyscan -T 20 -H "$EC2_SSH_HOST" >> ~/.ssh/known_hosts || true
+          done
 
       - name: Prepare EC2 app directory
         run: |
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-            "sudo mkdir -p '$EC2_APP_DIR' && sudo chown -R '$EC2_USER:$EC2_USER' '$EC2_APP_DIR'"
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
+              "sudo mkdir -p '$EC2_APP_DIR' && sudo chown -R '$EC2_USER:$EC2_USER' '$EC2_APP_DIR'"
+          done
 
       - name: Upload JAR to EC2
         run: |
-          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 target/*.jar "$EC2_USER@$EC2_SSH_HOST:$EC2_APP_DIR/plugin.jar"
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 target/*.jar "$EC2_USER@$EC2_SSH_HOST:$EC2_APP_DIR/plugin.jar"
+          done
 
       - name: Upload backend runtime environment to EC2
         run: |
@@ -116,19 +129,22 @@ jobs:
             printf 'RAZORPAY_BUSINESS_NAME=%s\n' "$RAZORPAY_BUSINESS_NAME"
             printf 'RAZORPAY_MINIMUM_AMOUNT=%s\n' "$RAZORPAY_MINIMUM_AMOUNT"
           } > plugin-backend.env
-          scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 plugin-backend.env "$EC2_USER@$EC2_SSH_HOST:/tmp/plugin-backend.env"
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
-            sudo mkdir -p /etc/plugin
-            sudo mv /tmp/plugin-backend.env /etc/plugin/plugin-backend.env
-            sudo chown root:root /etc/plugin/plugin-backend.env
-            sudo chmod 600 /etc/plugin/plugin-backend.env
-            sudo systemctl daemon-reload
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 plugin-backend.env "$EC2_USER@$EC2_SSH_HOST:/tmp/plugin-backend.env"
+            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
+              sudo mkdir -p /etc/plugin
+              sudo mv /tmp/plugin-backend.env /etc/plugin/plugin-backend.env
+              sudo chown root:root /etc/plugin/plugin-backend.env
+              sudo chmod 600 /etc/plugin/plugin-backend.env
+              sudo systemctl daemon-reload
           EOF
+          done
 
       - name: Install Spring Boot systemd service
         run: |
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-            "sudo tee /etc/systemd/system/plugin-backend.service > /dev/null" << EOF
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
+              "sudo tee /etc/systemd/system/plugin-backend.service > /dev/null" << EOF
           [Unit]
           Description=Plugin Backend Spring Boot App
           After=network.target
@@ -145,12 +161,35 @@ jobs:
           [Install]
           WantedBy=multi-user.target
           EOF
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-            "sudo systemctl daemon-reload && sudo systemctl enable plugin-backend"
+            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
+              "sudo systemctl daemon-reload && sudo systemctl enable plugin-backend"
+          done
 
       - name: Restart Spring Boot Service
         run: |
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
-            sudo systemctl restart plugin-backend
-            sudo systemctl status plugin-backend --no-pager
+          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
+            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" "SERVER_PORT='$SERVER_PORT' bash -s" << 'EOF'
+              sudo systemctl stop plugin-backend || true
+              pids=$(sudo ss -ltnp "sport = :$SERVER_PORT" | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)
+              if [ -n "$pids" ]; then
+                sudo kill $pids || true
+                sleep 2
+              fi
+              sudo systemctl restart plugin-backend
+              sudo systemctl status plugin-backend --no-pager
           EOF
+          done
+
+      - name: Verify public Google auth route
+        run: |
+          response_file="$(mktemp)"
+          status=$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -X POST "$PUBLIC_API_BASE_URL/auth/google" \
+            -H "Content-Type: application/json" \
+            --data '{"accessToken":"invalid-deploy-smoke-token"}' || true)
+          body="$(cat "$response_file")"
+          echo "Google auth smoke status: $status"
+          if printf '%s' "$body" | grep -q "No static resource"; then
+            echo "::error::Public backend is still serving an old app without /api/auth/google"
+            exit 1
+          fi
