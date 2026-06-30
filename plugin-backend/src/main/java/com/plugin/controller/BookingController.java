@@ -1,6 +1,7 @@
 package com.plugin.controller;
 
 import com.plugin.dto.request.BookingCancelRequest;
+import com.plugin.dto.request.BookingLocationPingRequest;
 import com.plugin.dto.request.BookingRequest;
 import com.plugin.dto.request.BookingRescheduleRequest;
 import com.plugin.dto.response.BookingResponse;
@@ -13,9 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDate;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -48,6 +46,14 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.cancelBooking(id, auth.getName(), request.getReason()));
     }
 
+    @PostMapping("/{id}/location")
+    public ResponseEntity<BookingResponse> updateBookingLocation(
+            @PathVariable Long id,
+            @Valid @RequestBody BookingLocationPingRequest request,
+            Authentication auth) {
+        return ResponseEntity.ok(bookingService.updateBookingLocation(id, request, auth.getName()));
+    }
+
     @PostMapping("/{id}/reschedule-request")
     public ResponseEntity<BookingResponse> requestReschedule(
             @PathVariable Long id,
@@ -70,12 +76,4 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getBookingById(id));
     }
 
-    @GetMapping("/available-slots")
-    public ResponseEntity<List<String>> getAvailableSlots(
-            @RequestParam Long stationId,
-            @RequestParam Long pointId,
-            @RequestParam String date) {
-        return ResponseEntity.ok(bookingService.getAvailableSlots(
-                stationId, pointId, LocalDate.parse(date)));
-    }
 }

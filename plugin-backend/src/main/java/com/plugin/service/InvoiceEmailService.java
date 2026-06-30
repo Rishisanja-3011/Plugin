@@ -27,6 +27,7 @@ public class InvoiceEmailService {
 
     private final InvoicePdfService invoicePdfService;
     private final BillRepository billRepository;
+    private final EntityReferenceResolver referenceResolver;
 
     @Autowired(required = false)
     private JavaMailSender mailSender;
@@ -57,6 +58,8 @@ public class InvoiceEmailService {
             log.warn("Bill {} not found; skipping invoice email", billId);
             return;
         }
+        Bill loadedBill = bill;
+        bill = referenceResolver.withCache(() -> referenceResolver.hydrate(loadedBill));
         if (mailSender == null) {
             log.warn("JavaMailSender not configured; skipping invoice email");
             return;

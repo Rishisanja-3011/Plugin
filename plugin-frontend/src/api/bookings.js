@@ -7,8 +7,6 @@ export const bookingsApi = {
   requestReschedule: (id, data) => api.post(`/bookings/${id}/reschedule-request`, data),
   getMy: (page = 0, size = 10) => api.get(`/bookings/my?page=${page}&size=${size}`),
   getById: (id) => api.get(`/bookings/${id}`),
-  getAvailableSlots: (stationId, pointId, date) =>
-    api.get(`/bookings/available-slots?stationId=${stationId}&pointId=${pointId}&date=${date}`),
 };
 
 export const sessionsApi = {
@@ -22,7 +20,7 @@ export const sessionsApi = {
 export const billsApi = {
   getMy: (page = 0, size = 10) => api.get(`/bills/my?page=${page}&size=${size}`),
   getById: (id) => api.get(`/bills/${id}`),
-  pay: (id) => api.post(`/bills/${id}/pay`),
+  payFromWallet: (id) => api.post(`/bills/my/${id}/wallet-pay`),
   getMyUnpaidCount: () => api.get('/bills/my/unpaid-count'),
   downloadInvoice: (id) => api.get(`/bills/my/${id}/invoice?t=${Date.now()}`, {
     responseType: 'blob',

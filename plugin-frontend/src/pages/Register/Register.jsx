@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { authApi } from '../../api/auth';
 import { useToast } from '../../components/Toast/Toast';
+import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
 import { motion } from 'framer-motion';
 import './Register.css';
 
@@ -22,7 +23,7 @@ export default function Register() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -61,6 +62,25 @@ export default function Register() {
         ? 'Unable to reach server. Please try again in a few seconds.'
         : raw;
       toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) {
+      toast.error('Google sign-up failed');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await googleLogin(credential);
+      toast.success('Account ready. Welcome to PLUGIN.');
+      const role = data.role || data.user?.role;
+      navigate(role === 'ADMIN' || role === 'STATION_OPERATOR' ? '/admin/dashboard' : '/customer/dashboard', { replace: true });
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Google sign-up failed');
     } finally {
       setLoading(false);
     }
@@ -141,6 +161,7 @@ export default function Register() {
             <p className="register__form-subtitle">Get started with your EV charging journey.</p>
 
             {step === 1 && (
+              <>
               <motion.form
                 className={`register__form ${hasErrors ? 'register__form--shake' : ''}`}
                 onSubmit={handleSubmit}
@@ -268,11 +289,15 @@ export default function Register() {
                 )}
               </button>
 
+              <div className="register__divider"><span>or continue with</span></div>
+              <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
+
               <p className="register__footer">
                 Already have an account?{' '}
                 <Link to="/login" className="register__link">Sign In</Link>
               </p>
               </motion.form>
+              </>
             )}
 
             {step === 2 && (

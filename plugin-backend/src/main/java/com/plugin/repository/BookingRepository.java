@@ -42,6 +42,6 @@ public interface BookingRepository extends MongoRepository<Booking, String>, Boo
     @Query("{ 'status': { $in: ?0 }, 'startTime': { $gte: ?1, $lte: ?2 }, '$or': [ { 'startNotificationSent': false }, { 'startNotificationSent': null }, { 'startNotificationSent': { $exists: false } } ] }")
     List<Booking> findDueStartNotifications(List<BookingStatus> statuses, LocalDateTime from, LocalDateTime to);
 
-    @Query("{ 'status': { $in: ?0 }, 'endTime': { $lte: ?1 } }")
+    @Query("{ 'status': { $in: ?0 }, '$or': [ { 'gracePeriodEndTime': { $lte: ?1 } }, { '$and': [ { '$or': [ { 'gracePeriodEndTime': null }, { 'gracePeriodEndTime': { $exists: false } } ] }, { 'endTime': { $lte: ?1 } } ] } ] }")
     List<Booking> findExpiredStartableBookings(List<BookingStatus> statuses, LocalDateTime now);
 }

@@ -40,9 +40,11 @@ public class BillController {
         return ResponseEntity.ok(billService.getBillById(id));
     }
 
-    @PostMapping("/{id}/pay")
-    public ResponseEntity<BillResponse> markAsPaid(@PathVariable Long id) {
-        return ResponseEntity.ok(billService.markAsPaid(id));
+    @PostMapping("/my/{id}/wallet-pay")
+    public ResponseEntity<BillResponse> payMyBillFromWallet(
+            @PathVariable Long id,
+            Authentication auth) {
+        return ResponseEntity.ok(billService.payMyBillFromWallet(auth.getName(), id));
     }
 
     @GetMapping("/my/{id}/invoice")

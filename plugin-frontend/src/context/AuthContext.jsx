@@ -117,6 +117,11 @@ export function AuthProvider({ children }) {
     return applyAuthSession(res.data);
   };
 
+  const googleLogin = async (idToken) => {
+    const res = await authApi.google(idToken);
+    return applyAuthSession(res.data);
+  };
+
   const refreshStationManagerAccess = async () => {
     const res = await stationManagerApi.refreshSession();
     return applyAuthSession(res.data, { refreshProfile: false });
@@ -140,6 +145,7 @@ export function AuthProvider({ children }) {
       value={{
         user,
         login,
+        googleLogin,
         register,
         logout,
         loading,

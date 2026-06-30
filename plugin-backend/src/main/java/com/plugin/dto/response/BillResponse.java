@@ -20,6 +20,8 @@ public class BillResponse {
     private BigDecimal rateApplied;
     private String rateType;
     private BigDecimal totalAmount;
+    private BigDecimal walletDebitedAmount;
+    private BigDecimal walletAmountDue;
     private String paymentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime paidAt;

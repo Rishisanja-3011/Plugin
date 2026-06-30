@@ -1,5 +1,6 @@
 package com.plugin.service;
 
+import com.plugin.config.AppClock;
 import com.plugin.dto.response.BillResponse;
 import com.plugin.entity.Bill;
 import com.plugin.entity.ChargingSession;
@@ -9,6 +10,7 @@ import com.plugin.enums.PaymentStatus;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.BillRepository;
+import com.plugin.repository.ChargingSessionRepository;
 import com.plugin.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,10 +34,12 @@ import java.util.List;
 public class BillService {
 
     private final BillRepository billRepository;
+    private final ChargingSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final InvoicePdfService invoicePdfService;
     private final InvoiceEmailService invoiceEmailService;
     private final EntityReferenceResolver referenceResolver;
+    private final WalletService walletService;
 
     public record InvoiceFile(byte[] data, String filename) {}
     public record StatementFile(byte[] data, String filename, int rowCount) {}
@@ -119,23 +124,36 @@ public class BillService {
         if (bill.getPaymentStatus() == PaymentStatus.PAID) {
             throw new BadRequestException("Bill is already paid");
         }
-        bill.setPaymentStatus(PaymentStatus.PAID);
-        bill.setPaidAt(LocalDateTime.now());
-        bill = billRepository.save(bill);
+        return toResponse(completePayment(bill));
+    }
 
-        final Long billId = bill.getId();
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    invoiceEmailService.sendPaidInvoice(billId);
-                }
-            });
-        } else {
-            invoiceEmailService.sendPaidInvoice(billId);
+    @Transactional
+    public BillResponse payMyBillFromWallet(String email, Long id) {
+        User customer = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Bill bill = billRepository.findByIdAndCustomerId(id, customer.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
+        bill = referenceResolver.hydrate(bill);
+        if (bill.getPaymentStatus() == PaymentStatus.PAID) {
+            return toResponse(bill);
         }
 
-        return toResponse(bill);
+        BigDecimal amountDue = resolveWalletAmountDue(bill);
+        if (amountDue.compareTo(BigDecimal.ZERO) <= 0) {
+            return toResponse(completePayment(bill));
+        }
+
+        WalletService.WalletSettlementResult settlement = walletService.settleBill(
+                customer,
+                bill.getId(),
+                amountDue,
+                bill.getInvoiceNumber()
+        );
+        if (!settlement.paid()) {
+            throw new BadRequestException(settlement.reason());
+        }
+        applyWalletSettlementToSession(bill, settlement);
+        return toResponse(completePayment(bill));
     }
 
     public BigDecimal getTotalRevenue() {
@@ -155,6 +173,12 @@ public class BillService {
         ChargingSession session = b.getSession();
         User customer = b.getCustomer();
         Station station = b.getStation();
+        BigDecimal walletDebited = session != null
+                ? normalizeMoney(session.getWalletDebitedAmount())
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal walletAmountDue = b.getPaymentStatus() == PaymentStatus.PAID
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : resolveWalletAmountDue(b);
         Long durationSeconds = b.getDurationSeconds();
         if (durationSeconds != null && durationSeconds > 0) {
             durationSeconds = Math.max(0, durationSeconds);
@@ -178,10 +202,63 @@ public class BillService {
                 .rateApplied(b.getRateApplied())
                 .rateType(b.getRateType())
                 .totalAmount(b.getTotalAmount())
+                .walletDebitedAmount(walletDebited)
+                .walletAmountDue(walletAmountDue)
                 .paymentStatus(b.getPaymentStatus() != null ? b.getPaymentStatus().name() : null)
                 .createdAt(b.getCreatedAt())
                 .paidAt(b.getPaidAt())
                 .build();
+    }
+
+    private Bill completePayment(Bill bill) {
+        bill.setPaymentStatus(PaymentStatus.PAID);
+        bill.setPaidAt(LocalDateTime.now());
+        bill = billRepository.save(bill);
+        schedulePaidInvoiceEmail(bill.getId());
+        return bill;
+    }
+
+    private void schedulePaidInvoiceEmail(Long billId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    invoiceEmailService.sendPaidInvoice(billId);
+                }
+            });
+            return;
+        }
+        invoiceEmailService.sendPaidInvoice(billId);
+    }
+
+    private void applyWalletSettlementToSession(Bill bill, WalletService.WalletSettlementResult settlement) {
+        ChargingSession session = bill.getSession();
+        if (session == null || settlement == null) {
+            return;
+        }
+        BigDecimal nextDebited = normalizeMoney(session.getWalletDebitedAmount())
+                .add(normalizeMoney(settlement.walletDebitedAmount()))
+                .setScale(2, RoundingMode.HALF_UP);
+        session.setWalletDebitedAmount(nextDebited);
+        session.setWalletBalanceAfterLastDebit(settlement.balanceAfter());
+        session.setWalletLastCheckedAt(AppClock.now());
+        sessionRepository.save(session);
+    }
+
+    private BigDecimal resolveWalletAmountDue(Bill bill) {
+        BigDecimal total = normalizeMoney(bill.getTotalAmount());
+        ChargingSession session = bill.getSession();
+        BigDecimal alreadyDebited = session != null
+                ? normalizeMoney(session.getWalletDebitedAmount())
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal remaining = total.subtract(alreadyDebited).setScale(2, RoundingMode.HALF_UP);
+        return remaining.compareTo(BigDecimal.ZERO) < 0
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : remaining;
+    }
+
+    private BigDecimal normalizeMoney(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
     private String buildFileName(Bill bill) {

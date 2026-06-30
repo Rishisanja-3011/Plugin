@@ -30,6 +30,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> google(@Valid @RequestBody GoogleAuthRequest request) {
+        return ResponseEntity.ok(authService.googleLogin(request));
+    }
+
     @PostMapping("/confirm-otp")
     public ResponseEntity<Map<String, String>> confirmOtp(@Valid @RequestBody ConfirmRegistrationOtpRequest request) {
         return ResponseEntity.ok(authService.confirmRegistrationOtp(request));
@@ -55,11 +60,6 @@ public class AuthController {
     @PostMapping("/forgot-password/send-otp")
     public ResponseEntity<Map<String, String>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
         return ResponseEntity.ok(forgotPasswordService.sendOtp(request));
-    }
-
-    @GetMapping("/email-inbox")
-    public ResponseEntity<Map<String, Object>> getEmailInbox(@RequestParam String email) {
-        return ResponseEntity.ok(forgotPasswordService.getEmailInbox(email));
     }
 
     @PostMapping("/forgot-password/verify-otp")

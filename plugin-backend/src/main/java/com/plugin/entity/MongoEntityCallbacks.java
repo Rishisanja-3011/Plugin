@@ -75,6 +75,15 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
             assignId(vehicle, collection);
             syncReferences(vehicle);
             initialize(vehicle);
+        } else if (entity instanceof Wallet wallet) {
+            assignId(wallet, collection);
+            initialize(wallet);
+        } else if (entity instanceof WalletLedgerEntry walletLedgerEntry) {
+            assignId(walletLedgerEntry, collection);
+            initialize(walletLedgerEntry);
+        } else if (entity instanceof WalletTopUpAttempt walletTopUpAttempt) {
+            assignId(walletTopUpAttempt, collection);
+            initialize(walletTopUpAttempt);
         }
         return entity;
     }
@@ -268,6 +277,26 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
         }
     }
 
+    private void initialize(Wallet entity) {
+        if (entity.getCreatedAt() == null) {
+            entity.onCreate();
+        } else {
+            entity.onUpdate();
+        }
+    }
+
+    private void initialize(WalletLedgerEntry entity) {
+        if (entity.getCreatedAt() == null) {
+            entity.onCreate();
+        }
+    }
+
+    private void initialize(WalletTopUpAttempt entity) {
+        if (entity.getCreatedAt() == null) {
+            entity.onCreate();
+        }
+    }
+
     private void assignId(AuditLog entity, String collection) {
         if (entity.getId() == null) {
             entity.setId(sequenceService.nextId(collection));
@@ -359,6 +388,24 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
     }
 
     private void assignId(UserVehicle entity, String collection) {
+        if (entity.getId() == null) {
+            entity.setId(sequenceService.nextId(collection));
+        }
+    }
+
+    private void assignId(Wallet entity, String collection) {
+        if (entity.getId() == null) {
+            entity.setId(sequenceService.nextId(collection));
+        }
+    }
+
+    private void assignId(WalletLedgerEntry entity, String collection) {
+        if (entity.getId() == null) {
+            entity.setId(sequenceService.nextId(collection));
+        }
+    }
+
+    private void assignId(WalletTopUpAttempt entity, String collection) {
         if (entity.getId() == null) {
             entity.setId(sequenceService.nextId(collection));
         }

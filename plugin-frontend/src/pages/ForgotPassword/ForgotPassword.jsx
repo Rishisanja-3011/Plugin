@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/Toast/Toast';
 import { authApi } from '../../api/auth';
 import IconGlyph from '../../components/IconGlyph/IconGlyph';
+import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
 import './ForgotPassword.css';
 
 const STEPS = ['Email', 'Delivery', 'Verify OTP', 'New Password'];
@@ -21,6 +22,24 @@ const parseJwt = (token) => {
   }
 };
 
+const getGoogleEmail = async (credential) => {
+  if (typeof credential === 'string') {
+    return parseJwt(credential)?.email || '';
+  }
+
+  if (!credential?.accessToken) return '';
+
+  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: {
+      Authorization: `Bearer ${credential.accessToken}`,
+    },
+  });
+  if (!response.ok) return '';
+
+  const profile = await response.json();
+  return profile?.email || '';
+};
+
 export default function ForgotPassword() {
   const toast = useToast();
   const navigate = useNavigate();
@@ -33,9 +52,6 @@ export default function ForgotPassword() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState({});
-  const googleBtnRef = useRef(null);
-  const googleInitializedRef = useRef(false);
-  const googleRenderedRef = useRef(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   const handleCheckEmail = async (e) => {
@@ -127,22 +143,20 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleGoogleCredential = useCallback(async (response) => {
-    const idToken = response?.credential;
-    if (!idToken) {
+  const handleGoogleCredential = useCallback(async (credential) => {
+    if (!credential) {
       toast.error('Google sign-in failed');
-      return;
-    }
-
-    const payload = parseJwt(idToken);
-    const googleEmail = payload?.email;
-    if (!googleEmail) {
-      toast.error('Could not read Google email');
       return;
     }
 
     setLoading(true);
     try {
+      const googleEmail = await getGoogleEmail(credential);
+      if (!googleEmail) {
+        toast.error('Could not read Google email');
+        return;
+      }
+
       const res = await authApi.forgotPassword(googleEmail);
       const data = res.data;
       setEmail(googleEmail);
@@ -154,48 +168,6 @@ export default function ForgotPassword() {
       setLoading(false);
     }
   }, [toast]);
-
-  useEffect(() => {
-    if (step !== 1) return;
-    if (!googleClientId) return;
-    googleRenderedRef.current = false;
-    let cancelled = false;
-    let intervalId = null;
-    const tryRender = () => {
-      if (cancelled) return;
-      if (!googleBtnRef.current) return;
-      if (!window.google?.accounts?.id) return;
-      if (googleRenderedRef.current) return;
-
-      if (!googleInitializedRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: handleGoogleCredential,
-        });
-        googleInitializedRef.current = true;
-      }
-
-      const containerWidth = googleBtnRef.current.offsetWidth || 320;
-      const buttonWidth = Math.min(360, containerWidth);
-      googleBtnRef.current.innerHTML = '';
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: buttonWidth,
-        text: 'continue_with',
-        shape: 'pill',
-      });
-      googleRenderedRef.current = true;
-      if (intervalId) clearInterval(intervalId);
-    };
-
-    intervalId = setInterval(tryRender, 300);
-    tryRender();
-    return () => {
-      cancelled = true;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [step, googleClientId, handleGoogleCredential]);
 
   const stepVariant = {
     initial: { opacity: 0, x: 30 },
@@ -277,7 +249,7 @@ export default function ForgotPassword() {
                   {googleClientId && (
                     <>
                       <div className="fp-google">
-                        <div ref={googleBtnRef} className="fp-google__btn" />
+                        <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
                         <span className="fp-google__hint">Use your Google account to auto-fill your email.</span>
                       </div>
                       <div className="fp-divider">or continue with email</div>

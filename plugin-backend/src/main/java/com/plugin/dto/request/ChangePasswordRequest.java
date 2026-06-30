@@ -9,6 +9,8 @@ public class ChangePasswordRequest {
     @NotBlank
     private String currentPassword;
     @NotBlank
+    private String otp;
+    @NotBlank
     @Size(min = 8, message = "New password must be at least 8 characters")
     private String newPassword;
     private String confirmPassword;

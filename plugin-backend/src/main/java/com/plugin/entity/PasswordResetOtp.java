@@ -23,6 +23,8 @@ public class PasswordResetOtp {
 
     private String deliveryMethod;
 
+    private String purpose;
+
     private LocalDateTime expiresAt;
 
     private boolean used;

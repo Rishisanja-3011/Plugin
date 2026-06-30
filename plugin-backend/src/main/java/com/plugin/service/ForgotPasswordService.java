@@ -3,7 +3,6 @@ package com.plugin.service;
 import com.plugin.dto.request.ResetPasswordRequest;
 import com.plugin.dto.request.SendOtpRequest;
 import com.plugin.dto.request.VerifyOtpRequest;
-import com.plugin.dto.response.EmailInboxMessage;
 import com.plugin.entity.PasswordResetOtp;
 import com.plugin.entity.User;
 import com.plugin.exception.BadRequestException;
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -46,6 +44,9 @@ public class ForgotPasswordService {
 
     private static final int OTP_LENGTH = 6;
     private static final int OTP_EXPIRY_MINUTES = 10;
+    public static final String PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
+    public static final String PURPOSE_CHANGE_PASSWORD = "CHANGE_PASSWORD";
+    public static final String PURPOSE_DELETE_ACCOUNT = "DELETE_ACCOUNT";
 
     public Map<String, Object> checkEmail(String email) {
         User user = userRepository.findByEmail(email)
@@ -62,34 +63,18 @@ public class ForgotPasswordService {
         return result;
     }
 
-    public Map<String, Object> getEmailInbox(String email) {
-        userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("No account found with this email"));
-
-        List<PasswordResetOtp> otps = otpRepository
-                .findByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
-                        email, LocalDateTime.now());
-
-        List<EmailInboxMessage> messages = otps.stream()
-                .map(otp -> EmailInboxMessage.builder()
-                        .subject("PLUGIN - Password Reset OTP")
-                        .body(buildOtpEmailBody(otp.getOtp()))
-                        .otp(otp.getOtp())
-                        .time(otp.getCreatedAt())
-                        .build())
-                .toList();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("messages", messages);
-        return result;
+    @Transactional
+    public Map<String, String> sendOtp(SendOtpRequest request) {
+        return sendOtp(request, PURPOSE_PASSWORD_RESET);
     }
 
     @Transactional
-    public Map<String, String> sendOtp(SendOtpRequest request) {
+    public Map<String, String> sendOtp(SendOtpRequest request, String purpose) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("No account found with this email"));
 
         String method = request.getDeliveryMethod().toUpperCase();
+        String normalizedPurpose = normalizePurpose(purpose);
         if (!"EMAIL".equals(method) && !"PHONE".equals(method)) {
             throw new BadRequestException("Invalid delivery method. Use EMAIL or PHONE");
         }
@@ -99,18 +84,21 @@ public class ForgotPasswordService {
 
         String otp = generateOtp();
 
+        LocalDateTime now = LocalDateTime.now();
         PasswordResetOtp otpEntity = PasswordResetOtp.builder()
                 .email(user.getEmail())
                 .otp(otp)
                 .deliveryMethod(method)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
+                .purpose(normalizedPurpose)
+                .expiresAt(now.plusMinutes(OTP_EXPIRY_MINUTES))
                 .used(false)
+                .createdAt(now)
                 .build();
         otpRepository.save(otpEntity);
 
         boolean delivered;
         if ("EMAIL".equals(method)) {
-            delivered = sendOtpByEmail(user.getEmail(), otp);
+            delivered = sendOtpByEmail(user.getEmail(), otp, normalizedPurpose);
             if (!delivered) {
                 log.warn("OTP email was not delivered for {}", user.getEmail());
             }
@@ -120,24 +108,24 @@ public class ForgotPasswordService {
 
         Map<String, String> result = new HashMap<>();
         if (delivered) {
-            result.put("message", "OTP sent successfully. Please check your registered email.");
+            result.put("message", getOtpSentMessage(normalizedPurpose));
         } else {
-            result.put("message", "OTP generated. Delivery is not configured, use the code provided.");
-            result.put("otp", otp);
+            result.put("message", "OTP could not be delivered. Please check email configuration and try again.");
         }
         result.put("delivered", Boolean.toString(delivered));
         return result;
     }
 
     public Map<String, String> verifyOtp(VerifyOtpRequest request) {
-        PasswordResetOtp otpEntity = otpRepository
-                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
-                        request.getEmail(), LocalDateTime.now())
-                .orElseThrow(() -> new BadRequestException("OTP expired or not found. Please request a new one"));
+        return verifyOtp(request.getEmail(), request.getOtp());
+    }
 
-        if (!otpEntity.getOtp().equals(request.getOtp())) {
-            throw new BadRequestException("Invalid OTP");
-        }
+    public Map<String, String> verifyOtp(String email, String otp) {
+        return verifyOtp(email, otp, PURPOSE_PASSWORD_RESET);
+    }
+
+    public Map<String, String> verifyOtp(String email, String otp, String purpose) {
+        verifyActiveOtp(email, otp, purpose);
 
         Map<String, String> result = new HashMap<>();
         result.put("message", "OTP verified successfully");
@@ -150,15 +138,6 @@ public class ForgotPasswordService {
             throw new BadRequestException("Passwords do not match");
         }
 
-        PasswordResetOtp otpEntity = otpRepository
-                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
-                        request.getEmail(), LocalDateTime.now())
-                .orElseThrow(() -> new BadRequestException("OTP expired or not found. Please restart the process"));
-
-        if (!otpEntity.getOtp().equals(request.getOtp())) {
-            throw new BadRequestException("Invalid OTP");
-        }
-
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -166,6 +145,7 @@ public class ForgotPasswordService {
             throw new BadRequestException("You can't use your old password.");
         }
 
+        PasswordResetOtp otpEntity = verifyActiveOtp(user.getEmail(), request.getOtp(), PURPOSE_PASSWORD_RESET);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
@@ -177,13 +157,47 @@ public class ForgotPasswordService {
         return result;
     }
 
+    @Transactional
+    public void consumeOtp(String email, String otp) {
+        consumeOtp(email, otp, PURPOSE_PASSWORD_RESET);
+    }
+
+    @Transactional
+    public void consumeOtp(String email, String otp, String purpose) {
+        PasswordResetOtp otpEntity = verifyActiveOtp(email, otp, purpose);
+        otpEntity.setUsed(true);
+        otpRepository.save(otpEntity);
+    }
+
+    private PasswordResetOtp verifyActiveOtp(String email, String otp) {
+        return verifyActiveOtp(email, otp, PURPOSE_PASSWORD_RESET);
+    }
+
+    private PasswordResetOtp verifyActiveOtp(String email, String otp, String purpose) {
+        String normalizedPurpose = normalizePurpose(purpose);
+        PasswordResetOtp otpEntity = otpRepository
+                .findTopByEmailAndPurposeAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                        email, normalizedPurpose, LocalDateTime.now())
+                .or(() -> PURPOSE_PASSWORD_RESET.equals(normalizedPurpose)
+                        ? otpRepository.findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                                email, LocalDateTime.now())
+                            .filter(existing -> existing.getPurpose() == null || existing.getPurpose().isBlank())
+                        : java.util.Optional.empty())
+                .orElseThrow(() -> new BadRequestException("OTP expired or not found. Please request a new one"));
+
+        if (!otpEntity.getOtp().equals(otp)) {
+            throw new BadRequestException("Invalid OTP");
+        }
+        return otpEntity;
+    }
+
     private String generateOtp() {
         SecureRandom random = new SecureRandom();
         int otp = 100000 + random.nextInt(900000);
         return String.valueOf(otp);
     }
 
-    private boolean sendOtpByEmail(String email, String otp) {
+    private boolean sendOtpByEmail(String email, String otp, String purpose) {
         if (mailSender == null) {
             log.warn("JavaMailSender not configured");
             return false;
@@ -197,8 +211,8 @@ public class ForgotPasswordService {
             }
             message.setTo(email);
             message.setFrom(from);
-            message.setSubject("PLUGIN - Password Reset OTP");
-            message.setText(buildOtpEmailBody(otp));
+            message.setSubject(getOtpSubject(purpose));
+            message.setText(buildOtpEmailBody(otp, purpose));
             mailSender.send(message);
             log.info("OTP email sent to {}", email);
             return true;
@@ -213,10 +227,41 @@ public class ForgotPasswordService {
         return false;
     }
 
-    private String buildOtpEmailBody(String otp) {
-        return "Your OTP for password reset is: " + otp
+    private String buildOtpEmailBody(String otp, String purpose) {
+        return "Your OTP to " + getOtpAction(purpose) + " is: " + otp
                 + "\n\nThis code will expire in " + OTP_EXPIRY_MINUTES + " minutes."
                 + "\n\nIf you didn't request this, please ignore this email.";
+    }
+
+    private String normalizePurpose(String purpose) {
+        if (purpose == null || purpose.isBlank()) {
+            return PURPOSE_PASSWORD_RESET;
+        }
+        return purpose.trim().toUpperCase();
+    }
+
+    private String getOtpSubject(String purpose) {
+        return switch (normalizePurpose(purpose)) {
+            case PURPOSE_CHANGE_PASSWORD -> "PLUGIN - Change Password OTP";
+            case PURPOSE_DELETE_ACCOUNT -> "PLUGIN - Delete Account OTP";
+            default -> "PLUGIN - Password Reset OTP";
+        };
+    }
+
+    private String getOtpSentMessage(String purpose) {
+        return switch (normalizePurpose(purpose)) {
+            case PURPOSE_CHANGE_PASSWORD -> "OTP sent successfully. Please check your registered email to change your password.";
+            case PURPOSE_DELETE_ACCOUNT -> "OTP sent successfully. Please check your registered email to delete your account.";
+            default -> "OTP sent successfully. Please check your registered email.";
+        };
+    }
+
+    private String getOtpAction(String purpose) {
+        return switch (normalizePurpose(purpose)) {
+            case PURPOSE_CHANGE_PASSWORD -> "change your PLUGIN password";
+            case PURPOSE_DELETE_ACCOUNT -> "delete your PLUGIN account";
+            default -> "reset your PLUGIN password";
+        };
     }
 
     private String maskEmail(String email) {

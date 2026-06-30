@@ -1,10 +1,17 @@
 package com.plugin.service;
 
 import com.plugin.config.AppClock;
+import com.plugin.dto.request.ChangePasswordOtpRequest;
 import com.plugin.dto.request.ChangePasswordRequest;
+import com.plugin.dto.request.DeleteAccountOtpRequest;
 import com.plugin.dto.request.DeleteAccountRequest;
+import com.plugin.dto.request.ForgotChangePasswordRequest;
+import com.plugin.dto.request.ForgotDeleteAccountRequest;
 import com.plugin.dto.request.ProfileVehicleRequest;
 import com.plugin.dto.request.ProfileUpdateRequest;
+import com.plugin.dto.request.SendOtpRequest;
+import com.plugin.dto.request.VerifyChangePasswordOtpRequest;
+import com.plugin.dto.request.VerifyDeleteAccountOtpRequest;
 import com.plugin.dto.response.ProfileVehicleResponse;
 import com.plugin.dto.response.UserResponse;
 import com.plugin.entity.User;
@@ -44,6 +51,7 @@ public class ProfileService {
     private final UserVehicleRepository userVehicleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final ForgotPasswordService forgotPasswordService;
 
     public UserResponse getProfile(String email) {
         User user = userRepository.findByEmail(email)
@@ -169,20 +177,76 @@ public class ProfileService {
             throw new BadRequestException("Invalid password");
         }
 
-        Long userId = user.getId();
-        boolean hasActiveBookings = bookingRepository.existsActiveByCustomerId(
-                userId, AppClock.toStoredScheduleTime(java.time.LocalDateTime.now()));
-        boolean hasActiveSessions = chargingSessionRepository.existsByCustomerIdAndStatus(
-                userId, SessionStatus.IN_PROGRESS);
-        boolean hasUnpaidBills = billRepository.existsByCustomerIdAndPaymentStatus(
-                userId, PaymentStatus.UNPAID);
-
-        if (hasActiveBookings || hasActiveSessions || hasUnpaidBills) {
-            throw new BadRequestException("Cannot delete account with active bookings, active sessions, or unpaid bills");
-        }
+        validateAccountCanBeDeleted(user);
+        forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
 
         user.setActive(false);
         userRepository.save(user);
+        auditService.log("DELETE_ACCOUNT", "PROFILE", user.getId(), email,
+                "Account deleted after password and email OTP verification.");
+        return Map.of("message", "Account deleted successfully");
+    }
+
+    @Transactional
+    public Map<String, String> sendDeleteAccountOtp(String email, DeleteAccountOtpRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (Boolean.FALSE.equals(user.getActive())) {
+            return Map.of("message", "Account already deleted");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new BadRequestException("Invalid password");
+        }
+
+        validateAccountCanBeDeleted(user);
+
+        SendOtpRequest otpRequest = new SendOtpRequest();
+        otpRequest.setEmail(user.getEmail());
+        otpRequest.setDeliveryMethod("EMAIL");
+        return forgotPasswordService.sendOtp(otpRequest, ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
+    }
+
+    public Map<String, String> verifyDeleteAccountOtp(String email, VerifyDeleteAccountOtpRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return forgotPasswordService.verifyOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
+    }
+
+    @Transactional
+    public Map<String, String> sendForgotDeleteAccountOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (Boolean.FALSE.equals(user.getActive())) {
+            return Map.of("message", "Account already deleted");
+        }
+
+        validateAccountCanBeDeleted(user);
+
+        SendOtpRequest otpRequest = new SendOtpRequest();
+        otpRequest.setEmail(user.getEmail());
+        otpRequest.setDeliveryMethod("EMAIL");
+        return forgotPasswordService.sendOtp(otpRequest, ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
+    }
+
+    @Transactional
+    public Map<String, String> deleteAccountWithOtpOnly(String email, ForgotDeleteAccountRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (Boolean.FALSE.equals(user.getActive())) {
+            return Map.of("message", "Account already deleted");
+        }
+
+        validateAccountCanBeDeleted(user);
+        forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
+
+        user.setActive(false);
+        userRepository.save(user);
+        auditService.log("DELETE_ACCOUNT", "PROFILE", user.getId(), email,
+                "Account deleted after email OTP verification.");
         return Map.of("message", "Account deleted successfully");
     }
 
@@ -204,9 +268,80 @@ public class ProfileService {
             throw new BadRequestException("You can't use your old password.");
         }
 
+        forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        auditService.log("CHANGE_PASSWORD", "PROFILE", user.getId(), email,
+                "Password changed after email OTP verification.");
         return Map.of("message", "Password updated successfully");
+    }
+
+    @Transactional
+    public Map<String, String> sendChangePasswordOtp(String email, ChangePasswordOtpRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+
+        SendOtpRequest otpRequest = new SendOtpRequest();
+        otpRequest.setEmail(user.getEmail());
+        otpRequest.setDeliveryMethod("EMAIL");
+        return forgotPasswordService.sendOtp(otpRequest, ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
+    }
+
+    public Map<String, String> verifyChangePasswordOtp(String email, VerifyChangePasswordOtpRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return forgotPasswordService.verifyOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
+    }
+
+    @Transactional
+    public Map<String, String> sendForgotChangePasswordOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        SendOtpRequest otpRequest = new SendOtpRequest();
+        otpRequest.setEmail(user.getEmail());
+        otpRequest.setDeliveryMethod("EMAIL");
+        return forgotPasswordService.sendOtp(otpRequest, ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
+    }
+
+    @Transactional
+    public Map<String, String> changePasswordWithOtpOnly(String email, ForgotChangePasswordRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (request.getConfirmPassword() != null
+                && !request.getConfirmPassword().equals(request.getNewPassword())) {
+            throw new BadRequestException("New password and confirmation do not match");
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("You can't use your old password.");
+        }
+
+        forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        auditService.log("CHANGE_PASSWORD", "PROFILE", user.getId(), email,
+                "Password changed after email OTP verification.");
+        return Map.of("message", "Password updated successfully");
+    }
+
+    private void validateAccountCanBeDeleted(User user) {
+        Long userId = user.getId();
+        boolean hasActiveBookings = bookingRepository.existsActiveByCustomerId(
+                userId, AppClock.toStoredScheduleTime(java.time.LocalDateTime.now()));
+        boolean hasActiveSessions = chargingSessionRepository.existsByCustomerIdAndStatus(
+                userId, SessionStatus.IN_PROGRESS);
+        boolean hasUnpaidBills = billRepository.existsByCustomerIdAndPaymentStatus(
+                userId, PaymentStatus.UNPAID);
+
+        if (hasActiveBookings || hasActiveSessions || hasUnpaidBills) {
+            throw new BadRequestException("Cannot delete account with active bookings, active sessions, or unpaid bills");
+        }
     }
 
     private void syncVehicles(User user, List<ProfileVehicleRequest> requestedVehicles, Long activeVehicleId) {

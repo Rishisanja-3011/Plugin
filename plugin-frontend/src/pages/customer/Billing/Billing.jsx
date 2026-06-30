@@ -112,12 +112,12 @@ export default function Billing() {
   const handlePay = async (id) => {
     setPayLoading(id);
     try {
-      await billsApi.pay(id);
-      toast.success('Payment successful');
+      await billsApi.payFromWallet(id);
+      toast.success('Invoice paid from wallet');
       toast.info('Invoice will be emailed shortly.');
       fetchBills();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Payment failed');
+      toast.error(err.response?.data?.message || 'Wallet payment failed');
     } finally {
       setPayLoading(null);
     }
@@ -177,6 +177,12 @@ export default function Billing() {
     maximumFractionDigits: 2,
   });
   const formatMoney = (value) => (value != null ? `Rs ${formatCurrency(value)}` : '-');
+  const getWalletDisplayAmount = (bill) => (
+    bill && !isPaid(bill.paymentStatus) && bill.walletAmountDue != null
+      ? bill.walletAmountDue
+      : bill?.totalAmount
+  );
+  const getWalletDebitedAmount = (bill) => Number(bill?.walletDebitedAmount || 0);
 
   const formatRate = (rate, rateType) => {
     if (rate == null && !rateType) return '-';
@@ -318,7 +324,7 @@ export default function Billing() {
         </Link>
         <div className="page-header">
           <h1 className="page-header__title">Billing</h1>
-          <p className="page-header__subtitle">View and pay your invoices</p>
+          <p className="page-header__subtitle">View invoices settled from your wallet</p>
         </div>
 
         {!loading && bills.length > 0 && (
@@ -451,8 +457,8 @@ export default function Billing() {
           >
             <div className="billing__lock-note card">
               <div className="billing__lock-header">
-                <span className="badge badge--danger">Payment Required</span>
-                <h2 className="billing__lock-title">Complete this invoice to continue</h2>
+                <span className="badge badge--danger">Wallet Required</span>
+                <h2 className="billing__lock-title">Settle this invoice from wallet</h2>
               </div>
             </div>
 
@@ -516,11 +522,19 @@ export default function Billing() {
                     {formatRate(focusedBill.rateApplied, focusedBill.rateType)}
                   </span>
                 </div>
+                {!isPaid(focusedBill.paymentStatus) && getWalletDebitedAmount(focusedBill) > 0 && (
+                  <div className="billing__invoice-field">
+                    <span className="billing__invoice-label">Already debited</span>
+                    <span className="billing__invoice-value">
+                      {formatMoney(focusedBill.walletDebitedAmount)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="billing__invoice-total">
-                <span>Total Amount</span>
-                <strong>{formatMoney(focusedBill.totalAmount)}</strong>
+                <span>{isPaid(focusedBill.paymentStatus) ? 'Invoice total' : 'Amount due'}</span>
+                <strong>{formatMoney(getWalletDisplayAmount(focusedBill))}</strong>
               </div>
 
               <div className="billing__invoice-actions">
@@ -529,7 +543,7 @@ export default function Billing() {
                   disabled={!!payLoading}
                   onClick={() => handlePay(focusedBill.id)}
                 >
-                  {payLoading === focusedBill.id ? 'Paying...' : 'Pay Now'}
+                  {payLoading === focusedBill.id ? 'Paying...' : 'Pay from Wallet'}
                 </button>
                 <button
                   className="btn btn--outline btn--lg"
@@ -539,7 +553,7 @@ export default function Billing() {
                   {downloadLoading === focusedBill.id ? 'Preparing PDF...' : 'Invoice PDF'}
                 </button>
                 <p className="billing__invoice-note">
-                  After payment, your complete billing history will be available.
+                  Add wallet balance or enable Auto-Top-Up if this invoice cannot be settled.
                 </p>
               </div>
             </div>
@@ -576,7 +590,7 @@ export default function Billing() {
                       <td>{bill.stationName ?? bill.station?.name ?? '-'}</td>
                       <td>{bill.energyKwh != null ? `${bill.energyKwh} kWh` : '-'}</td>
                       <td>{formatDuration(bill.durationMinutes, bill.durationSeconds)}</td>
-                      <td>{formatMoney(bill.totalAmount)}</td>
+                      <td>{formatMoney(getWalletDisplayAmount(bill))}</td>
                       <td>
                         <span className={`badge ${getStatusBadge(bill.paymentStatus)}`}>
                           {bill.paymentStatus ?? 'UNPAID'}
@@ -590,7 +604,7 @@ export default function Billing() {
                               disabled={!!payLoading}
                               onClick={() => handlePay(bill.id)}
                             >
-                              {payLoading === bill.id ? 'Paying...' : 'Pay'}
+                              {payLoading === bill.id ? 'Paying...' : 'Pay from Wallet'}
                             </button>
                           )}
                           <button

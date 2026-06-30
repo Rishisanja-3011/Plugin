@@ -173,6 +173,24 @@
   margin-bottom: var(--space-2xl);
 }
 
+.login__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.login__divider::before,
+.login__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
 .login__form {
   display: flex;
   flex-direction: column;

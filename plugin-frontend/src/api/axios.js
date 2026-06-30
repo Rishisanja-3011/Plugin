@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8091/api';
+const forceRemoteApi = import.meta.env.VITE_USE_REMOTE_API === 'true';
+const isLocalBrowser =
+  typeof window !== 'undefined' &&
+  ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API_BASE = import.meta.env.DEV && isLocalBrowser && !forceRemoteApi
+  ? '/api'
+  : configuredApiBase;
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 20000);
 
 const api = axios.create({

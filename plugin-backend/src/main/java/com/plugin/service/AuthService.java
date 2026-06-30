@@ -2,6 +2,7 @@ package com.plugin.service;
 
 import com.plugin.config.JwtService;
 import com.plugin.dto.request.ConfirmRegistrationOtpRequest;
+import com.plugin.dto.request.GoogleAuthRequest;
 import com.plugin.dto.request.LoginRequest;
 import com.plugin.dto.request.RegisterRequest;
 import com.plugin.dto.request.ResendRegistrationOtpRequest;
@@ -20,13 +21,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @Service
@@ -38,6 +48,7 @@ public class AuthService {
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Autowired(required = false)
     private JavaMailSender mailSender;
@@ -50,6 +61,9 @@ public class AuthService {
 
     @Value("${spring.mail.password:}")
     private String mailPassword;
+
+    @Value("${app.google.client-ids:}")
+    private String googleClientIds;
 
     private static final int CONFIRM_EXPIRY_MINUTES = 10;
 
@@ -190,6 +204,151 @@ public class AuthService {
         }
 
         return issueAuthResponse(user.getEmail());
+    }
+
+    @Transactional
+    public AuthResponse googleLogin(GoogleAuthRequest request) {
+        Map<?, ?> tokenInfo = verifyGoogleAccount(request);
+        String email = stringValue(tokenInfo.get("email")).toLowerCase();
+        String name = stringValue(tokenInfo.get("name"));
+        if (email.isBlank()) {
+            throw new BadRequestException("Google account did not provide an email address");
+        }
+        if (!"true".equalsIgnoreCase(stringValue(tokenInfo.get("email_verified")))) {
+            throw new BadRequestException("Google email is not verified");
+        }
+
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            pendingRegistrationRepository.findByEmail(email).ifPresent(pendingRegistrationRepository::delete);
+            user = User.builder()
+                    .fullName(!name.isBlank() ? name : fallbackGoogleName(email))
+                    .email(email)
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                    .role(Role.CUSTOMER)
+                    .active(true)
+                    .build();
+            userRepository.save(user);
+        } else if (Boolean.FALSE.equals(user.getActive())) {
+            throw new BadRequestException("Your account is deleted. Contact admin.");
+        } else if ((user.getFullName() == null || user.getFullName().isBlank()) && !name.isBlank()) {
+            user.setFullName(name);
+            userRepository.save(user);
+        }
+
+        return issueAuthResponse(user.getEmail());
+    }
+
+    private Map<?, ?> verifyGoogleAccount(GoogleAuthRequest request) {
+        String idToken = stringValue(request.getIdToken());
+        if (!idToken.isBlank()) {
+            return verifyGoogleIdToken(idToken);
+        }
+
+        String accessToken = stringValue(request.getAccessToken());
+        if (!accessToken.isBlank()) {
+            return verifyGoogleAccessToken(accessToken);
+        }
+
+        throw new BadRequestException("Google sign-in token is required");
+    }
+
+    private Map<?, ?> verifyGoogleIdToken(String idToken) {
+        Set<String> allowedClientIds = allowedGoogleClientIds();
+        if (allowedClientIds.isEmpty()) {
+            throw new BadRequestException("Google sign-in is not configured on the server");
+        }
+
+        Map<?, ?> tokenInfo;
+        try {
+            tokenInfo = restTemplate.getForObject(
+                    "https://oauth2.googleapis.com/tokeninfo?id_token={idToken}",
+                    Map.class,
+                    idToken
+            );
+        } catch (RestClientException ex) {
+            throw new BadRequestException("Google sign-in could not be verified. Please try again.");
+        }
+
+        if (tokenInfo == null) {
+            throw new BadRequestException("Google sign-in could not be verified. Please try again.");
+        }
+
+        String audience = stringValue(tokenInfo.get("aud"));
+        if (!allowedClientIds.contains(audience)) {
+            throw new BadRequestException("Google client is not allowed for this app");
+        }
+        return tokenInfo;
+    }
+
+    private Map<?, ?> verifyGoogleAccessToken(String accessToken) {
+        Set<String> allowedClientIds = allowedGoogleClientIds();
+        if (allowedClientIds.isEmpty()) {
+            throw new BadRequestException("Google sign-in is not configured on the server");
+        }
+
+        Map<?, ?> tokenInfo;
+        try {
+            tokenInfo = restTemplate.getForObject(
+                    "https://oauth2.googleapis.com/tokeninfo?access_token={accessToken}",
+                    Map.class,
+                    accessToken
+            );
+        } catch (RestClientException ex) {
+            throw new BadRequestException("Google sign-in could not be verified. Please try again.");
+        }
+
+        if (tokenInfo == null) {
+            throw new BadRequestException("Google sign-in could not be verified. Please try again.");
+        }
+
+        String audience = stringValue(tokenInfo.get("aud"));
+        if (audience.isBlank()) {
+            audience = stringValue(tokenInfo.get("audience"));
+        }
+        if (!audience.isBlank() && !allowedClientIds.contains(audience)) {
+            throw new BadRequestException("Google client is not allowed for this app");
+        }
+
+        String scope = stringValue(tokenInfo.get("scope"));
+        if (!scope.contains("email")) {
+            throw new BadRequestException("Google account email permission was not granted");
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+            Map<?, ?> userInfo = response.getBody();
+            if (userInfo == null) {
+                throw new BadRequestException("Google account details could not be loaded");
+            }
+            return userInfo;
+        } catch (RestClientException ex) {
+            throw new BadRequestException("Google account details could not be loaded");
+        }
+    }
+
+    private Set<String> allowedGoogleClientIds() {
+        return Arrays.stream(String.valueOf(googleClientIds).split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toSet());
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String fallbackGoogleName(String email) {
+        String local = email.split("@", 2)[0].replace('.', ' ').replace('_', ' ').trim();
+        return local.isBlank() ? "Google User" : local;
     }
 
     public AuthResponse issueAuthResponse(String email) {

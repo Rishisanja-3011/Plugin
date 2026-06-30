@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast/Toast';
+import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
 import { motion } from 'framer-motion';
 import './Login.css';
 
@@ -11,7 +12,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -27,6 +28,33 @@ export default function Login() {
     return Object.keys(next).length === 0;
   };
 
+  const routeAfterAuth = useCallback((data) => {
+    const role = data.role || data.user?.role;
+    if (role === 'ADMIN' || role === 'STATION_OPERATOR') {
+      navigate('/admin/dashboard', { replace: true });
+      return;
+    }
+    navigate('/customer/dashboard', { replace: true });
+  }, [navigate]);
+
+  const handleGoogleCredential = useCallback(async (credential) => {
+    if (!credential) {
+      toast.error('Google sign-in failed');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await googleLogin(credential);
+      toast.success('Welcome back!');
+      routeAfterAuth(data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [googleLogin, routeAfterAuth, toast]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
@@ -35,13 +63,7 @@ export default function Login() {
     try {
       const data = await login(email.trim(), password);
       toast.success('Welcome back!');
-
-      const role = data.role || data.user?.role;
-      if (role === 'ADMIN' || role === 'STATION_OPERATOR') {
-        navigate('/admin/dashboard', { replace: true });
-      } else {
-        navigate('/customer/dashboard', { replace: true });
-      }
+      routeAfterAuth(data);
     } catch (err) {
       const status = err.response?.status;
       const raw = err.response?.data?.message || err.message || 'Login failed';
@@ -176,6 +198,9 @@ export default function Login() {
                   'Sign In'
                 )}
               </button>
+
+              <div className="login__divider"><span>or continue with</span></div>
+              <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
 
               <Link to="/forgot-password" className="login__forgot">
                 Forgot password?

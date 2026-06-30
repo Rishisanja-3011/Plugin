@@ -113,10 +113,15 @@
 }
 
 
+.search__results,
+.search__list {
+  width: 100%;
+}
+
 /* ===== Station cards grid ===== */
 .search__grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-lg);
 }
 
@@ -231,9 +236,15 @@
 }
 
 /* ===== Responsive ===== */
+@media (max-width: 1280px) {
+  .search__grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
 @media (max-width: 1024px) {
   .search__grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 }
 

@@ -48,6 +48,12 @@ public class Bill {
 
     private PaymentStatus paymentStatus;
 
+    private String razorpayOrderId;
+
+    private String razorpayPaymentId;
+
+    private String razorpaySignature;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime paidAt;

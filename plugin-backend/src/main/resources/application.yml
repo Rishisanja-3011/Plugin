@@ -1,9 +1,12 @@
 server:
-  port: "${SERVER_PORT:8081}"
+  port: "${SERVER_PORT:8091}"
+  address: "${SERVER_ADDRESS:0.0.0.0}"
 
 spring:
   config:
-    import: "optional:file:./application-local.yml"
+    import:
+      - "optional:file:./application-local.yml"
+      - "optional:file:./plugin-backend/application-local.yml"
   data:
     mongodb:
       uri: "${MONGODB_URI:mongodb://localhost:27017/plugindb}"
@@ -14,7 +17,7 @@ spring:
     host: "${MAIL_HOST:smtp.gmail.com}"
     port: "${MAIL_PORT:587}"
     username: "${MAIL_USERNAME:plugin.available@gmail.com}"
-    password: "${MAIL_PASSWORD:ohfvjfltmpdodbxv}"
+    password: "${MAIL_PASSWORD:}"
     properties:
       mail:
         smtp:
@@ -32,7 +35,7 @@ app:
   mail:
     from: "${MAIL_FROM:${MAIL_USERNAME:plugin.available@gmail.com}}"
   confirm:
-    base-url: "${APP_BASE_URL:http://localhost:8081}"
+    base-url: "${APP_BASE_URL:http://localhost:8091}"
   billing:
     default-rate-per-kwh: "${DEFAULT_RATE_PER_KWH:15}"
     efficiency-factor: "${CHARGING_EFFICIENCY_FACTOR:0.92}"
@@ -44,6 +47,17 @@ app:
     booking-start-initial-delay-ms: "${BOOKING_START_NOTIFICATION_INITIAL_DELAY_MS:10000}"
     booking-start-check-ms: "${BOOKING_START_NOTIFICATION_CHECK_MS:30000}"
     booking-start-lookback-minutes: "${BOOKING_START_NOTIFICATION_LOOKBACK_MINUTES:180}"
+  google:
+    client-ids: "${GOOGLE_CLIENT_IDS:380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com,380196336293-5i90qr9kni2p8b2oahpukrlgs081lj99.apps.googleusercontent.com}"
+  razorpay:
+    key-id: "${RAZORPAY_KEY_ID:}"
+    key-secret: "${RAZORPAY_KEY_SECRET:}"
+    currency: "${RAZORPAY_CURRENCY:INR}"
+    business-name: "${RAZORPAY_BUSINESS_NAME:PLUGIN}"
+    minimum-amount: "${RAZORPAY_MINIMUM_AMOUNT:1.00}"
+  wallet:
+    monitor-initial-delay-ms: "${WALLET_MONITOR_INITIAL_DELAY_MS:2000}"
+    monitor-check-ms: "${WALLET_MONITOR_CHECK_MS:3000}"
   bookings:
     expiry-initial-delay-ms: "${BOOKING_EXPIRY_INITIAL_DELAY_MS:15000}"
     expiry-check-ms: "${BOOKING_EXPIRY_CHECK_MS:30000}"
@@ -51,7 +65,7 @@ app:
     auto-complete-initial-delay-ms: "${SESSION_AUTO_COMPLETE_INITIAL_DELAY_MS:1000}"
     auto-complete-check-ms: "${SESSION_AUTO_COMPLETE_CHECK_MS:1000}"
   jwt:
-    secret: "${JWT_SECRET:mySecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin}"
+    secret: "${JWT_SECRET:devOnlyJwtSecretKeyForLocalDevelopmentMustBeAtLeast256BitsLong}"
     expiration-ms: 86400000
     refresh-expiration-ms: 604800000
 

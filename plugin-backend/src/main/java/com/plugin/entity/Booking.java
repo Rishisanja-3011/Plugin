@@ -4,6 +4,7 @@ import com.plugin.enums.BookingStatus;
 import com.plugin.enums.RescheduleRequestStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -33,6 +34,9 @@ public class Booking {
     @Indexed(unique = true)
     private String referenceId;
 
+    @Version
+    private Long version;
+
     private User customer;
 
     private Long customerId;
@@ -52,6 +56,34 @@ public class Booking {
     private LocalDateTime startTime;
 
     private LocalDateTime endTime;
+
+    private Integer requestedDurationMinutes;
+
+    private Double originLatitude;
+
+    private Double originLongitude;
+
+    private Double lastKnownLatitude;
+
+    private Double lastKnownLongitude;
+
+    private LocalDateTime lastLocationPingAt;
+
+    private LocalDateTime predictedArrivalAt;
+
+    private LocalDateTime gracePeriodEndTime;
+
+    private Long etaSeconds;
+
+    private Double lastDistanceMeters;
+
+    private Boolean proximityLocked;
+
+    private Long assignedChargingPointId;
+
+    private Boolean virtualSpot;
+
+    private String pointTypePreference;
 
     private BigDecimal lockedRatePerUnit;
 
@@ -87,6 +119,8 @@ public class Booking {
         if (status == null) status = BookingStatus.CONFIRMED;
         if (startNotificationSent == null) startNotificationSent = false;
         if (rescheduleRequestStatus == null) rescheduleRequestStatus = RescheduleRequestStatus.NONE;
+        if (proximityLocked == null) proximityLocked = false;
+        if (virtualSpot == null) virtualSpot = false;
     }
 
     protected void onUpdate() {

@@ -9,6 +9,35 @@ plugin-backend/application-local.yml
 # Logs
 *.log
 
+# Local/editor state
+.claude/
+CLAUDE.md
+.idea/
+.vscode/
+*.iml
+
+# Local app workspace not deployed by website CI/CD
+plugin_app/
+
+# Presentations and large local documents
+*.ppt
+*.pptx
+
+# Photos/media and generated screenshots
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.svg
+*.mp4
+*.mov
+*.avi
+*.mkv
+
 # OS
 .DS_Store
 Thumbs.db

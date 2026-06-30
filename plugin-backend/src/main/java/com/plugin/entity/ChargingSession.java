@@ -39,10 +39,21 @@ public class ChargingSession {
 
     private SessionStatus status;
 
+    private BigDecimal walletDebitedAmount;
+
+    private BigDecimal walletBalanceAfterLastDebit;
+
+    private LocalDateTime walletLastCheckedAt;
+
+    private Boolean autoStoppedForWallet;
+
+    private String walletStopReason;
+
     private LocalDateTime createdAt;
 
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         if (status == null) status = SessionStatus.IN_PROGRESS;
+        if (walletDebitedAmount == null) walletDebitedAmount = BigDecimal.ZERO.setScale(2);
     }
 }

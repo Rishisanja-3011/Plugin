@@ -122,13 +122,11 @@ export default function Search() {
   const filterStations = (list) => {
     return list.filter((station) => {
       const points = station.chargingPoints ?? [];
-
       if (chargerFilter !== 'All') {
         const type = chargerFilter.toUpperCase();
         const hasType = points.some((point) => (point.pointType ?? '').toUpperCase() === type);
         if (!hasType) return false;
       }
-
       return true;
     });
   };
@@ -137,6 +135,7 @@ export default function Search() {
   const trimmedQuery = query.trim();
   const isNumericQuery = /^\d+$/.test(trimmedQuery);
   const isIncompletePincode = isNumericQuery && trimmedQuery.length !== 6;
+  const hasResults = !loading && filteredStations.length > 0;
 
   return (
     <motion.main
@@ -198,93 +197,100 @@ export default function Search() {
             ))}
           </div>
         ) : (
-          <>
-            <AnimatePresence mode="wait">
-              {filteredStations.length === 0 ? (
-                <motion.div
-                  className="empty-state"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.4 }}
-                >
-                  <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
-                  <h2 className="empty-state__title">
-                    {isIncompletePincode ? 'Enter full pincode' : errorMessage ? 'Could not load stations' : 'No stations found'}
-                  </h2>
-                  <p className="empty-state__text">
-                    {isIncompletePincode
-                      ? 'Please enter a 6-digit pincode to see stations in that area.'
-                      : errorMessage || 'Try a different search or filter to find charging stations near you.'}
-                  </p>
-                </motion.div>
-              ) : (
-                <div className="search__grid">
-                  <AnimatePresence mode="popLayout">
-                    {filteredStations.map((station, i) => (
-                      <motion.div
-                        key={station.id ?? i}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.3, delay: i * 0.05 }}
-                        layout
-                      >
-                        <Link
-                          to={`/stations/${station.id}`}
-                          className={`search__card card ${!isStationActive(station) ? 'search__card--closed' : ''}`}
+          <AnimatePresence mode="wait">
+            {filteredStations.length === 0 ? (
+              <motion.div
+                className="empty-state"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className="empty-state__icon"><IconGlyph glyph={'\u{1F50C}'} className="mono-icon mono-icon--lg" /></div>
+                <h2 className="empty-state__title">
+                  {isIncompletePincode ? 'Enter full pincode' : errorMessage ? 'Could not load stations' : 'No stations found'}
+                </h2>
+                <p className="empty-state__text">
+                  {isIncompletePincode
+                    ? 'Please enter a 6-digit pincode to see stations in that area.'
+                    : errorMessage || 'Try a different search or filter to find charging stations near you.'}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                className="search__results"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="search__list">
+                  <div className="search__grid">
+                    <AnimatePresence mode="popLayout">
+                      {filteredStations.map((station, i) => (
+                        <motion.div
+                          key={station.id ?? i}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.3, delay: i * 0.04 }}
+                          layout
                         >
-                          <div className="search__card-top" />
-                          <div className="search__card-body">
-                            <div className="search__card-header">
-                              <h3 className="search__card-title">
-                                {station.name ?? station.stationName ?? 'Unnamed Station'}
-                              </h3>
-                              <span
-                                className={`search__card-badge ${!isStationActive(station) ? 'search__card-badge--closed' : ''}`}
-                              >
-                                {formatAvailability(station)}
-                              </span>
+                          <Link
+                            to={`/stations/${station.id}`}
+                            className={`search__card card ${!isStationActive(station) ? 'search__card--closed' : ''}`}
+                          >
+                            <div className="search__card-top" />
+                            <div className="search__card-body">
+                              <div className="search__card-header">
+                                <h3 className="search__card-title">
+                                  {station.name ?? station.stationName ?? 'Unnamed Station'}
+                                </h3>
+                                <span
+                                  className={`search__card-badge ${!isStationActive(station) ? 'search__card-badge--closed' : ''}`}
+                                >
+                                  {formatAvailability(station)}
+                                </span>
+                              </div>
+                              <p className="search__card-address">
+                                {station.address ?? station.stationAddress ?? '-'}
+                              </p>
+                              <p className="search__card-city">
+                                {station.city ?? station.area ?? '-'}
+                              </p>
                             </div>
-                            <p className="search__card-address">
-                              {station.address ?? station.stationAddress ?? '-'}
-                            </p>
-                            <p className="search__card-city">
-                              {station.city ?? station.area ?? '-'}
-                            </p>
-                          </div>
-                        </Link>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              )}
-            </AnimatePresence>
+                          </Link>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
 
-            {totalPages > 1 && chargerFilter === 'All' && (
-              <div className="pagination">
-                <button
-                  type="button"
-                  className="pagination__btn"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  Previous
-                </button>
-                <span className="pagination__info">
-                  Page {page + 1} of {totalPages} ({totalElements} stations)
-                </span>
-                <button
-                  type="button"
-                  className="pagination__btn"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                >
-                  Next
-                </button>
-              </div>
+                  {totalPages > 1 && chargerFilter === 'All' && (
+                    <div className="pagination">
+                      <button
+                        type="button"
+                        className="pagination__btn"
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="pagination__info">
+                        Page {page + 1} of {totalPages} ({totalElements} stations)
+                      </span>
+                      <button
+                        type="button"
+                        className="pagination__btn"
+                        disabled={page >= totalPages - 1}
+                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             )}
-          </>
+          </AnimatePresence>
         )}
       </div>
     </motion.main>

@@ -18,12 +18,15 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +39,7 @@ import java.util.function.Supplier;
 @Slf4j
 public class SessionService {
 
-    private static final long SESSION_START_GRACE_SECONDS = 60;
+    private static final DateTimeFormatter SESSION_START_TIME_FORMAT = DateTimeFormatter.ofPattern("hh:mm a");
 
     private final ChargingSessionRepository sessionRepository;
     private final BookingRepository bookingRepository;
@@ -47,9 +50,13 @@ public class SessionService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final EntityReferenceResolver referenceResolver;
+    private final WalletService walletService;
+    private final ChargerCommandService chargerCommandService;
+    private final InvoiceEmailService invoiceEmailService;
     private final TaskScheduler taskScheduler;
     private final TransactionTemplate transactionTemplate;
     private final Map<Long, ScheduledFuture<?>> completionTasks = new ConcurrentHashMap<>();
+    private final Object completionLock = new Object();
 
     @Value("${app.billing.default-rate-per-kwh:15}")
     private BigDecimal defaultRatePerKwh;
@@ -85,7 +92,12 @@ public class SessionService {
             throw new ConflictException("Session already exists for this booking");
         }
 
+        booking = prepareDynamicBookingForSessionStart(booking);
         validateBookingStartWindow(booking);
+
+        if (booking.getChargingPoint() == null) {
+            throw new BadRequestException("A connector will be assigned when you are within 1 mile of the station.");
+        }
 
         if (booking.getChargingPoint().getStatus() == PointStatus.OUT_OF_SERVICE
                 || booking.getChargingPoint().getStatus() == PointStatus.UNAVAILABLE) {
@@ -93,6 +105,7 @@ public class SessionService {
         }
 
         ensureLockedPricing(booking, "Session started for booking " + booking.getReferenceId() + ".");
+        walletService.ensureReadyForSessionStart(booking.getCustomer());
 
         ChargingPoint cp = booking.getChargingPoint();
         cp.setStatus(PointStatus.CHARGING);
@@ -105,6 +118,7 @@ public class SessionService {
                 .startTime(AppClock.now().withNano(0))
                 .status(SessionStatus.IN_PROGRESS)
                 .energyDeliveredKwh(BigDecimal.ZERO)
+                .walletDebitedAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .build();
 
         session = sessionRepository.save(session);
@@ -114,17 +128,23 @@ public class SessionService {
         return toResponse(session);
     }
 
-    @Transactional
     public SessionResponse endSession(Long sessionId, String performedBy) {
-        ChargingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-        session = referenceResolver.hydrate(session);
+        synchronized (completionLock) {
+            return runWithTransientCompletionRetry(() -> transactionTemplate.execute(status -> {
+                ChargingSession session = sessionRepository.findById(sessionId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+                session = referenceResolver.hydrate(session);
 
-        if (session.getStatus() != SessionStatus.IN_PROGRESS) {
-            throw new BadRequestException("Session is not in progress");
+                if (session.getStatus() != SessionStatus.IN_PROGRESS) {
+                    if (session.getStatus() == SessionStatus.COMPLETED) {
+                        return toResponse(session);
+                    }
+                    throw new BadRequestException("Session is not in progress");
+                }
+
+                return completeSession(session, performedBy, false);
+            }));
         }
-
-        return completeSession(session, performedBy, false);
     }
 
     private SessionResponse completeSession(ChargingSession session, String performedBy, boolean automatic) {
@@ -179,7 +199,6 @@ public class SessionService {
 
     @Scheduled(initialDelayString = "${app.sessions.auto-complete-initial-delay-ms:1000}",
             fixedRateString = "${app.sessions.auto-complete-check-ms:1000}")
-    @Transactional
     public void autoCompleteExpiredSessions() {
         LocalDateTime now = AppClock.now();
         List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
@@ -189,10 +208,24 @@ public class SessionService {
             if (!isSessionExpiredAt(hydrated, now)) {
                 continue;
             }
+            autoCompleteSessionById(hydrated.getId());
+        }
+    }
+
+    @Scheduled(initialDelayString = "${app.wallet.monitor-initial-delay-ms:2000}",
+            fixedRateString = "${app.wallet.monitor-check-ms:3000}")
+    public void monitorActiveWalletBalances() {
+        List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
+        LocalDateTime now = AppClock.now();
+        for (ChargingSession session : activeSessions) {
             try {
-                completeSession(hydrated, "system", true);
+                ChargingSession hydrated = referenceResolver.hydrate(session);
+                if (hydrated.getStatus() != SessionStatus.IN_PROGRESS || isSessionExpiredAt(hydrated, now)) {
+                    continue;
+                }
+                monitorWalletForSession(hydrated);
             } catch (Exception ex) {
-                log.warn("Failed to auto-complete expired session {}", hydrated.getId(), ex);
+                log.warn("Failed to monitor wallet for session {}", session.getId(), ex);
             }
         }
     }
@@ -202,8 +235,9 @@ public class SessionService {
         LocalDateTime startTime = AppClock.fromStoredScheduleTime(booking.getStartTime());
         LocalDateTime endTime = AppClock.fromStoredScheduleTime(booking.getEndTime());
 
-        if (startTime != null && now.plusSeconds(SESSION_START_GRACE_SECONDS).isBefore(startTime)) {
-            throw new BadRequestException("Session can only be started at the selected booking time.");
+        if (startTime != null && now.isBefore(startTime)) {
+            throw new BadRequestException("This session can only be started at your booked time ("
+                    + startTime.format(SESSION_START_TIME_FORMAT) + ").");
         }
 
         if (endTime != null && !now.isBefore(endTime)) {
@@ -217,6 +251,7 @@ public class SessionService {
             return;
         }
 
+        releaseReservedPointIfNeeded(booking);
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason("Booking expired because the reserved charging window was missed.");
         bookingRepository.save(booking);
@@ -241,6 +276,52 @@ public class SessionService {
         } catch (Exception ex) {
             log.warn("Failed to write missed booking audit log for booking {}", booking.getId(), ex);
         }
+    }
+
+    private Booking prepareDynamicBookingForSessionStart(Booking booking) {
+        if (booking.getGracePeriodEndTime() == null) {
+            return booking;
+        }
+
+        LocalDateTime now = AppClock.now().withNano(0);
+        LocalDateTime graceEnd = AppClock.fromStoredScheduleTime(booking.getGracePeriodEndTime());
+        if (graceEnd != null && now.isAfter(graceEnd)) {
+            cancelMissedBooking(booking);
+            throw new BadRequestException("This booking grace period has expired and the session can no longer be started.");
+        }
+
+        if (!Boolean.TRUE.equals(booking.getProximityLocked()) || booking.getChargingPoint() == null) {
+            throw new BadRequestException("A connector will be assigned when you are within 1 mile of the station.");
+        }
+
+        int durationMinutes = booking.getRequestedDurationMinutes() != null
+                ? Math.max(1, Math.min(60, booking.getRequestedDurationMinutes()))
+                : Math.max(1, resolveBillingDurationMinutesForBooking(booking));
+        booking.setStartTime(AppClock.toStoredScheduleTime(now));
+        booking.setEndTime(AppClock.toStoredScheduleTime(now.plusMinutes(durationMinutes)));
+        booking.setVirtualSpot(false);
+        return bookingRepository.save(booking);
+    }
+
+    private int resolveBillingDurationMinutesForBooking(Booking booking) {
+        LocalDateTime startTime = AppClock.fromStoredScheduleTime(booking.getStartTime());
+        LocalDateTime endTime = AppClock.fromStoredScheduleTime(booking.getEndTime());
+        if (startTime == null || endTime == null || !endTime.isAfter(startTime)) {
+            return 60;
+        }
+        return (int) Math.max(1, java.time.Duration.between(startTime, endTime).toMinutes());
+    }
+
+    private void releaseReservedPointIfNeeded(Booking booking) {
+        ChargingPoint point = booking.getChargingPoint();
+        if (point == null && booking.getAssignedChargingPointId() != null) {
+            point = cpRepository.findById(booking.getAssignedChargingPointId()).orElse(null);
+        }
+        if (point == null || point.getStatus() != PointStatus.RESERVED) {
+            return;
+        }
+        point.setStatus(PointStatus.AVAILABLE);
+        cpRepository.save(point);
     }
 
     private LocalDateTime resolveAllowedSessionEndTime(ChargingSession session, LocalDateTime now) {
@@ -278,7 +359,6 @@ public class SessionService {
                 sessionRepository.findByCustomerIdOrderByStartTimeDesc(customer.getId(), pageable), pageable));
     }
 
-    @Transactional
     public List<SessionResponse> getMyActiveSessions(String email) {
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -290,7 +370,7 @@ public class SessionService {
             for (ChargingSession session : sessions) {
                 ChargingSession hydrated = referenceResolver.hydrate(session);
                 if (isSessionExpiredAt(hydrated, now)) {
-                    completeSession(hydrated, "system", true);
+                    autoCompleteSessionById(hydrated.getId());
                 } else {
                     active.add(hydrated);
                 }
@@ -338,8 +418,17 @@ public class SessionService {
         totalAmount = energyKwh.multiply(rate);
 
         totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
+        if (totalAmount.compareTo(BigDecimal.ONE) < 0) {
+            totalAmount = BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP);
+        }
 
         String invoiceNumber = "INV-" + System.currentTimeMillis();
+        WalletService.WalletSettlementResult walletSettlement =
+                walletService.settleCompletedSession(session, totalAmount, invoiceNumber);
+        session.setWalletDebitedAmount(walletSettlement.walletDebitedAmount());
+        session.setWalletBalanceAfterLastDebit(walletSettlement.balanceAfter());
+        session.setWalletLastCheckedAt(AppClock.now());
+        sessionRepository.save(session);
 
         Bill bill = Bill.builder()
                 .invoiceNumber(invoiceNumber)
@@ -352,10 +441,14 @@ public class SessionService {
                 .rateApplied(rate)
                 .rateType(rateType)
                 .totalAmount(totalAmount)
-                .paymentStatus(PaymentStatus.UNPAID)
+                .paymentStatus(walletSettlement.paid() ? PaymentStatus.PAID : PaymentStatus.UNPAID)
+                .paidAt(walletSettlement.paid() ? AppClock.now() : null)
                 .build();
 
-        billRepository.save(bill);
+        bill = billRepository.save(bill);
+        if (walletSettlement.paid()) {
+            schedulePaidInvoiceEmail(bill.getId());
+        }
     }
 
     private SessionResponse toResponse(ChargingSession s) {
@@ -409,6 +502,7 @@ public class SessionService {
                 .chargingPointId(chargingPoint != null ? chargingPoint.getId() : s.getChargingPointId())
                 .chargingPointIdentifier(chargingPoint != null ? chargingPoint.getIdentifier() : null)
                 .chargingPointType(chargingPoint != null && chargingPoint.getPointType() != null ? chargingPoint.getPointType().name() : null)
+                .connectorType(chargingPoint != null ? chargingPoint.getConnectorType() : null)
                 .chargingPointMaxPowerKw(chargingPoint != null ? chargingPoint.getMaxPowerKw() : null)
                 .customerId(customer != null ? customer.getId() : s.getCustomerId())
                 .customerName(customer != null ? customer.getFullName() : null)
@@ -429,8 +523,74 @@ public class SessionService {
                 .estimateRate(estimateRate)
                 .estimateRateType(estimateRateType)
                 .estimatedAmount(estimatedAmount)
+                .walletDebitedAmount(s.getWalletDebitedAmount())
+                .walletBalanceAfterLastDebit(s.getWalletBalanceAfterLastDebit())
+                .walletLastCheckedAt(s.getWalletLastCheckedAt())
+                .autoStoppedForWallet(s.getAutoStoppedForWallet())
+                .walletStopReason(s.getWalletStopReason())
                 .status(s.getStatus() != null ? s.getStatus().name() : null)
                 .build();
+    }
+
+    private void monitorWalletForSession(ChargingSession session) {
+        BigDecimal estimatedCost = estimateLiveCost(session);
+        WalletService.WalletSessionMonitorResult result = walletService.applyLiveSessionDebit(session, estimatedCost);
+        session.setWalletDebitedAmount(result.walletDebitedAmount());
+        session.setWalletBalanceAfterLastDebit(result.balanceAfter());
+        session.setWalletLastCheckedAt(AppClock.now());
+        sessionRepository.save(session);
+        if (result.shouldStop()) {
+            stopSessionForWalletCutoff(session.getId(), result.reason());
+        }
+    }
+
+    private BigDecimal estimateLiveCost(ChargingSession session) {
+        session = referenceResolver.hydrate(session);
+        Booking booking = session.getBooking();
+        ChargingPoint chargingPoint = session.getChargingPoint();
+        if (booking == null || chargingPoint == null || session.getStartTime() == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal rate = booking.getLockedRatePerUnit();
+        String rateType = booking.getLockedRateType();
+        if (rate == null || rateType == null || rateType.isBlank()) {
+            rate = defaultRatePerKwh;
+        }
+        LocalDateTime scheduledEndTime = resolveScheduledSessionEndTime(session);
+        long elapsedSeconds = resolveElapsedSeconds(session, scheduledEndTime);
+        BigDecimal elapsedEnergyKwh = BigDecimal.valueOf(chargingPoint.getMaxPowerKw())
+                .multiply(BigDecimal.valueOf(normalizedEfficiency()))
+                .multiply(BigDecimal.valueOf(elapsedSeconds))
+                .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
+        return elapsedEnergyKwh.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void stopSessionForWalletCutoff(Long sessionId, String reason) {
+        if (sessionId == null) {
+            return;
+        }
+        synchronized (completionLock) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> {
+                    ChargingSession session = sessionRepository.findById(sessionId).orElse(null);
+                    if (session == null) {
+                        return;
+                    }
+                    ChargingSession hydrated = referenceResolver.hydrate(session);
+                    if (hydrated.getStatus() != SessionStatus.IN_PROGRESS) {
+                        return;
+                    }
+                    hydrated.setAutoStoppedForWallet(true);
+                    hydrated.setWalletStopReason(reason);
+                    chargerCommandService.stopTransaction(hydrated, reason);
+                    completeSession(hydrated, "system-wallet", false);
+                    notificationService.send(hydrated.getCustomer().getId(), "Charging stopped",
+                            "Your wallet ran out of balance and Auto-Top-Up could not continue the session.");
+                });
+            } catch (Exception ex) {
+                log.warn("Failed to stop session {} after wallet cut-off", sessionId, ex);
+            }
+        }
     }
 
     private long resolveElapsedSeconds(ChargingSession session, LocalDateTime scheduledEndTime) {
@@ -526,29 +686,93 @@ public class SessionService {
             return;
         }
 
-        completionTasks.remove(sessionId);
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                ChargingSession session = sessionRepository.findById(sessionId).orElse(null);
-                if (session == null) {
-                    return;
-                }
-
-                ChargingSession hydrated = referenceResolver.hydrate(session);
-                if (hydrated.getStatus() != SessionStatus.IN_PROGRESS) {
-                    return;
-                }
-
-                if (!isSessionExpiredAt(hydrated, AppClock.now())) {
-                    scheduleExactCompletion(hydrated);
-                    return;
-                }
-
-                completeSession(hydrated, "system", true);
-            });
-        } catch (Exception ex) {
-            log.warn("Failed to auto-complete session {} at its scheduled end time", sessionId, ex);
+        synchronized (completionLock) {
+            completionTasks.remove(sessionId);
+            try {
+                runWithTransientCompletionRetry(() -> {
+                    transactionTemplate.executeWithoutResult(status -> completeSessionIfExpired(sessionId));
+                    return null;
+                });
+            } catch (Exception ex) {
+                log.warn("Failed to auto-complete session {} at its scheduled end time", sessionId, ex);
+            }
         }
+    }
+
+    private void completeSessionIfExpired(Long sessionId) {
+        ChargingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+
+        ChargingSession hydrated = referenceResolver.hydrate(session);
+        if (hydrated.getStatus() != SessionStatus.IN_PROGRESS) {
+            return;
+        }
+
+        if (!isSessionExpiredAt(hydrated, AppClock.now())) {
+            scheduleExactCompletion(hydrated);
+            return;
+        }
+
+        completeSession(hydrated, "system", true);
+    }
+
+    private <T> T runWithTransientCompletionRetry(Supplier<T> action) {
+        RuntimeException lastException = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                return action.get();
+            } catch (RuntimeException ex) {
+                if (!isTransientWriteConflict(ex) || attempt == 3) {
+                    throw ex;
+                }
+                lastException = ex;
+                sleepBeforeCompletionRetry(attempt);
+            }
+        }
+        throw lastException != null
+                ? lastException
+                : new IllegalStateException("Session completion retry failed");
+    }
+
+    private boolean isTransientWriteConflict(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && (message.contains("WriteConflict")
+                    || message.contains("TransientTransactionError")
+                    || message.contains("error 112"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void sleepBeforeCompletionRetry(int attempt) {
+        try {
+            Thread.sleep(50L * attempt);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Session completion retry was interrupted", interrupted);
+        }
+    }
+
+    private void schedulePaidInvoiceEmail(Long billId) {
+        if (billId == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    invoiceEmailService.sendPaidInvoice(billId);
+                }
+            });
+            return;
+        }
+        invoiceEmailService.sendPaidInvoice(billId);
     }
 
     private void cancelExactCompletion(Long sessionId) {

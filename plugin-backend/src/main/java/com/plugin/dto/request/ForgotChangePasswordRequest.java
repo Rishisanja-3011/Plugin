@@ -1,0 +1,15 @@
+package com.plugin.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class ForgotChangePasswordRequest {
+    @NotBlank
+    private String otp;
+    @NotBlank
+    @Size(min = 8, message = "New password must be at least 8 characters")
+    private String newPassword;
+    private String confirmPassword;
+}

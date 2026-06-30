@@ -2,6 +2,7 @@ import api from './axios';
 
 export const authApi = {
   login: (data) => api.post('/auth/login', data),
+  google: (credential) => api.post('/auth/google', typeof credential === 'string' ? { idToken: credential } : credential),
   register: (data) => api.post('/auth/register', data),
   getProfile: () => api.get('/profile'),
   updateProfile: (data) => api.put('/profile', data),

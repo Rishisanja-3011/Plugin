@@ -7,4 +7,6 @@ import lombok.Data;
 public class DeleteAccountRequest {
     @NotBlank
     private String password;
+    @NotBlank
+    private String otp;
 }

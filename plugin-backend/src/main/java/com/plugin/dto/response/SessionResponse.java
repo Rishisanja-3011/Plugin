@@ -13,6 +13,7 @@ public class SessionResponse {
     private Long chargingPointId;
     private String chargingPointIdentifier;
     private String chargingPointType;
+    private String connectorType;
     private Double chargingPointMaxPowerKw;
     private Long customerId;
     private String customerName;
@@ -33,5 +34,10 @@ public class SessionResponse {
     private BigDecimal estimateRate;
     private String estimateRateType;
     private BigDecimal estimatedAmount;
+    private BigDecimal walletDebitedAmount;
+    private BigDecimal walletBalanceAfterLastDebit;
+    private LocalDateTime walletLastCheckedAt;
+    private Boolean autoStoppedForWallet;
+    private String walletStopReason;
     private String status;
 }
