@@ -16,27 +16,30 @@ CLAUDE.md
 .vscode/
 *.iml
 
-# Local app workspace not deployed by website CI/CD
-plugin_app/
-
 # Presentations and large local documents
 *.ppt
 *.pptx
 
 # Photos/media and generated screenshots
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-*.bmp
-*.tif
-*.tiff
-*.svg
-*.mp4
-*.mov
-*.avi
-*.mkv
+pngmp4/
+plugin_app/.expo-navigation-check/
+plugin_app/google_redirect*.png
+plugin_app/plugin*.png
+plugin_app/*_check.png
+plugin_app/*_test*.png
+plugin_app/*_screen*.png
+
+# Mobile app generated output
+plugin_app/.expo/
+plugin_app/node_modules/
+plugin_app/.env
+plugin_app/android/.gradle/
+plugin_app/android/.gradle-user-home/
+plugin_app/android/.kotlin/
+plugin_app/android/local.properties
+plugin_app/android/build/
+plugin_app/android/app/build/
+plugin_app/android/app/.cxx/
 
 # OS
 .DS_Store

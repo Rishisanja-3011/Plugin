@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Plugin",
+    "slug": "plugin-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/app-icon.png",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "assets/*"
+    ],
+    "plugins": [
+      "expo-notifications",
+      "./plugins/withAndroidCleartext",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Plugin uses your location to show the nearest charging stations first."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.plugin.mobile"
+    },
+    "android": {
+      "package": "com.plugin.mobile",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyD1Xg_yexX1NZM7mUZiYI8tTJcDY9uZNu4"
+        }
+      },
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "com.plugin.mobile"
+            },
+            {
+              "scheme": "com.googleusercontent.apps.380196336293-5i90qr9kni2p8b2oahpukrlgs081lj99"
+            }
+          ]
+        }
+      ]
+    },
+    "splash": {
+      "image": "./assets/brand-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#FFFFFF",
+      "barStyle": "dark-content"
+    },
+    "scheme": "plugin"
+  }
+}
