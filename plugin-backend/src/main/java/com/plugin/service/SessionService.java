@@ -11,6 +11,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -66,8 +67,14 @@ public class SessionService {
 
     @PostConstruct
     public void scheduleActiveSessionCompletions() {
-        List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
-        activeSessions.forEach(this::scheduleExactCompletion);
+        try {
+            List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
+            activeSessions.forEach(this::scheduleExactCompletion);
+            log.info("Scheduled {} active session completion task(s)", activeSessions.size());
+        } catch (DataAccessException ex) {
+            log.warn("Skipping active session completion scheduling because MongoDB is unavailable: {}",
+                    ex.getMessage());
+        }
     }
 
     @Transactional

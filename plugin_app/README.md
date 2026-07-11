@@ -24,6 +24,8 @@ The app defaults to backend port `8091`.
 
 Use this when you do not want to connect the phone with USB every time.
 
+Every Android APK, including a debug APK, contains an embedded JavaScript bundle. The installed app therefore opens when Metro is stopped, the Wi-Fi changes, or the laptop receives a different IP address. When Metro is reachable, a debug APK still uses it for live reload; otherwise it automatically falls back to the embedded bundle.
+
 1. Keep the phone and PC on the same Wi-Fi or hotspot.
 2. Start the backend from `plugin-backend`:
 
@@ -38,7 +40,7 @@ cd plugin_app
 npm.cmd run wireless
 ```
 
-`npm.cmd run wireless` updates `.env` with the PC's current Wi-Fi IP, then starts Expo with `--lan`. No `adb reverse` is needed for backend calls.
+`npm.cmd run wireless` updates `.env` with the PC's current Wi-Fi IP, exports that IP for Expo, then starts Expo with `--lan`. When the Wi-Fi IP has changed and the phone is connected through ADB, it automatically rebuilds and reinstalls the debug APK with the new address. No `adb reverse` is needed for backend calls.
 
 If you only want to refresh the saved LAN API URL without starting Expo:
 
@@ -53,7 +55,13 @@ EXPO_PUBLIC_API_LAN_BASE_URL=http://YOUR_PC_LAN_IP:8091/api
 EXPO_PUBLIC_METRO_HOST=YOUR_PC_LAN_IP:8081
 ```
 
-Android debug builds read `EXPO_PUBLIC_METRO_HOST` and save it as React Native's debug server host, so the installed debug app loads Metro over Wi-Fi instead of `localhost:8081`. If your PC Wi-Fi IP changes, run `npm.cmd run wireless:env` and reinstall the debug build once.
+Android debug builds read `EXPO_PUBLIC_METRO_HOST` and save it as React Native's debug server host, so the installed debug app can load Metro over Wi-Fi instead of `localhost:8081`. If your PC Wi-Fi IP changes, the app continues to open from its embedded bundle. Reinstalling is only needed when you want live reload from Metro at the new IP or want to package newer app code.
+
+To reinstall the debug app with the current Wi-Fi IP baked in, connect the phone by USB or wireless ADB once and run:
+
+```powershell
+npm.cmd run android:wireless
+```
 
 ## Screens Included
 

@@ -20,6 +20,11 @@ react {
     cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
 
+    // Always package a production JS bundle, including in debug APKs. Debug builds still
+    // use Metro when it is reachable, but fall back to this embedded bundle when the
+    // laptop changes Wi-Fi/IP or Metro is stopped.
+    debuggableVariants = []
+
     /* Folders */
      //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")

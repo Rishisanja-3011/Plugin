@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
-import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
 import { brandText } from '../utils/format';
@@ -33,13 +33,13 @@ const GOOGLE_MAPS_API_KEY = 'AIzaSyD1Xg_yexX1NZM7mUZiYI8tTJcDY9uZNu4';
 const DEFAULT_DELTA = 0.045;
 const NAV_EDGE_PADDING = { top: 142, right: 76, bottom: 244, left: 36 };
 const ROUTE_REFRESH_DISTANCE_METERS = 90;
+const ROUTE_REQUEST_TIMEOUT_MS = 10000;
 const CAMERA_UPDATE_INTERVAL_MS = 1500;
 const MAP_TYPE_OPTIONS = [
   { id: 'standard', label: 'Standard', icon: 'map-outline' },
   { id: 'satellite', label: 'Satellite', icon: 'planet-outline' },
   { id: 'hybrid', label: 'Hybrid', icon: 'layers-outline' },
   { id: 'terrain', label: 'Terrain', icon: 'trail-sign-outline' },
-  { id: 'none', label: 'Blank', icon: 'scan-outline' },
 ];
 
 const fontFamily = Platform.select({
@@ -214,6 +214,23 @@ const decodePolyline = (encoded = '') => {
   return points;
 };
 
+const fetchRouteJson = async (url) => {
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), ROUTE_REQUEST_TIMEOUT_MS)
+    : null;
+  try {
+    const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (!response.ok) throw new Error(`Route service returned ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('Route request timed out');
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 const fetchGoogleRoadRoute = async (origin, destination) => {
   const params = [
     `origin=${origin.latitude},${origin.longitude}`,
@@ -223,8 +240,7 @@ const fetchGoogleRoadRoute = async (origin, destination) => {
     'alternatives=false',
     `key=${GOOGLE_MAPS_API_KEY}`,
   ].join('&');
-  const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params}`);
-  const data = await response.json();
+  const data = await fetchRouteJson(`https://maps.googleapis.com/maps/api/directions/json?${params}`);
   if (data.status !== 'OK' || !data.routes?.[0]?.overview_polyline?.points) {
     throw new Error(data.error_message || data.status || 'Google route unavailable');
   }
@@ -254,8 +270,7 @@ const fetchOpenStreetRoadRoute = async (origin, destination) => {
     `${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`,
     '?overview=full&geometries=geojson&steps=true',
   ].join('');
-  const response = await fetch(url);
-  const data = await response.json();
+  const data = await fetchRouteJson(url);
   const route = data.routes?.[0];
   const coordinates = route?.geometry?.coordinates;
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
@@ -363,35 +378,14 @@ function PinGlyph({ color = GOOGLE_BLUE }) {
   );
 }
 
-function CurrentLocationMarker({ heading }) {
-  return (
-    <View style={styles.navigationMarker}>
-      <View style={styles.navigationMarkerShadow} />
-      <View style={[styles.navigationArrowWrap, { transform: [{ rotate: `${heading}deg` }] }]}>
-        <View style={styles.navigationArrowOuter} />
-        <View style={styles.navigationArrowInner} />
-      </View>
-    </View>
-  );
-}
-
-function DestinationMarker({ arrived }) {
-  return (
-    <View style={[styles.googlePinMarker, arrived && styles.googlePinMarkerArrived]}>
-      <View style={styles.googlePinShadow} />
-      <View style={styles.googlePinHead}>
-        <View style={styles.googlePinDot} />
-      </View>
-      <View style={styles.googlePinTip} />
-    </View>
-  );
-}
-
 function CompassIcon() {
   return (
     <View style={styles.compassIcon}>
+      <View style={styles.compassNeedleWest} />
+      <View style={styles.compassNeedleEast} />
       <View style={styles.compassNeedleNorth} />
       <View style={styles.compassNeedleSouth} />
+      <View style={styles.compassCenterDot} />
     </View>
   );
 }
@@ -434,8 +428,6 @@ function SummaryColumn({ value, label, final }) {
 
 export default function StationNavigationScreen({ params, goBack, showNotice }) {
   const mapRef = useRef(null);
-  const currentMarkerRef = useRef(null);
-  const previousCoordinateRef = useRef(null);
   const lastCameraUpdateRef = useRef(0);
   const trackingRef = useRef(null);
   const speedSamplesRef = useRef([]);
@@ -445,11 +437,11 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
   const [mapReady, setMapReady] = useState(false);
   const [userCoordinate, setUserCoordinate] = useState(null);
   const [userHeading, setUserHeading] = useState(null);
-  const [userAccuracy, setUserAccuracy] = useState(null);
   const [speedKmh, setSpeedKmh] = useState(null);
   const [routeOrigin, setRouteOrigin] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [routeRetryToken, setRouteRetryToken] = useState(0);
   const [locationError, setLocationError] = useState('');
   const [roadRoute, setRoadRoute] = useState({
     coordinates: [],
@@ -540,12 +532,16 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
   }, []);
 
   const fitRouteToBounds = useCallback((animated = true) => {
-    if (!mapRef.current || routeCoordinates.length < 2) return;
-    mapRef.current.fitToCoordinates(routeCoordinates, {
+    if (!mapRef.current) return;
+    const overviewCoordinates = routeCoordinates.length > 1
+      ? routeCoordinates
+      : [activeOrigin, destination].filter(Boolean);
+    if (overviewCoordinates.length < 2) return;
+    mapRef.current.fitToCoordinates(overviewCoordinates, {
       edgePadding: NAV_EDGE_PADDING,
       animated,
     });
-  }, [routeCoordinates]);
+  }, [activeOrigin, destination, routeCoordinates]);
 
   const focusNavigationCamera = useCallback((animated = true, force = false) => {
     if (!mapRef.current) return;
@@ -620,7 +616,6 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
-        setUserAccuracy(Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null);
         if (Number.isFinite(position.coords.heading) && position.coords.heading >= 0) {
           setUserHeading(position.coords.heading);
         }
@@ -641,7 +636,6 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
               latitude: nextPosition.coords.latitude,
               longitude: nextPosition.coords.longitude,
             });
-            setUserAccuracy(Number.isFinite(nextPosition.coords.accuracy) ? nextPosition.coords.accuracy : null);
             if (Number.isFinite(nextPosition.coords.heading) && nextPosition.coords.heading >= 0) {
               setUserHeading(nextPosition.coords.heading);
             }
@@ -671,14 +665,6 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
   useEffect(() => {
     requestCurrentLocation(true);
   }, [requestCurrentLocation]);
-
-  useEffect(() => {
-    if (!userCoordinate) return;
-    if (previousCoordinateRef.current && currentMarkerRef.current?.animateMarkerToCoordinate) {
-      currentMarkerRef.current.animateMarkerToCoordinate(userCoordinate, 900);
-    }
-    previousCoordinateRef.current = userCoordinate;
-  }, [userCoordinate]);
 
   useEffect(() => {
     if (!activeOrigin) return;
@@ -762,7 +748,7 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
     return () => {
       cancelled = true;
     };
-  }, [destination, routeKey, routingOrigin]);
+  }, [destination, routeKey, routeRetryToken, routingOrigin]);
 
   useEffect(() => {
     if (!mapReady || cameraMode !== 'follow') return undefined;
@@ -805,6 +791,19 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
     setShowOptions(false);
     focusNavigationCamera(true, true);
   }, [focusNavigationCamera]);
+
+  const handleRouteOverviewPress = useCallback(() => {
+    setShowOptions(false);
+    setCameraMode('manual');
+    fitRouteToBounds(true);
+  }, [fitRouteToBounds]);
+
+  const handleRouteRetry = useCallback(() => {
+    setShowOptions(false);
+    setRouteError('');
+    if (activeOrigin) setRouteOrigin(activeOrigin);
+    setRouteRetryToken((value) => value + 1);
+  }, [activeOrigin]);
 
   const topInstruction = routeLoading
     ? 'Finding best route'
@@ -869,6 +868,10 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
         userInterfaceStyle="light"
         showsCompass={false}
         showsMyLocationButton={false}
+        showsUserLocation={Boolean(activeOrigin)}
+        userLocationPriority="high"
+        userLocationUpdateInterval={1000}
+        userLocationFastestInterval={500}
         showsTraffic={trafficEnabled}
         showsIndoors
         showsBuildings
@@ -878,6 +881,7 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
         scrollEnabled
         zoomEnabled
         onMapReady={() => setMapReady(true)}
+        onPress={() => setShowOptions(false)}
         onPanDrag={handleManualPan}
       >
         {routeCoordinates.length > 1 ? (
@@ -911,37 +915,15 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
           />
         ) : null}
 
-        {activeOrigin ? (
-          <>
-          {Number.isFinite(userAccuracy) && userAccuracy > 0 && userAccuracy <= 120 ? (
-            <Circle
-              center={activeOrigin}
-              radius={userAccuracy}
-              strokeColor="rgba(26,115,232,0.22)"
-              fillColor="rgba(26,115,232,0.08)"
-              zIndex={6}
-            />
-          ) : null}
-          <Marker
-            ref={currentMarkerRef}
-            coordinate={activeOrigin}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges
-            zIndex={19}
-          >
-            <CurrentLocationMarker heading={heading} />
-          </Marker>
-          </>
-        ) : null}
-
         <Marker
           coordinate={destination}
-          anchor={{ x: 0.5, y: 1 }}
-          tracksViewChanges
+          accessibilityLabel={`${destinationName} destination`}
+          title={destinationName}
+          description={destinationAddress}
+          pinColor={arrived ? SUCCESS : DANGER}
+          tracksViewChanges={false}
           zIndex={20}
-        >
-          <DestinationMarker arrived={arrived} />
-        </Marker>
+        />
       </MapView>
 
       <View pointerEvents="box-none" style={styles.overlay}>
@@ -995,25 +977,29 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
             <LocationIcon color={isFollowing ? GOOGLE_BLUE : TEXT_PRIMARY} />
           </FloatingButton>
           <FloatingButton
-            label={threeDMode ? 'Switch to 2D map' : 'Switch to 3D map'}
-            onPress={handleThreeDToggle}
-            active={threeDMode}
+            label="Show full route"
+            visible={Boolean(activeOrigin && destination)}
+            onPress={handleRouteOverviewPress}
           >
-            <Ionicons name="cube-outline" size={24} color={threeDMode ? GOOGLE_BLUE : TEXT_PRIMARY} />
+            <Ionicons name="map-outline" size={24} color={TEXT_PRIMARY} />
           </FloatingButton>
           <FloatingButton
-            label={trafficEnabled ? 'Hide traffic' : 'Show traffic'}
-            onPress={() => setTrafficEnabled((value) => !value)}
-            active={trafficEnabled}
-          >
-            <TrafficIcon active={trafficEnabled} />
-          </FloatingButton>
-          <FloatingButton
-            label="More navigation options"
+            label="Map layers and options"
             onPress={() => setShowOptions((value) => !value)}
-            active={showOptions}
+            active={showOptions || trafficEnabled || threeDMode || mapType !== 'standard'}
           >
-            <Ionicons name="ellipsis-vertical" size={25} color={showOptions ? GOOGLE_BLUE : TEXT_PRIMARY} />
+            <Ionicons
+              name="layers-outline"
+              size={24}
+              color={showOptions || trafficEnabled || threeDMode || mapType !== 'standard' ? GOOGLE_BLUE : TEXT_PRIMARY}
+            />
+          </FloatingButton>
+          <FloatingButton
+            label="Retry route"
+            visible={Boolean(routeError)}
+            onPress={handleRouteRetry}
+          >
+            <Ionicons name="refresh" size={24} color={DANGER} />
           </FloatingButton>
         </View>
 
@@ -1111,19 +1097,10 @@ export default function StationNavigationScreen({ params, goBack, showNotice }) 
         >
           <View style={styles.sheetHandle} />
           <View style={styles.bottomHeaderRow}>
-            <Pressable
-              onPress={goBack}
-              accessibilityRole="button"
-              accessibilityLabel="Close navigation"
-              style={({ pressed }) => [styles.closeNavigationButton, pressed && styles.pressed]}
-            >
-              <Ionicons name="close" size={30} color={TEXT_PRIMARY} />
-            </Pressable>
-
             <View style={styles.summaryRow}>
-                <SummaryColumn value={formatDuration(remainingDurationSeconds)} label="Remaining time" />
-                <SummaryColumn value={formatDistance(remainingDistanceMeters)} label="Remaining" />
-                <SummaryColumn value={arrivalTime} label="Arrival" final />
+              <SummaryColumn value={formatDuration(remainingDurationSeconds)} label="Remaining time" />
+              <SummaryColumn value={formatDistance(remainingDistanceMeters)} label="Remaining" />
+              <SummaryColumn value={arrivalTime} label="Arrival" final />
             </View>
           </View>
 
@@ -1369,7 +1346,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   mapTypeOption: {
-    width: 68,
+    width: 102,
     height: 62,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1426,34 +1403,34 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     bottom: 166,
-    width: 82,
-    height: 82,
+    width: 62,
+    height: 62,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 41,
+    borderRadius: 31,
     borderWidth: 1,
     borderColor: '#EBEBEF',
     backgroundColor: WHITE,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 9,
+    elevation: 6,
   },
   speedValue: {
     color: TEXT_PRIMARY,
     fontFamily,
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
     letterSpacing: 0,
   },
   speedUnit: {
     color: TEXT_SECONDARY,
     fontFamily,
-    fontSize: 11,
+    fontSize: 8,
     fontWeight: '800',
     letterSpacing: 0,
-    marginTop: -2,
+    marginTop: -1,
   },
   bottomSheet: {
     minHeight: 142,
@@ -1481,17 +1458,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  closeNavigationButton: {
-    width: 52,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: '#D9D9DE',
-    backgroundColor: WHITE,
   },
   summaryRow: {
     flex: 1,
@@ -1642,34 +1608,64 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   compassIcon: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   compassNeedleNorth: {
     position: 'absolute',
-    top: 3,
+    top: 2,
     width: 0,
     height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 15,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 14,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: '#EA4335',
   },
   compassNeedleSouth: {
     position: 'absolute',
-    bottom: 3,
+    bottom: 2,
     width: 0,
     height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 15,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 14,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#C4C7CC',
+    borderTopColor: '#BFC4CC',
+  },
+  compassNeedleWest: {
+    position: 'absolute',
+    left: 3,
+    width: 0,
+    height: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderRightWidth: 12,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: '#D5D9DE',
+  },
+  compassNeedleEast: {
+    position: 'absolute',
+    right: 3,
+    width: 0,
+    height: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderLeftWidth: 12,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: '#D5D9DE',
+  },
+  compassCenterDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: WHITE,
   },
   pinGlyph: {
     width: 24,
@@ -1697,104 +1693,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 2,
     borderBottomWidth: 2,
     backgroundColor: WHITE,
-    transform: [{ rotate: '45deg' }],
-  },
-  navigationMarker: {
-    width: 92,
-    height: 92,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navigationMarkerShadow: {
-    position: 'absolute',
-    bottom: 20,
-    width: 46,
-    height: 16,
-    borderRadius: 23,
-    backgroundColor: 'rgba(0,0,0,0.20)',
-  },
-  navigationArrowWrap: {
-    width: 68,
-    height: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navigationArrowOuter: {
-    position: 'absolute',
-    top: 5,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 25,
-    borderRightWidth: 25,
-    borderBottomWidth: 58,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: WHITE,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  navigationArrowInner: {
-    position: 'absolute',
-    top: 15,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 16,
-    borderRightWidth: 16,
-    borderBottomWidth: 40,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#1A73E8',
-  },
-  googlePinMarker: {
-    width: 72,
-    height: 86,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  googlePinMarkerArrived: {
-    opacity: 0.92,
-  },
-  googlePinShadow: {
-    position: 'absolute',
-    bottom: 5,
-    width: 36,
-    height: 12,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.20)',
-  },
-  googlePinHead: {
-    marginTop: 5,
-    width: 50,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 25,
-    borderWidth: 5,
-    borderColor: WHITE,
-    backgroundColor: '#EA4335',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 9,
-  },
-  googlePinDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#B3191D',
-  },
-  googlePinTip: {
-    width: 22,
-    height: 22,
-    marginTop: -15,
-    borderRightWidth: 5,
-    borderBottomWidth: 5,
-    borderColor: WHITE,
-    backgroundColor: '#EA4335',
     transform: [{ rotate: '45deg' }],
   },
 });

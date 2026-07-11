@@ -7,6 +7,7 @@
     "start": "expo start",
     "wireless": "powershell -ExecutionPolicy Bypass -File scripts/start-wireless.ps1",
     "wireless:env": "powershell -ExecutionPolicy Bypass -File scripts/setup-wireless.ps1",
+    "android:wireless": "powershell -ExecutionPolicy Bypass -File scripts/install-wireless-debug.ps1",
     "android": "expo run:android",
     "android:release": "powershell -ExecutionPolicy Bypass -File android/build-release-offline.ps1",
     "android:update": "powershell -ExecutionPolicy Bypass -File android/update-app.ps1",

@@ -1,10 +1,12 @@
 package com.plugin.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.MongoTransactionManager;
@@ -17,6 +19,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 @Configuration
+@Slf4j
 public class MongoConfig {
 
     @Bean
@@ -37,31 +40,36 @@ public class MongoConfig {
     @Bean
     public ApplicationRunner bookingIndexes(MongoTemplate mongoTemplate) {
         return args -> {
-            var indexes = mongoTemplate.indexOps("bookings");
-            indexes.ensureIndex(new Index().on("createdAt", org.springframework.data.domain.Sort.Direction.DESC)
-                    .named("idx_booking_created_desc"));
-            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
-                    .append("status", 1)
-                    .append("createdAt", -1))
-                    .named("idx_booking_status_created_desc"));
-            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
-                    .append("customerId", 1)
-                    .append("createdAt", -1))
-                    .named("idx_booking_customer_created_desc"));
-            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
-                    .append("stationId", 1)
-                    .append("createdAt", -1))
-                    .named("idx_booking_station_created_desc"));
-            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
-                    .append("chargingPointId", 1)
-                    .append("startTime", 1)
-                    .append("endTime", 1))
-                    .named("idx_booking_point_id_time"));
-            indexes.ensureIndex(new CompoundIndexDefinition(new Document()
-                    .append("chargingPoint.id", 1)
-                    .append("startTime", 1)
-                    .append("endTime", 1))
-                    .named("idx_booking_point_time"));
+            try {
+                var indexes = mongoTemplate.indexOps("bookings");
+                indexes.ensureIndex(new Index().on("createdAt", org.springframework.data.domain.Sort.Direction.DESC)
+                        .named("idx_booking_created_desc"));
+                indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                        .append("status", 1)
+                        .append("createdAt", -1))
+                        .named("idx_booking_status_created_desc"));
+                indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                        .append("customerId", 1)
+                        .append("createdAt", -1))
+                        .named("idx_booking_customer_created_desc"));
+                indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                        .append("stationId", 1)
+                        .append("createdAt", -1))
+                        .named("idx_booking_station_created_desc"));
+                indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                        .append("chargingPointId", 1)
+                        .append("startTime", 1)
+                        .append("endTime", 1))
+                        .named("idx_booking_point_id_time"));
+                indexes.ensureIndex(new CompoundIndexDefinition(new Document()
+                        .append("chargingPoint.id", 1)
+                        .append("startTime", 1)
+                        .append("endTime", 1))
+                        .named("idx_booking_point_time"));
+            } catch (DataAccessException ex) {
+                log.warn("Skipping MongoDB booking index initialization because MongoDB is unavailable: {}",
+                        ex.getMessage());
+            }
         };
     }
 

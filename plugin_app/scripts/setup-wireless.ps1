@@ -1,6 +1,7 @@
 param(
   [string]$HostIp,
-  [int]$BackendPort = 8091
+  [int]$BackendPort = 8091,
+  [int]$MetroPort = 8081
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +43,7 @@ if (-not $HostIp) {
 }
 
 $lanUrl = "http://${HostIp}:${BackendPort}/api"
-$metroHost = "${HostIp}:8081"
+$metroHost = "${HostIp}:${MetroPort}"
 $lines = @()
 if (Test-Path $envPath) {
   $lines = Get-Content -Path $envPath
@@ -68,6 +69,12 @@ $values['EXPO_PUBLIC_API_BASE_URL'] = ''
 $values['EXPO_PUBLIC_API_LAN_BASE_URL'] = $lanUrl
 $values['EXPO_PUBLIC_API_PORT'] = [string]$BackendPort
 $values['EXPO_PUBLIC_METRO_HOST'] = $metroHost
+
+$env:EXPO_PUBLIC_API_BASE_URL = ''
+$env:EXPO_PUBLIC_API_LAN_BASE_URL = $lanUrl
+$env:EXPO_PUBLIC_API_PORT = [string]$BackendPort
+$env:EXPO_PUBLIC_METRO_HOST = $metroHost
+$env:REACT_NATIVE_PACKAGER_HOSTNAME = $HostIp
 
 $output = @(
   "EXPO_PUBLIC_GOOGLE_CLIENT_ID=$($values['EXPO_PUBLIC_GOOGLE_CLIENT_ID'])",

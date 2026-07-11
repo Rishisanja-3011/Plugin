@@ -12,31 +12,32 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
-      SERVER_PORT: ${{ secrets.SERVER_PORT || '8081' }}
-      SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS || '0.0.0.0' }}
+      SERVER_PORT: ${{ secrets.SERVER_PORT }}
+      SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS }}
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
-      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE || 'plugindb' }}
+      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      MAIL_HOST: ${{ secrets.MAIL_HOST || 'smtp.gmail.com' }}
-      MAIL_PORT: ${{ secrets.MAIL_PORT || '587' }}
-      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || 'plugin.available@gmail.com' }}
+      MAIL_HOST: ${{ secrets.MAIL_HOST }}
+      MAIL_PORT: ${{ secrets.MAIL_PORT }}
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
       MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-      MAIL_FROM: ${{ secrets.MAIL_FROM || 'plugin.available@gmail.com' }}
+      MAIL_FROM: ${{ secrets.MAIL_FROM }}
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
-      PUBLIC_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api' }}
-      DEFAULT_RATE_PER_KWH: ${{ secrets.DEFAULT_RATE_PER_KWH || '15' }}
-      CHARGING_EFFICIENCY_FACTOR: ${{ secrets.CHARGING_EFFICIENCY_FACTOR || '0.92' }}
-      SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL || 'plugin.onservice@gmail.com' }}
-      WEBSITE_URL: ${{ secrets.WEBSITE_URL || 'www.plugin.com' }}
-      GOOGLE_CLIENT_IDS: ${{ secrets.GOOGLE_CLIENT_IDS || '380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com,380196336293-5i90qr9kni2p8b2oahpukrlgs081lj99.apps.googleusercontent.com' }}
+      PUBLIC_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      DEFAULT_RATE_PER_KWH: ${{ secrets.DEFAULT_RATE_PER_KWH }}
+      CHARGING_EFFICIENCY_FACTOR: ${{ secrets.CHARGING_EFFICIENCY_FACTOR }}
+      SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
+      WEBSITE_URL: ${{ secrets.WEBSITE_URL }}
+      GOOGLE_CLIENT_IDS: ${{ secrets.GOOGLE_CLIENT_IDS }}
       RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
       RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-      RAZORPAY_CURRENCY: ${{ secrets.RAZORPAY_CURRENCY || 'INR' }}
-      RAZORPAY_BUSINESS_NAME: ${{ secrets.RAZORPAY_BUSINESS_NAME || 'PLUGIN' }}
-      RAZORPAY_MINIMUM_AMOUNT: ${{ secrets.RAZORPAY_MINIMUM_AMOUNT || '1.00' }}
+      RAZORPAY_CURRENCY: ${{ secrets.RAZORPAY_CURRENCY }}
+      RAZORPAY_BUSINESS_NAME: ${{ secrets.RAZORPAY_BUSINESS_NAME }}
+      RAZORPAY_MINIMUM_AMOUNT: ${{ secrets.RAZORPAY_MINIMUM_AMOUNT }}
 
     defaults:
       run:
+        shell: bash
         working-directory: plugin-backend
 
     steps:
@@ -58,6 +59,43 @@ jobs:
             fi
           done
           exit $missing
+
+      - name: Apply backend deployment defaults
+        run: |
+          SERVER_PORT="${SERVER_PORT:-8081}"
+          SERVER_ADDRESS="${SERVER_ADDRESS:-0.0.0.0}"
+          MONGODB_DATABASE="${MONGODB_DATABASE:-plugindb}"
+          MAIL_HOST="${MAIL_HOST:-smtp.gmail.com}"
+          MAIL_PORT="${MAIL_PORT:-587}"
+          MAIL_USERNAME="${MAIL_USERNAME:-plugin.available@gmail.com}"
+          MAIL_FROM="${MAIL_FROM:-$MAIL_USERNAME}"
+          PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api}"
+          DEFAULT_RATE_PER_KWH="${DEFAULT_RATE_PER_KWH:-15}"
+          CHARGING_EFFICIENCY_FACTOR="${CHARGING_EFFICIENCY_FACTOR:-0.92}"
+          SUPPORT_EMAIL="${SUPPORT_EMAIL:-plugin.onservice@gmail.com}"
+          WEBSITE_URL="${WEBSITE_URL:-www.plugin.com}"
+          GOOGLE_CLIENT_IDS="${GOOGLE_CLIENT_IDS:-380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com,380196336293-5i90qr9kni2p8b2oahpukrlgs081lj99.apps.googleusercontent.com}"
+          RAZORPAY_CURRENCY="${RAZORPAY_CURRENCY:-INR}"
+          RAZORPAY_BUSINESS_NAME="${RAZORPAY_BUSINESS_NAME:-PLUGIN}"
+          RAZORPAY_MINIMUM_AMOUNT="${RAZORPAY_MINIMUM_AMOUNT:-1.00}"
+          {
+            printf 'SERVER_PORT=%s\n' "$SERVER_PORT"
+            printf 'SERVER_ADDRESS=%s\n' "$SERVER_ADDRESS"
+            printf 'MONGODB_DATABASE=%s\n' "$MONGODB_DATABASE"
+            printf 'MAIL_HOST=%s\n' "$MAIL_HOST"
+            printf 'MAIL_PORT=%s\n' "$MAIL_PORT"
+            printf 'MAIL_USERNAME=%s\n' "$MAIL_USERNAME"
+            printf 'MAIL_FROM=%s\n' "$MAIL_FROM"
+            printf 'PUBLIC_API_BASE_URL=%s\n' "$PUBLIC_API_BASE_URL"
+            printf 'DEFAULT_RATE_PER_KWH=%s\n' "$DEFAULT_RATE_PER_KWH"
+            printf 'CHARGING_EFFICIENCY_FACTOR=%s\n' "$CHARGING_EFFICIENCY_FACTOR"
+            printf 'SUPPORT_EMAIL=%s\n' "$SUPPORT_EMAIL"
+            printf 'WEBSITE_URL=%s\n' "$WEBSITE_URL"
+            printf 'GOOGLE_CLIENT_IDS=%s\n' "$GOOGLE_CLIENT_IDS"
+            printf 'RAZORPAY_CURRENCY=%s\n' "$RAZORPAY_CURRENCY"
+            printf 'RAZORPAY_BUSINESS_NAME=%s\n' "$RAZORPAY_BUSINESS_NAME"
+            printf 'RAZORPAY_MINIMUM_AMOUNT=%s\n' "$RAZORPAY_MINIMUM_AMOUNT"
+          } >> "$GITHUB_ENV"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4

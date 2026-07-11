@@ -1,6 +1,0 @@
-E-Charging Station Management System (Java-based)
-
-Project Definition:
-The E-Charging Station Management System is a Java-based application that helps manage electric vehicle (EV) charging stations efficiently. The system allows station operators to register charging points, track their availability, manage bookings, and monitor charging sessions in real time. Customers can search for nearby charging stations, reserve a slot, and view their charging history.
-
-The project aims to simplify the charging process, reduce wait times, and improve the utilization of charging infrastructure through efficient scheduling and data management.
