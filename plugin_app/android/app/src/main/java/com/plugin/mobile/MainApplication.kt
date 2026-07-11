@@ -2,7 +2,6 @@ package com.plugin.mobile
 
 import android.app.Application
 import android.content.res.Configuration
-import android.preference.PreferenceManager
 
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -41,7 +40,6 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
-    configureWirelessDebugServerHost()
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {
@@ -49,16 +47,6 @@ class MainApplication : Application(), ReactApplication {
     }
     loadReactNative(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
-  }
-
-  private fun configureWirelessDebugServerHost() {
-    if (!BuildConfig.DEBUG || BuildConfig.PLUGIN_METRO_HOST.isBlank()) {
-      return
-    }
-    PreferenceManager.getDefaultSharedPreferences(this)
-      .edit()
-      .putString("debug_http_host", BuildConfig.PLUGIN_METRO_HOST)
-      .apply()
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

@@ -41,5 +41,5 @@ if ($Launch) {
   }
 }
 
-Write-Host "Self-contained debug APK installed with Metro host $($env:EXPO_PUBLIC_METRO_HOST)."
+Write-Host 'Self-contained debug APK installed with runtime wireless host support.'
 Write-Host 'The app opens from its embedded bundle on any network. For live reload, start Metro with: npm.cmd run wireless'

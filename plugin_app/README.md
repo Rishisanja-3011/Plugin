@@ -40,7 +40,7 @@ cd plugin_app
 npm.cmd run wireless
 ```
 
-`npm.cmd run wireless` updates `.env` with the PC's current Wi-Fi IP, exports that IP for Expo, then starts Expo with `--lan`. When the Wi-Fi IP has changed and the phone is connected through ADB, it automatically rebuilds and reinstalls the debug APK with the new address. No `adb reverse` is needed for backend calls.
+`npm.cmd run wireless` updates `.env` with the PC's current Wi-Fi IP, exports that IP for Expo, updates the connected Android app's Metro address at runtime, then starts Expo with `--lan`. Wi-Fi IP changes no longer require rebuilding or reinstalling the APK. No `adb reverse` is needed for backend calls.
 
 If you only want to refresh the saved LAN API URL without starting Expo:
 
@@ -55,7 +55,7 @@ EXPO_PUBLIC_API_LAN_BASE_URL=http://YOUR_PC_LAN_IP:8091/api
 EXPO_PUBLIC_METRO_HOST=YOUR_PC_LAN_IP:8081
 ```
 
-Android debug builds read `EXPO_PUBLIC_METRO_HOST` and save it as React Native's debug server host, so the installed debug app can load Metro over Wi-Fi instead of `localhost:8081`. If your PC Wi-Fi IP changes, the app continues to open from its embedded bundle. Reinstalling is only needed when you want live reload from Metro at the new IP or want to package newer app code.
+The wireless script sends `EXPO_PUBLIC_METRO_HOST` to connected debug apps, so they can load Metro over Wi-Fi instead of `localhost:8081`. The first run upgrades an older APK once; afterward, IP changes are applied immediately without another build. If no ADB device is connected, Metro still starts and the app continues to open from its embedded bundle.
 
 To reinstall the debug app with the current Wi-Fi IP baked in, connect the phone by USB or wireless ADB once and run:
 

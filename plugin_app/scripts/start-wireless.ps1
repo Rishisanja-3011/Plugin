@@ -11,27 +11,51 @@ Set-Location $projectDir
 
 & (Join-Path $PSScriptRoot 'setup-wireless.ps1') -HostIp $HostIp -BackendPort $BackendPort -MetroPort $MetroPort
 
-$buildConfigPath = Join-Path $projectDir 'android\app\build\generated\source\buildConfig\debug\com\plugin\mobile\BuildConfig.java'
-if (Test-Path $buildConfigPath) {
-  $buildConfig = Get-Content -Path $buildConfigPath -Raw
-  if ($buildConfig -notmatch [regex]::Escape("PLUGIN_METRO_HOST = `"$($env:EXPO_PUBLIC_METRO_HOST)`"")) {
-    $adbCommand = Get-Command adb -ErrorAction SilentlyContinue
-    $connectedDevice = if ($adbCommand) {
-      adb devices | Select-String -Pattern '^\S+\s+device$' | Select-Object -First 1
-    } else {
-      $null
-    }
+function Set-DeviceMetroHost {
+  param([string]$Serial)
 
-    if ($connectedDevice) {
-      Write-Host "The Wi-Fi IP changed. Updating the installed debug APK automatically..."
-      & (Join-Path $PSScriptRoot 'install-wireless-debug.ps1') `
-        -HostIp $HostIp `
-        -BackendPort $BackendPort `
-        -MetroPort $MetroPort
-    } else {
-      Write-Warning "The installed debug APK still points at an old Metro host, so live reload is unavailable. The app will open from its embedded bundle. Connect the phone once and run npm.cmd run wireless again to update it automatically."
+  $result = adb -s $Serial shell am broadcast `
+    -n 'com.plugin.mobile/.MetroHostReceiver' `
+    -a 'com.plugin.mobile.SET_METRO_HOST' `
+    --es metroHost $env:EXPO_PUBLIC_METRO_HOST 2>&1
+  return ($result -match 'result=-1')
+}
+
+$adbCommand = Get-Command adb -ErrorAction SilentlyContinue
+$deviceSerials = if ($adbCommand) {
+  adb devices | ForEach-Object {
+    if ($_ -match '^(\S+)\s+device$') { $Matches[1] }
+  }
+} else {
+  @()
+}
+
+if ($deviceSerials.Count -gt 0) {
+  $needsOneTimeUpgrade = $false
+  foreach ($serial in $deviceSerials) {
+    if (-not (Set-DeviceMetroHost -Serial $serial)) {
+      $needsOneTimeUpgrade = $true
+      break
     }
   }
+
+  if ($needsOneTimeUpgrade) {
+    Write-Host 'Installing the one-time wireless host updater on the Android device...'
+    & (Join-Path $PSScriptRoot 'install-wireless-debug.ps1') `
+      -HostIp $HostIp `
+      -BackendPort $BackendPort `
+      -MetroPort $MetroPort
+
+    foreach ($serial in $deviceSerials) {
+      if (-not (Set-DeviceMetroHost -Serial $serial)) {
+        throw "Could not update the Metro host on Android device $serial after installation."
+      }
+    }
+  }
+
+  Write-Host "Android Metro host updated at runtime; APK rebuild is not needed when the Wi-Fi IP changes."
+} else {
+  Write-Host 'No ADB device is connected. Metro will still start; the app keeps its last host until wireless ADB reconnects.'
 }
 
 $env:NODE_ENV = 'development'

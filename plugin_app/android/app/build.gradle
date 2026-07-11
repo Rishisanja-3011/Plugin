@@ -73,27 +73,6 @@ react {
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
-def readDotEnvValue = { key ->
-    def envFile = file("../../.env")
-    if (!envFile.exists()) {
-        return null
-    }
-    def prefix = "${key}="
-    def line = envFile.readLines().find { it.trim().startsWith(prefix) }
-    if (line == null) {
-        return null
-    }
-    return line.trim().substring(prefix.length())
-}
-
-def escapeBuildConfigString = { value ->
-    return (value ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
-}
-
-def pluginMetroHost = escapeBuildConfigString(
-    readDotEnvValue("EXPO_PUBLIC_METRO_HOST") ?: System.getenv("EXPO_PUBLIC_METRO_HOST") ?: ""
-)
-
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -122,7 +101,6 @@ android {
         versionName "1.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
-        buildConfigField "String", "PLUGIN_METRO_HOST", "\"${pluginMetroHost}\""
     }
     signingConfigs {
         debug {
