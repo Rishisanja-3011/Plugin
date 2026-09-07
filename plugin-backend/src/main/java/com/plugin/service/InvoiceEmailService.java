@@ -97,10 +97,10 @@ public class InvoiceEmailService {
             helper.setText(body, false);
             helper.addAttachment(filename, new ByteArrayResource(pdf), "application/pdf");
             mailSender.send(message);
-            log.info("Invoice email sent to {}", to);
+            log.info("Invoice email sent");
             return;
         } catch (Exception e) {
-            log.warn("Failed to send invoice email with attachment to {}", to, e);
+            log.warn("Invoice email delivery with attachment failed; type={}", e.getClass().getName());
         }
 
         try {
@@ -111,9 +111,9 @@ public class InvoiceEmailService {
             String body = buildPaymentConfirmationBody(bill);
             message.setText(body);
             mailSender.send(message);
-            log.info("Fallback invoice email sent to {}", to);
+            log.info("Fallback invoice email sent");
         } catch (Exception e) {
-            log.warn("Failed to send fallback invoice email to {}", to, e);
+            log.warn("Fallback invoice email delivery failed; type={}", e.getClass().getName());
         }
     }
 

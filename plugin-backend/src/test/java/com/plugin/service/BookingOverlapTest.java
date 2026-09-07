@@ -1,11 +1,13 @@
 package com.plugin.service;
 
+import com.plugin.dto.request.BookingLocationPingRequest;
 import com.plugin.dto.request.BookingRequest;
 import com.plugin.dto.response.BookingResponse;
 import com.plugin.entity.*;
 import com.plugin.enums.*;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ConflictException;
+import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,9 @@ class BookingOverlapTest {
     @Mock private PricingSnapshotService pricingSnapshotService;
     @Mock private AuditService auditService;
     @Mock private NotificationService notificationService;
+    @Mock private ChargingSessionRepository sessionRepository;
+    @Mock private BookingTransactionRunner transactionRunner;
+    @Mock private EtaSlotAllocator etaSlotAllocator;
 
     @InjectMocks
     private BookingService bookingService;
@@ -45,6 +50,8 @@ class BookingOverlapTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionRunner.execute(any())).thenAnswer(call ->
+                ((java.util.function.Supplier<?>) call.getArgument(0)).get());
         customer = User.builder()
                 .id(1L)
                 .email("test@test.com")
@@ -58,6 +65,10 @@ class BookingOverlapTest {
                 .openingTime(LocalTime.of(6, 0)).closingTime(LocalTime.of(23, 0)).build();
         chargingPoint = ChargingPoint.builder().id(1L).identifier("CP-01").station(station)
                 .pointType(PointType.FAST).maxPowerKw(150.0).status(PointStatus.AVAILABLE).build();
+        lenient().when(userRepository.findByEmail(customer.getEmail()))
+                .thenReturn(Optional.of(customer));
+        lenient().when(cpRepository.findByStationId(station.getId()))
+                .thenReturn(List.of(chargingPoint));
         lenient().when(userVehicleRepository.findFirstByUserIdAndActiveTrue(anyLong()))
                 .thenReturn(Optional.empty());
         lenient().when(userVehicleRepository.findByUserIdOrderByActiveDescCreatedAtDesc(anyLong()))
@@ -253,5 +264,84 @@ class BookingOverlapTest {
                 bookingService.createBooking(request, "test@test.com"));
 
         assertEquals("No available charging points for the requested time slot", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectLocationUpdatesForFixedBookings() {
+        Booking fixedBooking = Booking.builder()
+                .id(21L)
+                .referenceId("BK-FIXED")
+                .customer(customer)
+                .station(station)
+                .chargingPoint(chargingPoint)
+                .chargingPointId(chargingPoint.getId())
+                .virtualSpot(false)
+                .status(BookingStatus.CONFIRMED)
+                .startTime(LocalDateTime.now().plusHours(1))
+                .endTime(LocalDateTime.now().plusHours(2))
+                .build();
+        BookingLocationPingRequest ping = new BookingLocationPingRequest();
+        ping.setLatitude(19.0760);
+        ping.setLongitude(72.8777);
+
+        when(bookingRepository.findById(21L)).thenReturn(Optional.of(fixedBooking));
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+                () -> bookingService.updateBookingLocation(21L, ping, customer.getEmail()));
+
+        assertEquals("Location updates are only accepted for ETA bookings", exception.getMessage());
+        verifyNoInteractions(cpRepository);
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCancellationAfterChargingSessionStarts() {
+        Booking booking = Booking.builder()
+                .id(22L)
+                .referenceId("BK-ACTIVE")
+                .customer(customer)
+                .station(station)
+                .chargingPoint(chargingPoint)
+                .chargingPointId(chargingPoint.getId())
+                .status(BookingStatus.CONFIRMED)
+                .startTime(LocalDateTime.now().minusMinutes(5))
+                .endTime(LocalDateTime.now().plusMinutes(55))
+                .build();
+        ChargingSession activeSession = ChargingSession.builder()
+                .id(31L)
+                .booking(booking)
+                .customer(customer)
+                .status(SessionStatus.IN_PROGRESS)
+                .build();
+
+        when(bookingRepository.findById(22L)).thenReturn(Optional.of(booking));
+        when(sessionRepository.findByBookingId(22L)).thenReturn(Optional.of(activeSession));
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+                () -> bookingService.cancelBooking(22L, customer.getEmail(), "Changed plans"));
+
+        assertEquals("Cannot cancel a booking after charging has started", exception.getMessage());
+        verify(cpRepository, never()).releaseReservationForBooking(anyLong(), anyLong());
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldHideAnotherCustomersBooking() {
+        User attacker = User.builder()
+                .id(61L)
+                .email("attacker@example.com")
+                .role(Role.CUSTOMER)
+                .build();
+        Booking victimBooking = Booking.builder()
+                .id(62L)
+                .customer(customer)
+                .customerId(customer.getId())
+                .status(BookingStatus.CONFIRMED)
+                .build();
+        when(bookingRepository.findById(victimBooking.getId())).thenReturn(Optional.of(victimBooking));
+        when(userRepository.findByEmail(attacker.getEmail())).thenReturn(Optional.of(attacker));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> bookingService.getBookingForCaller(victimBooking.getId(), attacker.getEmail()));
     }
 }

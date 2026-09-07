@@ -27,7 +27,7 @@ public class BillController {
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         return ResponseEntity.ok(billService.getMyBills(auth.getName(),
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @GetMapping("/my/unpaid-count")
@@ -36,8 +36,8 @@ public class BillController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BillResponse> getBill(@PathVariable Long id) {
-        return ResponseEntity.ok(billService.getBillById(id));
+    public ResponseEntity<BillResponse> getBill(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(billService.getBillForCaller(auth.getName(), id));
     }
 
     @PostMapping("/my/{id}/wallet-pay")
@@ -73,5 +73,13 @@ public class BillController {
                 .header(HttpHeaders.EXPIRES, "0")
                 .header("X-Statement-Count", String.valueOf(statement.rowCount()))
                 .body(statement.data());
+    }
+
+    private int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private int safeSize(int size) {
+        return Math.max(1, Math.min(100, size));
     }
 }

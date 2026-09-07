@@ -30,7 +30,7 @@ public class StationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(stationService.getActiveStations(
-                PageRequest.of(page, size, Sort.by("name"))));
+                PageRequest.of(safePage(page), safeSize(size), Sort.by("name"))));
     }
 
     @GetMapping("/live-summary")
@@ -44,7 +44,7 @@ public class StationController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(stationService.searchStations(q,
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @GetMapping("/{id}")
@@ -60,5 +60,13 @@ public class StationController {
     @GetMapping("/{id}/pricing")
     public ResponseEntity<List<PricingResponse>> getPricing(@PathVariable Long id) {
         return ResponseEntity.ok(pricingService.getByStation(id));
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size) {
+        return Math.max(1, Math.min(100, size));
     }
 }

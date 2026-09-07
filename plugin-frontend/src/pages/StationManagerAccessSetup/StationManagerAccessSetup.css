@@ -1,0 +1,68 @@
+.access-setup {
+  display: grid;
+  min-height: 70vh;
+  place-items: center;
+  padding: 3rem 1rem;
+}
+
+.access-setup__card {
+  max-width: 560px;
+  padding: 2rem;
+  width: 100%;
+}
+
+.access-setup__eyebrow {
+  color: var(--color-primary, #166534);
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.65rem;
+  text-transform: uppercase;
+}
+
+.access-setup__card h1 {
+  margin: 0 0 0.75rem;
+}
+
+.access-setup__card > p {
+  color: var(--text-muted, #5b6472);
+  line-height: 1.6;
+}
+
+.access-setup__form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.access-setup__form label {
+  display: grid;
+  font-weight: 600;
+  gap: 0.45rem;
+}
+
+.access-setup__form input {
+  border: 1px solid var(--border-color, #d8dee8);
+  border-radius: 0.65rem;
+  font: inherit;
+  padding: 0.8rem 0.9rem;
+}
+
+.access-setup__form small {
+  color: var(--text-muted, #5b6472);
+  line-height: 1.5;
+}
+
+.access-setup__error {
+  background: #fff1f2;
+  border-radius: 0.5rem;
+  color: #be123c;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.access-setup__back {
+  display: inline-block;
+  margin-top: 1.25rem;
+}

@@ -109,14 +109,4 @@ public class ProfileController {
         return ResponseEntity.ok(profileService.changePasswordWithOtpOnly(auth.getName(), request));
     }
 
-    @GetMapping("/delete")
-    public ResponseEntity<java.util.Map<String, String>> deleteAccountGet(
-            @RequestParam String password,
-            @RequestParam String otp,
-            Authentication auth) {
-        DeleteAccountRequest request = new DeleteAccountRequest();
-        request.setPassword(password);
-        request.setOtp(otp);
-        return ResponseEntity.ok(profileService.deleteAccount(auth.getName(), request));
-    }
 }

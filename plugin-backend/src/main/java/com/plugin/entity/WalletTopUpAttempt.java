@@ -3,6 +3,7 @@ package com.plugin.entity;
 import com.plugin.enums.WalletTransactionStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -33,8 +34,10 @@ public class WalletTopUpAttempt {
 
     private WalletTransactionStatus status;
 
+    @Indexed(unique = true, sparse = true)
     private String razorpayOrderId;
 
+    @Indexed(name = "uk_wallet_top_up_payment_id", unique = true, sparse = true)
     private String razorpayPaymentId;
 
     private BigDecimal refundedAmount;
@@ -48,6 +51,9 @@ public class WalletTopUpAttempt {
     private LocalDateTime completedAt;
 
     private LocalDateTime lastRefundedAt;
+
+    @Version
+    private Long version;
 
     protected void onCreate() {
         createdAt = LocalDateTime.now();

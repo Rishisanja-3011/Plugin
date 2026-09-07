@@ -10,7 +10,7 @@ import './Billing.css';
 const PAGE_SIZE = 10;
 const STATEMENT_STORAGE_KEY = 'plugin_billing_statement_filters_v1';
 const BILLING_REFRESH_INTERVAL_MS = 30000;
-const BILLING_FINALIZE_REFRESH_INTERVAL_MS = 1000;
+const BILLING_FINALIZE_REFRESH_INTERVAL_MS = 3000;
 
 const toDateInputValue = (date) => {
   const year = date.getFullYear();

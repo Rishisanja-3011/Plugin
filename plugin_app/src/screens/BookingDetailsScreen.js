@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import * as Location from 'expo-location';
+import { enableBackgroundEtaTracking, refreshEtaBookings, subscribeEtaTracking } from '../utils/etaTracking';
 import Screen from '../components/Screen';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -28,6 +28,8 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
+  const [tracking, setTracking] = useState({ message: '', backgroundEnabled: false });
+  useEffect(() => subscribeEtaTracking(setTracking), []);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) {
@@ -57,40 +59,14 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
   );
 
   useEffect(() => {
-    if (!booking?.gracePeriodEndTime || !isActive) return undefined;
+    if (!isActive) return undefined;
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [booking?.gracePeriodEndTime, isActive]);
+  }, [isActive]);
 
   useEffect(() => {
-    if (!booking?.id || !isActive || !isDynamicBooking || booking?.proximityLocked) return undefined;
-    let cancelled = false;
-
-    const pingLocation = async () => {
-      try {
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.status !== 'granted') return;
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (cancelled || !position?.coords) return;
-        const updated = await api.bookings.locationPing(booking.id, {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        if (!cancelled && updated) setBooking(updated);
-      } catch {
-        // The backend also refreshes on the next accepted ping; avoid noisy UI errors here.
-      }
-    };
-
-    pingLocation();
-    const timer = setInterval(pingLocation, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [booking?.id, booking?.proximityLocked, isActive, isDynamicBooking]);
+    if (isActive && isDynamicBooking) refreshEtaBookings();
+  }, [booking?.id, isActive, isDynamicBooking]);
 
   const cancel = async () => {
     const confirmed = await confirmNotice({
@@ -117,6 +93,7 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
   const startSession = async () => {
     try {
       setActionLoading(true);
+      if (isDynamicBooking) await refreshEtaBookings();
       const session = await api.sessions.start(booking.id);
       navigate('charging', { session });
     } catch (requestError) {
@@ -155,8 +132,10 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
         {isDynamicBooking ? (
           <>
             <Detail label="Predicted Arrival" value={dateTime(booking.predictedArrivalAt)} />
+            <Detail label="Estimate" value={booking.etaLiveTraffic ? 'Traffic-aware travel estimate' : 'Approximate travel time; live traffic unavailable'} />
+            <Detail label="Wait after arrival" value={`${Math.ceil((booking.waitSeconds || 0) / 60)} min`} />
             <Detail label="Grace Countdown" value={graceRemainingSeconds != null ? minutesSeconds(graceRemainingSeconds) : '-'} />
-            <Detail label="Lock Status" value={booking.proximityLocked ? 'Physical connector assigned' : 'Waiting for 1 mile radius'} />
+            <Detail label="Lock Status" value={booking.proximityLocked ? 'Connector ready for your window' : 'Locks near the station, within 2 min of your window'} />
           </>
         ) : null}
         <Detail label="Price" value={booking.lockedRatePerUnit ? `${money(booking.lockedRatePerUnit)} / kWh` : 'At session end'} />
@@ -164,11 +143,21 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
       </Card>
       {isActive ? (
         <>
+          {isDynamicBooking ? (
+            <Card>
+              <Text>{tracking.message || (tracking.backgroundEnabled ? 'Arrival tracking is active.' : 'Keep Plugin open during your trip, or enable background arrival tracking.')}</Text>
+              <Text>If the app is force-stopped or loses signal, reopen it to refresh your location before the arrival deadline.</Text>
+              {!tracking.backgroundEnabled ? <Button title="Enable background arrival tracking" variant="outline" onPress={async () => {
+                try { await enableBackgroundEtaTracking(); await refreshEtaBookings(); }
+                catch (error) { showNotice('Location tracking', error.message, { tone: 'warning' }); }
+              }} /> : null}
+            </Card>
+          ) : null}
           <Button
             title={canStartDynamicBooking ? 'Start Charging' : 'Connector locks near station'}
             onPress={startSession}
             loading={actionLoading}
-            disabled={!canStartDynamicBooking}
+            disabled={!canStartDynamicBooking || nowMs < new Date(booking.startTime).getTime()}
             style={styles.button}
           />
           <Button title="Cancel Booking" variant="outline" onPress={cancel} loading={actionLoading} style={styles.cancelButton} />

@@ -1,5 +1,7 @@
 package com.plugin.config;
 
+import com.plugin.entity.User;
+import com.plugin.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +22,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -35,16 +38,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        if (jwtService.isTokenValid(token)) {
-            String email = jwtService.extractEmail(token);
-            String role = jwtService.extractRole(token);
-
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            var authToken = new UsernamePasswordAuthenticationToken(email, null, authorities);
-            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authToken);
-        }
+        jwtService.parseToken(token)
+                .flatMap(identity -> userRepository.findById(identity.userId())
+                        .filter(user -> isCurrentIdentity(identity, user)))
+                .ifPresent(user -> {
+                    var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                    var authToken = new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                });
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isCurrentIdentity(JwtService.TokenIdentity identity, User user) {
+        return Boolean.TRUE.equals(user.getActive())
+                && user.getRole() != null
+                && user.getEmail() != null
+                && user.getEmail().equals(identity.email())
+                && user.getRole().name().equals(identity.role())
+                && user.currentTokenVersion() == identity.tokenVersion();
     }
 }

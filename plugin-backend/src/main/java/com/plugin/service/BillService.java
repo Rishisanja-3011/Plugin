@@ -7,6 +7,7 @@ import com.plugin.entity.ChargingSession;
 import com.plugin.entity.Station;
 import com.plugin.entity.User;
 import com.plugin.enums.PaymentStatus;
+import com.plugin.enums.Role;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.BillRepository;
@@ -40,6 +41,7 @@ public class BillService {
     private final InvoiceEmailService invoiceEmailService;
     private final EntityReferenceResolver referenceResolver;
     private final WalletService walletService;
+    private final AuditService auditService;
 
     public record InvoiceFile(byte[] data, String filename) {}
     public record StatementFile(byte[] data, String filename, int rowCount) {}
@@ -78,6 +80,17 @@ public class BillService {
                         .orElseThrow(() -> new ResourceNotFoundException("Bill not found"))));
     }
 
+    public BillResponse getBillForCaller(String email, Long id) {
+        User actor = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Bill bill = actor.getRole() == Role.ADMIN
+                ? billRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Bill not found"))
+                : billRepository.findByIdAndCustomerId(id, actor.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
+        return referenceResolver.withCache(() -> toResponse(bill));
+    }
+
     @Transactional(readOnly = true)
     public InvoiceFile getInvoiceForCustomer(String email, Long id) {
         User customer = userRepository.findByEmail(email)
@@ -100,31 +113,37 @@ public class BillService {
 
     @Transactional(readOnly = true)
     public StatementFile getStatementForCustomer(String email, LocalDate from, LocalDate to) {
-        validateStatementRange(from, to);
+        LocalDate effectiveTo = to != null ? to : AppClock.today();
+        LocalDate effectiveFrom = from != null ? from : effectiveTo.minusDays(365);
+        validateStatementRange(effectiveFrom, effectiveTo);
         User customer = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        LocalDateTime start = from != null ? from.atStartOfDay() : null;
-        LocalDateTime endExclusive = to != null ? to.plusDays(1).atStartOfDay() : null;
+        LocalDateTime start = effectiveFrom.atStartOfDay();
+        LocalDateTime endExclusive = effectiveTo.plusDays(1).atStartOfDay();
 
         List<Bill> bills = referenceResolver.withCache(() ->
                 billRepository.findStatementBillsForCustomer(customer.getId(), start, endExclusive).stream()
                         .map(referenceResolver::hydrateBillSummary)
                         .toList());
         String csv = buildStatementCsv(bills);
-        String filename = buildStatementFileName(from, to);
+        String filename = buildStatementFileName(effectiveFrom, effectiveTo);
         return new StatementFile(csv.getBytes(StandardCharsets.UTF_8), filename, bills.size());
     }
 
     @Transactional
-    public BillResponse markAsPaid(Long id) {
+    public BillResponse markAsPaid(Long id, String actor) {
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Bill not found"));
         bill = referenceResolver.hydrate(bill);
         if (bill.getPaymentStatus() == PaymentStatus.PAID) {
             throw new BadRequestException("Bill is already paid");
         }
-        return toResponse(completePayment(bill));
+        bill = completePayment(bill);
+        auditService.log("ADMIN_MARK_BILL_PAID", "BILL", bill.getId(), actor,
+                "Admin marked invoice " + bill.getInvoiceNumber() + " paid for Rs. "
+                        + normalizeMoney(bill.getTotalAmount()).toPlainString());
+        return toResponse(bill);
     }
 
     @Transactional
@@ -271,6 +290,9 @@ public class BillService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BadRequestException("From date cannot be after To date.");
         }
+        if (from != null && to != null && from.plusDays(365).isBefore(to)) {
+            throw new BadRequestException("Billing statements are limited to 366 days.");
+        }
     }
 
     private String buildStatementCsv(List<Bill> bills) {
@@ -331,6 +353,11 @@ public class BillService {
 
     private String csvEscape(Object value) {
         String text = value == null ? "" : String.valueOf(value);
+        String leadingTrimmed = text.stripLeading();
+        if (leadingTrimmed.length() > 1
+                && "=+-@".indexOf(leadingTrimmed.charAt(0)) >= 0) {
+            text = "'" + text;
+        }
         return "\"" + text.replace("\"", "\"\"") + "\"";
     }
 }

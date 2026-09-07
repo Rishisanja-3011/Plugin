@@ -6,5 +6,6 @@ import lombok.Data;
 @Data
 public class VerifyDeleteAccountOtpRequest {
     @NotBlank
+    @jakarta.validation.constraints.Pattern(regexp = "[0-9]{6}", message = "OTP must be exactly 6 digits")
     private String otp;
 }

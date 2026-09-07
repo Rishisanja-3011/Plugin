@@ -30,7 +30,7 @@ public class PricingService {
     private final EntityReferenceResolver referenceResolver;
 
     public List<PricingResponse> getByStation(Long stationId) {
-        stationRepository.findById(stationId)
+        stationRepository.findByIdAndActiveTrue(stationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         return pricingRepository.findByStationId(stationId).stream()
                 .map(this::toResponse).collect(Collectors.toList());

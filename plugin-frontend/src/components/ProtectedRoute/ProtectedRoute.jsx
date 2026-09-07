@@ -3,6 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function ProtectedRoute({ children, role, roles }) {
   const { user, loading } = useAuth();
+  const allowedRoles = Array.isArray(roles) && roles.length > 0
+    ? roles
+    : role
+      ? [role]
+      : [];
 
   if (loading) {
     return (
@@ -16,15 +21,7 @@ export default function ProtectedRoute({ children, role, roles }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (Array.isArray(roles) && roles.length > 0 && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (role === 'ADMIN' && user.role !== 'ADMIN' && user.role !== 'STATION_OPERATOR') {
-    return <Navigate to="/" replace />;
-  }
-
-  if (role === 'CUSTOMER' && user.role !== 'CUSTOMER') {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
 

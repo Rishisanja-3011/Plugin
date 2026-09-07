@@ -23,6 +23,10 @@ public class BookingResponse {
     private String vehicleRegistration;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private LocalDateTime reservedUntil;
+    private LocalDateTime holdExpiresAt;
+    private Boolean etaLiveTraffic;
+    private Long waitSeconds;
     private Integer requestedDurationMinutes;
     private Double originLatitude;
     private Double originLongitude;

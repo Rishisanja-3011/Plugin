@@ -20,7 +20,7 @@ const PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 50;
 const MAX_FETCH_PAGES = 20;
 const BOOKINGS_REFRESH_INTERVAL_MS = 30000;
-const ACTIVE_SESSIONS_REFRESH_INTERVAL_MS = 1000;
+const ACTIVE_SESSIONS_REFRESH_INTERVAL_MS = 5000;
 
 function getStatusBadge(status) {
   const key = (status ?? '').toUpperCase();

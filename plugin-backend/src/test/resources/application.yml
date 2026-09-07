@@ -5,7 +5,19 @@ spring:
       database: "${MONGODB_TEST_DATABASE:plugin_test}"
 
 app:
+  cors:
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  otp:
+    pepper: testOnlyOtpPepperThatIsAtLeastThirtyTwoBytesLong
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+  rate-limit:
+    enabled: false
+    key-pepper: testOnlyRateLimitPepperThatIsAtLeastThirtyTwoBytesLong
+    trusted-proxies: ""
   jwt:
     secret: testSecretKeyForJwtTokenGenerationMustBe256BitsLongAtLeast2024Plugin
+    issuer: plugin-api-test
+    audience: plugin-test-clients
     expiration-ms: 86400000
     refresh-expiration-ms: 604800000

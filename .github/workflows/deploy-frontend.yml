@@ -1,56 +1,170 @@
-name: Deploy Frontend to S3
+name: Build and deploy frontend
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'plugin-frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-frontend
+  cancel-in-progress: false
 
 jobs:
-  deploy-frontend:
+  build:
     runs-on: ubuntu-latest
-    env:
-      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api' }}
-      VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID || '380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: plugin-frontend
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate frontend deployment secrets
-        run: |
-          missing=0
-          for name in VITE_API_BASE_URL VITE_GOOGLE_CLIENT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET_NAME; do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name is not set in GitHub repository secrets"
-              missing=1
-            fi
-          done
-          exit $missing
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: plugin-frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Validate public production configuration
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VITE_GOOGLE_CLIENT_ID" || { echo '::error::VITE_GOOGLE_CLIENT_ID repository variable is required'; exit 1; }
+          case "$VITE_API_BASE_URL" in
+            https://*) ;;
+            *) echo '::error::VITE_API_BASE_URL must be an HTTPS repository variable'; exit 1 ;;
+          esac
+          if printf '%s' "$VITE_API_BASE_URL" | grep -Eq 'https://[^/]*@|[?#]'; then
+            echo '::error::VITE_API_BASE_URL cannot contain credentials, a query, or a fragment'
+            exit 1
+          fi
+
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Build frontend
+      - name: Verify client security invariants
+        run: npm test
+
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build frontend without deployment credentials
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         run: npm run build
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Upload immutable build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          name: frontend-${{ github.sha }}
+          path: plugin-frontend/dist
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Deploy to S3
-        run: aws s3 sync dist/ "s3://$S3_BUCKET_NAME" --delete
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: plugin-frontend
+    steps:
+      - name: Download verified build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: frontend-${{ github.sha }}
+          path: plugin-frontend/dist
+
+      - name: Validate deployment configuration
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+          FRONTEND_HEALTHCHECK_URL: ${{ vars.FRONTEND_HEALTHCHECK_URL }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+          CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID: ${{ vars.CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID }}
+        run: |
+          set -Eeuo pipefail
+          for name in AWS_DEPLOY_ROLE_ARN AWS_REGION S3_BUCKET_NAME FRONTEND_HEALTHCHECK_URL CLOUDFRONT_DISTRIBUTION_ID CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID; do
+            test -n "${!name}" || { echo "::error::$name is required"; exit 1; }
+          done
+          case "$FRONTEND_HEALTHCHECK_URL" in
+            https://*) ;;
+            *) echo '::error::FRONTEND_HEALTHCHECK_URL must use HTTPS'; exit 1 ;;
+          esac
+
+      - name: Obtain short-lived AWS deployment credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: plugin-frontend-${{ github.run_id }}
+
+      - name: Publish versioned release, then switch index
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          set -Eeuo pipefail
+          release_prefix="releases/${GITHUB_SHA}"
+          aws s3 sync dist/ "s3://${S3_BUCKET_NAME}/${release_prefix}/" --only-show-errors
+          aws s3 sync dist/assets/ "s3://${S3_BUCKET_NAME}/assets/" \
+            --delete \
+            --cache-control 'public,max-age=31536000,immutable' \
+            --only-show-errors
+          aws s3 sync dist/ "s3://${S3_BUCKET_NAME}/" \
+            --delete \
+            --exclude 'index.html' \
+            --exclude 'assets/*' \
+            --exclude 'releases/*' \
+            --cache-control 'no-cache,no-store,must-revalidate' \
+            --only-show-errors
+          aws s3 cp dist/index.html "s3://${S3_BUCKET_NAME}/index.html" \
+            --cache-control 'no-cache,no-store,must-revalidate' \
+            --content-type 'text/html; charset=utf-8' \
+            --only-show-errors
+
+      - name: Verify CloudFront security-header policy and invalidate cache
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+          CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID: ${{ vars.CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID }}
+        run: |
+          set -Eeuo pipefail
+          attached_policy="$(aws cloudfront get-distribution-config \
+            --id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --query 'DistributionConfig.DefaultCacheBehavior.ResponseHeadersPolicyId' \
+            --output text)"
+          test "$attached_policy" = "$CLOUDFRONT_RESPONSE_HEADERS_POLICY_ID" || {
+            echo '::error::The expected CloudFront response-headers policy is not attached to the default behavior'
+            exit 1
+          }
+          aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths '/*'
+
+      - name: Fail deployment if the public site is unhealthy
+        env:
+          FRONTEND_HEALTHCHECK_URL: ${{ vars.FRONTEND_HEALTHCHECK_URL }}
+        run: |
+          set -Eeuo pipefail
+          headers="$(mktemp)"
+          status="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --max-time 20 \
+            --dump-header "$headers" "$FRONTEND_HEALTHCHECK_URL" --output /dev/null --write-out '%{http_code}')"
+          test "$status" = '200' || { echo "::error::Frontend healthcheck returned HTTP $status"; exit 1; }
+          grep -Eqi '^strict-transport-security:' "$headers" || { echo '::error::HSTS response header is missing'; exit 1; }
+          grep -Eqi '^x-content-type-options:[[:space:]]*nosniff' "$headers" || { echo '::error::X-Content-Type-Options: nosniff is missing'; exit 1; }
+          grep -Eqi '^content-security-policy:.*frame-ancestors' "$headers" || { echo '::error::CSP frame-ancestors response header is missing'; exit 1; }
+          grep -Eqi '^permissions-policy:' "$headers" || { echo '::error::Permissions-Policy response header is missing'; exit 1; }
+          grep -Eqi '^referrer-policy:' "$headers" || { echo '::error::Referrer-Policy response header is missing'; exit 1; }

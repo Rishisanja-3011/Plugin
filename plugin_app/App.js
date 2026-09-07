@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, Easing, StyleSheet, View } from 'react-native';
+import { Animated, AppState, BackHandler, Easing, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as Location from 'expo-location';
+import { refreshEtaBookings, stopEtaTracking } from './src/utils/etaTracking';
 import BottomTabs from './src/components/BottomTabs';
 import AppNotice from './src/components/AppNotice';
 import LaunchLoader from './src/components/LaunchLoader';
@@ -182,46 +182,21 @@ export default function App() {
   useAutoRefresh(refreshBillingLock, { enabled: Boolean(user) });
 
   useEffect(() => {
-    if (!user) return undefined;
-    let cancelled = false;
-    let inFlight = false;
-
-    const pingDynamicBookings = async () => {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const bookings = pageItems(await api.bookings.my(0, 30));
-        const targets = bookings.filter((booking) => {
-          const status = String(booking.status || '').toUpperCase();
-          return ['CONFIRMED', 'MODIFIED'].includes(status)
-            && booking.gracePeriodEndTime
-            && !booking.proximityLocked;
-        });
-        if (!targets.length || cancelled) return;
-
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.status !== 'granted' || cancelled) return;
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (!position?.coords || cancelled) return;
-
-        await Promise.allSettled(targets.map((booking) => api.bookings.locationPing(booking.id, {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        })));
-      } catch {
-        // Location tracking is best-effort; the booking details screen and server scheduler recover on the next cycle.
-      } finally {
-        inFlight = false;
-      }
+    if (!user) {
+      stopEtaTracking().catch(() => {});
+      return undefined;
+    }
+    const refresh = () => {
+      if (AppState.currentState === 'active') refreshEtaBookings();
     };
-
-    pingDynamicBookings();
-    const timer = setInterval(pingDynamicBookings, 30_000);
+    refresh();
+    const timer = setInterval(refresh, 31_000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
     return () => {
-      cancelled = true;
       clearInterval(timer);
+      subscription.remove();
     };
   }, [user]);
 

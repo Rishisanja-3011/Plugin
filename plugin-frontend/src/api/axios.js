@@ -1,6 +1,18 @@
 import axios from 'axios';
+import { clearAuthToken, getAuthToken } from '../utils/authStorage';
 
-const configuredApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8091/api';
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+if (import.meta.env.PROD) {
+  let productionApiUrl;
+  try {
+    productionApiUrl = new URL(configuredApiBase);
+  } catch {
+    throw new Error('Production API configuration is missing or invalid.');
+  }
+  if (productionApiUrl.protocol !== 'https:' || productionApiUrl.username || productionApiUrl.password) {
+    throw new Error('Production API configuration must use credential-free HTTPS.');
+  }
+}
 const forceRemoteApi = import.meta.env.VITE_USE_REMOTE_API === 'true';
 const isLocalBrowser =
   typeof window !== 'undefined' &&
@@ -40,13 +52,23 @@ const isPublicPath = (path, method = 'GET') => {
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/charging-points/station/')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/pricing/station/')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/station-manager/reference-data')) return true;
-  if (normalizedMethod === 'GET' && normalizedPath.startsWith('/station-manager/status/')) return true;
+  if (normalizedMethod === 'POST' && normalizedPath === '/station-manager/access/setup') return true;
   return false;
+};
+
+const assertTrustedRequestOrigin = (config) => {
+  const browserOrigin = typeof window !== 'undefined' ? window.location.origin : undefined;
+  const configuredApiUrl = new URL(API_BASE, browserOrigin);
+  const requestBaseUrl = new URL(config.baseURL || API_BASE, browserOrigin);
+  const resolvedRequestUrl = new URL(String(config.url || ''), requestBaseUrl);
+  if (resolvedRequestUrl.origin !== configuredApiUrl.origin) {
+    throw new Error('Blocked an API request to an untrusted origin.');
+  }
 };
 
 const shouldHandleAuthFailure = (error) => {
   const status = error?.response?.status;
-  if (status !== 401 && status !== 403) return false;
+  if (status !== 401) return false;
 
   const request = error?.config;
   if (!request) return false;
@@ -54,12 +76,12 @@ const shouldHandleAuthFailure = (error) => {
   const path = normalizePath(request.url);
   if (isPublicPath(path, request.method)) return false;
 
-  const hasToken = !!localStorage.getItem('plugin_token');
+  const hasToken = !!getAuthToken();
   return hasToken;
 };
 
 const handleAuthFailure = () => {
-  localStorage.removeItem('plugin_token');
+  clearAuthToken();
   localStorage.removeItem('plugin_user');
 
   if (authRedirectInProgress) return;
@@ -76,7 +98,8 @@ const handleAuthFailure = () => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('plugin_token');
+  assertTrustedRequestOrigin(config);
+  const token = getAuthToken();
   const path = normalizePath(config.url);
   if (token && !isPublicPath(path, config.method)) {
     config.headers.Authorization = `Bearer ${token}`;

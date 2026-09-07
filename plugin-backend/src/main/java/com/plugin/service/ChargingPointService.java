@@ -5,8 +5,13 @@ import com.plugin.dto.response.ChargingPointResponse;
 import com.plugin.entity.ChargingPoint;
 import com.plugin.entity.Station;
 import com.plugin.enums.PointStatus;
+import com.plugin.enums.BookingStatus;
+import com.plugin.enums.SessionStatus;
+import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
+import com.plugin.repository.BookingRepository;
 import com.plugin.repository.ChargingPointRepository;
+import com.plugin.repository.ChargingSessionRepository;
 import com.plugin.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,12 +26,14 @@ public class ChargingPointService {
 
     private final ChargingPointRepository cpRepository;
     private final StationRepository stationRepository;
+    private final BookingRepository bookingRepository;
+    private final ChargingSessionRepository sessionRepository;
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
     private final EntityReferenceResolver referenceResolver;
 
     public List<ChargingPointResponse> getByStation(Long stationId) {
-        stationRepository.findById(stationId)
+        stationRepository.findByIdAndActiveTrue(stationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         return cpRepository.findByStationId(stationId).stream()
                 .map(this::toResponse).collect(Collectors.toList());
@@ -64,6 +71,7 @@ public class ChargingPointService {
     @Transactional
     public ChargingPointResponse update(Long id, ChargingPointRequest request, String performedBy) {
         ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
+        ensureConnectorCanBeEdited(cp);
         Station station = stationOperatorAccessService.getAccessibleStation(request.getStationId(), performedBy);
         cp.setIdentifier(request.getIdentifier());
         cp.setStation(station);
@@ -79,6 +87,10 @@ public class ChargingPointService {
     @Transactional
     public ChargingPointResponse updateStatus(Long id, PointStatus status, String performedBy) {
         ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
+        if (status == PointStatus.RESERVED || status == PointStatus.CHARGING) {
+            throw new BadRequestException("Reserved and charging states are controlled by the booking system");
+        }
+        ensureConnectorHasNoLiveOwner(cp);
         cp.setStatus(status);
         cp = cpRepository.save(cp);
         auditService.log("UPDATE_POINT_STATUS", "CHARGING_POINT", cp.getId(), performedBy,
@@ -89,9 +101,34 @@ public class ChargingPointService {
     @Transactional
     public void delete(Long id, String performedBy) {
         ChargingPoint cp = stationOperatorAccessService.getAccessibleChargingPoint(id, performedBy);
+        ensureConnectorHasNoLiveOwner(cp);
+        if (bookingRepository.existsByChargingPointId(id)
+                || sessionRepository.existsByChargingPointId(id)) {
+            throw new BadRequestException(
+                    "A charging point with booking or session history cannot be deleted; mark it out of service instead");
+        }
         auditService.log("DELETE_CHARGING_POINT", "CHARGING_POINT", id, performedBy,
                 "Deleted point: " + cp.getIdentifier());
         cpRepository.delete(cp);
+    }
+
+    private void ensureConnectorCanBeEdited(ChargingPoint point) {
+        ensureConnectorHasNoLiveOwner(point);
+        if (bookingRepository.existsByChargingPointIdAndStatusIn(point.getId(),
+                List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED, BookingStatus.IN_PROGRESS))) {
+            throw new BadRequestException("A charging point with an active booking cannot be edited");
+        }
+    }
+
+    private void ensureConnectorHasNoLiveOwner(ChargingPoint point) {
+        if (point.getActiveSessionId() != null
+                || point.getReservedByBookingId() != null
+                || point.getStatus() == PointStatus.CHARGING
+                || point.getStatus() == PointStatus.RESERVED
+                || sessionRepository.existsByChargingPointIdAndStatus(point.getId(), SessionStatus.IN_PROGRESS)) {
+            throw new BadRequestException(
+                    "This charging point is owned by an active booking or session and cannot be changed manually");
+        }
     }
 
     private ChargingPointResponse toResponse(ChargingPoint cp) {

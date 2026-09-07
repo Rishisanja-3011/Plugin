@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { authApi } from '../../api/auth';
 import { useToast } from '../../components/Toast/Toast';
 import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
-import { motion } from 'framer-motion';
-import './Register.css';
+import AuthShell from '../auth/AuthShell';
+import EyeIcon from '../auth/EyeIcon';
 
 const PHONE_PREFIX = '+91 ';
 const STRONG_PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -115,7 +116,17 @@ export default function Register() {
     }
   };
 
-  const hasErrors = Object.keys(errors).length > 0;
+  const handleResendOtp = async () => {
+    try {
+      const res = await authApi.resendRegistrationOtp(email);
+      toast.success(res.data?.message || 'OTP resent to your email.');
+      setResendCooldown(40);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to resend OTP';
+      toast.error(msg);
+    }
+  };
+
   const handlePhoneChange = (e) => {
     const rawDigits = e.target.value.replace(/\D/g, '');
     const withoutCountry = rawDigits.startsWith('91') ? rawDigits.slice(2) : rawDigits;
@@ -123,254 +134,205 @@ export default function Register() {
     setPhone(`${PHONE_PREFIX}${trimmed}`);
   };
 
+  const hasErrors = Object.keys(errors).length > 0;
+  const shake = hasErrors ? { x: [0, -7, 7, -5, 5, 0] } : { x: 0 };
+
   return (
-    <motion.main
-      className="register"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+    <AuthShell
+      eyebrow="Two minutes to set up"
+      headline={<>Charge on a network<br />that keeps its word.</>}
+      note="Create an account to reserve a connector before you arrive, watch the session meter live, and get an itemised bill the moment the cable comes out."
+      title={step === 1 ? 'Create account' : 'Confirm your email'}
+      subtitle={step === 1
+        ? 'Start with your details. Confirmation takes one code.'
+        : `We sent a 6-digit code to ${email}.`}
     >
-      <div className="register__split">
-        {/* Left: Video panel */}
-        <motion.div
-          className="register__panel register__panel--brand"
-          initial={{ opacity: 0, x: -24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <video
-            className="register__video"
-            src="/pluginvideo.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
-        </motion.div>
+      <AnimatePresence mode="wait" initial={false}>
+        {step === 1 ? (
+          <motion.form
+            key="details"
+            className="auth-form"
+            onSubmit={handleSubmit}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0, ...shake }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.38 }}
+            noValidate
+          >
+            <div className="auth-field">
+              <label htmlFor="fullName" className="auth-label">Full name</label>
+              <input
+                id="fullName"
+                type="text"
+                className={`auth-input ${errors.fullName ? 'auth-input--invalid' : ''}`}
+                placeholder="Your name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                autoComplete="name"
+              />
+              {errors.fullName && <span className="auth-error">{errors.fullName}</span>}
+            </div>
 
-        {/* Right: Form */}
-        <motion.div
-          className="register__panel register__panel--form"
-          initial={{ opacity: 0, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-        >
-          <div className="register__form-wrap">
-            <h2 className="register__form-title">Create Account</h2>
-            <p className="register__form-subtitle">Get started with your EV charging journey.</p>
+            <div className="auth-field">
+              <label htmlFor="email" className="auth-label">Email</label>
+              <input
+                id="email"
+                type="email"
+                className={`auth-input ${errors.email ? 'auth-input--invalid' : ''}`}
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+              />
+              {errors.email && <span className="auth-error">{errors.email}</span>}
+            </div>
 
-            {step === 1 && (
-              <>
-              <motion.form
-                className={`register__form ${hasErrors ? 'register__form--shake' : ''}`}
-                onSubmit={handleSubmit}
-                animate={hasErrors ? { x: [0, -8, 8, -8, 8, 0] } : {}}
-                transition={{ duration: 0.4 }}
+            <div className="auth-field">
+              <label htmlFor="password" className="auth-label">Password</label>
+              <div className="auth-input-wrap">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className={`auth-input auth-input--toggle ${errors.password ? 'auth-input--invalid' : ''}`}
+                  placeholder="Create a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="auth-toggle"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <EyeIcon off={showPassword} />
+                </button>
+              </div>
+              {errors.password
+                ? <span className="auth-error">{errors.password}</span>
+                : <span className="auth-hint">8+ characters with an uppercase, a lowercase and a number.</span>}
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="confirmPassword" className="auth-label">Confirm password</label>
+              <div className="auth-input-wrap">
+                <input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  className={`auth-input auth-input--toggle ${errors.confirmPassword ? 'auth-input--invalid' : ''}`}
+                  placeholder="Repeat your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="auth-toggle"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  <EyeIcon off={showConfirmPassword} />
+                </button>
+              </div>
+              {errors.confirmPassword && <span className="auth-error">{errors.confirmPassword}</span>}
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="phone" className="auth-label">Phone</label>
+              <input
+                id="phone"
+                type="tel"
+                className={`auth-input ${errors.phone ? 'auth-input--invalid' : ''}`}
+                value={phone}
+                onChange={handlePhoneChange}
+                autoComplete="tel"
+              />
+              {errors.phone && <span className="auth-error">{errors.phone}</span>}
+            </div>
+
+            <button type="submit" className="auth-submit" disabled={loading}>
+              {loading ? (
+                <span className="auth-submit-inner">
+                  <span className="auth-spinner" />
+                  Creating account...
+                </span>
+              ) : (
+                'Create account'
+              )}
+            </button>
+
+            <div className="auth-divider">or continue with</div>
+            <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
+
+            <p className="auth-foot">
+              Already have an account?{' '}
+              <Link to="/login" className="auth-link">Sign in</Link>
+            </p>
+          </motion.form>
+        ) : (
+          <motion.form
+            key="otp"
+            className="auth-form"
+            onSubmit={handleConfirmOtp}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0, ...shake }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.38 }}
+            noValidate
+          >
+            <div className="auth-field">
+              <label htmlFor="otp" className="auth-label">Confirmation code</label>
+              <input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                className={`auth-input auth-input--otp ${errors.otp ? 'auth-input--invalid' : ''}`}
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+              {errors.otp && <span className="auth-error">{errors.otp}</span>}
+            </div>
+
+            <button type="submit" className="auth-submit" disabled={loading}>
+              {loading ? (
+                <span className="auth-submit-inner">
+                  <span className="auth-spinner" />
+                  Confirming...
+                </span>
+              ) : (
+                'Confirm account'
+              )}
+            </button>
+
+            <div className="auth-row">
+              <button
+                type="button"
+                className="auth-submit auth-btn--ghost"
+                disabled={loading}
+                onClick={() => setStep(1)}
               >
-              <div className="register__field">
-                <label htmlFor="fullName" className="register__label">Full Name</label>
-                <input
-                  id="fullName"
-                  type="text"
-                  className="register__input"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  autoComplete="name"
-                />
-                {errors.fullName && <span className="register__error">{errors.fullName}</span>}
-              </div>
-
-              <div className="register__field">
-                <label htmlFor="email" className="register__label">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="register__input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
-                {errors.email && <span className="register__error">{errors.email}</span>}
-              </div>
-
-              <div className="register__field">
-                <label htmlFor="password" className="register__label">Password</label>
-                <div className="register__input-wrap">
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="register__input register__input--with-toggle"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    className="register__toggle"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
-                        <path d="M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {errors.password && <span className="register__error">{errors.password}</span>}
-                {!errors.password && (
-                  <span className="register__hint">Use 8+ chars with uppercase, lowercase, and number.</span>
-                )}
-              </div>
-
-              <div className="register__field">
-                <label htmlFor="confirmPassword" className="register__label">Confirm Password</label>
-                <div className="register__input-wrap">
-                  <input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    className="register__input register__input--with-toggle"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    className="register__toggle"
-                    onClick={() => setShowConfirmPassword((prev) => !prev)}
-                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showConfirmPassword ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
-                        <path d="M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {errors.confirmPassword && <span className="register__error">{errors.confirmPassword}</span>}
-              </div>
-
-              <div className="register__field">
-                <label htmlFor="phone" className="register__label">Phone</label>
-                <input
-                  id="phone"
-                  type="tel"
-                  className="register__input"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  autoComplete="tel"
-                />
-                {errors.phone && <span className="register__error">{errors.phone}</span>}
-              </div>
-
-              <button type="submit" className="register__submit" disabled={loading}>
-                {loading ? (
-                  <span className="register__submit-inner">
-                    <span className="register__spinner" />
-                    Creating account...
-                  </span>
-                ) : (
-                  'Create Account'
-                )}
+                Back
               </button>
-
-              <div className="register__divider"><span>or continue with</span></div>
-              <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
-
-              <p className="register__footer">
-                Already have an account?{' '}
-                <Link to="/login" className="register__link">Sign In</Link>
-              </p>
-              </motion.form>
-              </>
-            )}
-
-            {step === 2 && (
-              <motion.form
-                className={`register__form ${hasErrors ? 'register__form--shake' : ''}`}
-                onSubmit={handleConfirmOtp}
-                animate={hasErrors ? { x: [0, -8, 8, -8, 8, 0] } : {}}
-                transition={{ duration: 0.4 }}
+              <button
+                type="button"
+                className="auth-submit auth-btn--ghost"
+                disabled={loading || resendCooldown > 0}
+                onClick={handleResendOtp}
               >
-                <p className="register__form-subtitle">
-                  Enter the 6-digit OTP sent to {email}.
-                </p>
-                <div className="register__field">
-                  <label htmlFor="otp" className="register__label">OTP Code</label>
-                  <input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    className="register__input"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    autoFocus
-                  />
-                  {errors.otp && <span className="register__error">{errors.otp}</span>}
-                </div>
-                <button type="submit" className="register__submit" disabled={loading}>
-                  {loading ? (
-                    <span className="register__submit-inner">
-                      <span className="register__spinner" />
-                      Confirming...
-                    </span>
-                  ) : (
-                    'Confirm Account'
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="register__submit"
-                  disabled={loading}
-                  onClick={() => setStep(1)}
-                  style={{ marginTop: 12 }}
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  className="register__submit"
-                  disabled={loading || resendCooldown > 0}
-                  onClick={async () => {
-                    try {
-                      const res = await authApi.resendRegistrationOtp(email);
-                      toast.success(res.data?.message || 'OTP resent to your email.');
-                      setResendCooldown(40);
-                    } catch (err) {
-                      const msg = err.response?.data?.message || err.message || 'Failed to resend OTP';
-                      toast.error(msg);
-                    }
-                  }}
-                  style={{ marginTop: 12 }}
-                >
-                  {resendCooldown > 0 ? `Resend OTP (${resendCooldown}s)` : 'Resend OTP'}
-                </button>
-                {resendCooldown > 0 && (
-                  <p className="register__cooldown">
-                    Resend available in {resendCooldown}s
-                  </p>
-                )}
-              </motion.form>
-            )}
-          </div>
-        </motion.div>
-      </div>
-    </motion.main>
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+              </button>
+            </div>
+
+            <p className="auth-legal">
+              The code expires shortly. Check your spam folder if it has not arrived.
+            </p>
+          </motion.form>
+        )}
+      </AnimatePresence>
+    </AuthShell>
   );
 }

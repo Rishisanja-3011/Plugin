@@ -3,18 +3,11 @@ import React from 'react';
 export default class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, errorMessage: '' };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
-    return {
-      hasError: true,
-      errorMessage: error?.message || 'Something went wrong while rendering the page.',
-    };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('AppErrorBoundary caught an error:', error, errorInfo);
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
   handleReload = () => {
@@ -64,7 +57,7 @@ export default class AppErrorBoundary extends React.Component {
               The page hit an unexpected error, but the app did not crash into a white screen.
             </p>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              {this.state.errorMessage}
+              Reload the page or return to the previous screen.
             </p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>

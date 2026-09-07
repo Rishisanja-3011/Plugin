@@ -3,6 +3,21 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+def envOrProperty = { String name -> System.getenv(name) ?: findProperty(name) }
+def releaseStoreFile = envOrProperty('PLUGIN_RELEASE_STORE_FILE')
+def releaseStorePassword = envOrProperty('PLUGIN_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = envOrProperty('PLUGIN_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = envOrProperty('PLUGIN_RELEASE_KEY_PASSWORD')
+def releaseApiBaseUrl = envOrProperty('EXPO_PUBLIC_API_BASE_URL')
+def googleMapsApiKey = envOrProperty('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY') ?: ''
+def googleClientId = envOrProperty('EXPO_PUBLIC_GOOGLE_CLIENT_ID') ?: ''
+def allowDevNetworking = String.valueOf(envOrProperty('EXPO_PUBLIC_ALLOW_DEV_NETWORKING') ?: '').equalsIgnoreCase('true')
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it != null && !String.valueOf(it).trim().isEmpty() }
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -20,10 +35,9 @@ react {
     cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
 
-    // Always package a production JS bundle, including in debug APKs. Debug builds still
-    // use Metro when it is reachable, but fall back to this embedded bundle when the
-    // laptop changes Wi-Fi/IP or Metro is stopped.
-    debuggableVariants = []
+    // Debug uses Metro and __DEV__ so LAN-only origins and development payment helpers
+    // cannot be confused with a production bundle. Release always embeds its JS bundle.
+    debuggableVariants = ["debug"]
 
     /* Folders */
      //   The root of your project, i.e. where "package.json" lives. Default is '../..'
@@ -68,10 +82,22 @@ react {
     autolinkLibrariesWithApp()
 }
 
+// React Native's bundle task does not automatically fingerprint Expo's public
+// environment variables. Track them explicitly so switching between Wi-Fi and
+// adb reverse can never reuse a bundle containing the previous API address.
+tasks.configureEach { task ->
+    if (task.name.startsWith('createBundle') && task.name.endsWith('JsAndAssets')) {
+        task.inputs.property('pluginPublicApiBaseUrl', String.valueOf(envOrProperty('EXPO_PUBLIC_API_BASE_URL') ?: ''))
+        task.inputs.property('pluginPublicApiLanBaseUrl', String.valueOf(envOrProperty('EXPO_PUBLIC_API_LAN_BASE_URL') ?: ''))
+        task.inputs.property('pluginPublicApiPort', String.valueOf(envOrProperty('EXPO_PUBLIC_API_PORT') ?: ''))
+        task.inputs.property('pluginAllowDevNetworking', String.valueOf(envOrProperty('EXPO_PUBLIC_ALLOW_DEV_NETWORKING') ?: ''))
+    }
+}
+
 /**
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
-def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: true).toBoolean()
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -84,7 +110,7 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.0.1'
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -99,6 +125,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -109,16 +136,29 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseSigningConfigured) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
+        local {
+            initWith debug
+            debuggable false
+            matchingFallbacks = ['debug']
+        }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -134,6 +174,86 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+tasks.register('verifyReleaseSecurity') {
+    group = 'verification'
+    description = 'Fails release builds unless production signing and HTTPS configuration are present.'
+    doLast {
+        if (allowDevNetworking) {
+            throw new GradleException('Release builds cannot enable EXPO_PUBLIC_ALLOW_DEV_NETWORKING.')
+        }
+        if (!releaseSigningConfigured) {
+            throw new GradleException('Release signing is required. Set PLUGIN_RELEASE_STORE_FILE, PLUGIN_RELEASE_STORE_PASSWORD, PLUGIN_RELEASE_KEY_ALIAS, and PLUGIN_RELEASE_KEY_PASSWORD.')
+        }
+
+        def configuredStore = file(releaseStoreFile)
+        if (!configuredStore.isFile()) {
+            throw new GradleException('PLUGIN_RELEASE_STORE_FILE does not point to a readable keystore file.')
+        }
+        if (configuredStore.canonicalFile == file('debug.keystore').canonicalFile) {
+            throw new GradleException('The debug keystore cannot be used to sign a release build.')
+        }
+
+        def loadKeyStore = { File store, String password ->
+            Exception lastFailure = null
+            for (String storeType : ['PKCS12', 'JKS']) {
+                try {
+                    def keyStore = java.security.KeyStore.getInstance(storeType)
+                    store.withInputStream { input -> keyStore.load(input, password.toCharArray()) }
+                    return keyStore
+                } catch (Exception failure) {
+                    lastFailure = failure
+                }
+            }
+            throw new GradleException('Release keystore cannot be opened as PKCS12 or JKS.', lastFailure)
+        }
+
+        try {
+            def releaseKeyStore = loadKeyStore(configuredStore, String.valueOf(releaseStorePassword))
+            if (!releaseKeyStore.isKeyEntry(String.valueOf(releaseKeyAlias))) {
+                throw new GradleException('PLUGIN_RELEASE_KEY_ALIAS is not a private-key entry in the release keystore.')
+            }
+            releaseKeyStore.getKey(String.valueOf(releaseKeyAlias), String.valueOf(releaseKeyPassword).toCharArray())
+            def releaseCertificate = releaseKeyStore.getCertificate(String.valueOf(releaseKeyAlias))
+            if (!(releaseCertificate instanceof java.security.cert.X509Certificate)) {
+                throw new GradleException('The release signing entry must contain an X.509 certificate.')
+            }
+            releaseCertificate.checkValidity()
+
+            def debugKeyStore = loadKeyStore(file('debug.keystore'), 'android')
+            def debugCertificate = debugKeyStore.getCertificate('androiddebugkey')
+            if (debugCertificate != null && java.util.Arrays.equals(releaseCertificate.encoded, debugCertificate.encoded)) {
+                throw new GradleException('The Android debug certificate cannot sign a release build.')
+            }
+        } catch (GradleException failure) {
+            throw failure
+        } catch (Exception failure) {
+            throw new GradleException('Release signing alias, private-key password, or certificate validation failed.', failure)
+        }
+
+        try {
+            def apiUri = new URI(String.valueOf(releaseApiBaseUrl))
+            if (apiUri.scheme != 'https' || !apiUri.host || apiUri.userInfo || apiUri.query || apiUri.fragment) {
+                throw new IllegalArgumentException('invalid production API URL')
+            }
+        } catch (Exception ignored) {
+            throw new GradleException('EXPO_PUBLIC_API_BASE_URL must be one credential-free HTTPS origin for release builds.')
+        }
+
+        if (!String.valueOf(googleMapsApiKey).trim()) {
+            throw new GradleException('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is required for release builds and must be restricted in Google Cloud.')
+        }
+        if (!String.valueOf(googleClientId).trim()) {
+            throw new GradleException('EXPO_PUBLIC_GOOGLE_CLIENT_ID is required for release builds.')
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.named('preReleaseBuild').configure {
+        dependsOn(tasks.named('verifyReleaseSecurity'))
     }
 }
 

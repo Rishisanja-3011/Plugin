@@ -181,6 +181,7 @@ public class ProfileService {
         forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
 
         user.setActive(false);
+        user.revokeSessions();
         userRepository.save(user);
         auditService.log("DELETE_ACCOUNT", "PROFILE", user.getId(), email,
                 "Account deleted after password and email OTP verification.");
@@ -244,6 +245,7 @@ public class ProfileService {
         forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_DELETE_ACCOUNT);
 
         user.setActive(false);
+        user.revokeSessions();
         userRepository.save(user);
         auditService.log("DELETE_ACCOUNT", "PROFILE", user.getId(), email,
                 "Account deleted after email OTP verification.");
@@ -270,6 +272,7 @@ public class ProfileService {
 
         forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.revokeSessions();
         userRepository.save(user);
         auditService.log("CHANGE_PASSWORD", "PROFILE", user.getId(), email,
                 "Password changed after email OTP verification.");
@@ -324,6 +327,7 @@ public class ProfileService {
 
         forgotPasswordService.consumeOtp(user.getEmail(), request.getOtp(), ForgotPasswordService.PURPOSE_CHANGE_PASSWORD);
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.revokeSessions();
         userRepository.save(user);
         auditService.log("CHANGE_PASSWORD", "PROFILE", user.getId(), email,
                 "Password changed after email OTP verification.");

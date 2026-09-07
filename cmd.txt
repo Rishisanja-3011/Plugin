@@ -1,0 +1,13 @@
+plugin_app
+
+# Expo Go over Wi-Fi
+npm start
+
+# Standalone Android app over Wi-Fi
+npm run android:wireless (debug wireless on)
+
+# Expo Go through USB
+npm run expo:wired
+
+# Standalone Android app through USB
+npm run android:wired

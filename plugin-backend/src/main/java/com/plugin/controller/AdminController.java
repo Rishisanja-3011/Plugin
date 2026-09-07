@@ -55,7 +55,7 @@ public class AdminController {
             Authentication auth) {
         return ResponseEntity.ok(stationService.getAllStations(
                 auth.getName(),
-                PageRequest.of(page, size, Sort.by("id"))));
+                PageRequest.of(safePage(page), safeSize(size), Sort.by("id"))));
     }
 
     @PostMapping("/stations")
@@ -149,7 +149,8 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) BookingStatus status) {
-        return ResponseEntity.ok(bookingService.getAllBookings(PageRequest.of(page, size), status));
+        return ResponseEntity.ok(bookingService.getAllBookings(
+                PageRequest.of(safePage(page), safeSize(size)), status));
     }
 
     @GetMapping("/bookings/stats")
@@ -164,7 +165,7 @@ public class AdminController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Boolean active) {
         return ResponseEntity.ok(adminCustomerService.getCustomers(
-                PageRequest.of(page, size, Sort.by("createdAt").descending()),
+                PageRequest.of(safePage(page), safeSize(size), Sort.by("createdAt").descending()),
                 name,
                 active
         ));
@@ -175,8 +176,7 @@ public class AdminController {
             @PathVariable Long id,
             @RequestParam boolean active,
             Authentication auth) {
-        String actor = auth != null ? auth.getName() : "SYSTEM";
-        return ResponseEntity.ok(adminCustomerService.updateCustomerStatus(id, active, actor));
+        return ResponseEntity.ok(adminCustomerService.updateCustomerStatus(id, active, auth.getName()));
     }
 
     @GetMapping("/bookings/station/{stationId}")
@@ -185,7 +185,7 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(bookingService.getBookingsByStation(stationId,
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @PostMapping("/bookings/{id}/cancel")
@@ -193,8 +193,7 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @RequestBody AdminBookingCancelRequest request,
             Authentication auth) {
-        String actor = auth != null ? auth.getName() : "SYSTEM";
-        return ResponseEntity.ok(bookingService.cancelBookingAsAdmin(id, actor, request.getReason()));
+        return ResponseEntity.ok(bookingService.cancelBookingAsAdmin(id, auth.getName(), request.getReason()));
     }
 
     @PostMapping("/bookings/{id}/reschedule/approve")
@@ -218,7 +217,8 @@ public class AdminController {
     public ResponseEntity<Page<SessionResponse>> getAllSessions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(sessionService.getAllSessions(PageRequest.of(page, size)));
+        return ResponseEntity.ok(sessionService.getAllSessions(
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @PostMapping("/sessions/{id}/end")
@@ -239,13 +239,13 @@ public class AdminController {
                 stationId,
                 start,
                 end,
-                PageRequest.of(page, size, Sort.by("createdAt").descending())
+                PageRequest.of(safePage(page), safeSize(size), Sort.by("createdAt").descending())
         ));
     }
 
     @PostMapping("/bills/{id}/pay")
-    public ResponseEntity<BillResponse> adminMarkPaid(@PathVariable Long id) {
-        return ResponseEntity.ok(billService.markAsPaid(id));
+    public ResponseEntity<BillResponse> adminMarkPaid(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(billService.markAsPaid(id, auth.getName()));
     }
 
     @GetMapping("/bills/{id}/invoice")
@@ -286,8 +286,17 @@ public class AdminController {
             @RequestParam(required = false) String entityType) {
         if (entityType != null) {
             return ResponseEntity.ok(auditService.getByEntityType(entityType,
-                    PageRequest.of(page, size)));
+                    PageRequest.of(safePage(page), safeSize(size))));
         }
-        return ResponseEntity.ok(auditService.getAll(PageRequest.of(page, size)));
+        return ResponseEntity.ok(auditService.getAll(
+                PageRequest.of(safePage(page), safeSize(size))));
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size) {
+        return Math.max(1, Math.min(100, size));
     }
 }

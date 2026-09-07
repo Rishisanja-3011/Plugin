@@ -2,6 +2,7 @@ package com.plugin.entity;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -19,17 +20,24 @@ public class PasswordResetOtp {
 
     private String email;
 
-    private String otp;
+    private String otpHash;
 
     private String deliveryMethod;
 
     private String purpose;
 
+    @Indexed(expireAfter = "0s")
     private LocalDateTime expiresAt;
 
     private boolean used;
 
+    @Builder.Default
+    private int failedAttempts = 0;
+
     private LocalDateTime createdAt;
+
+    @Version
+    private Long version;
 
     protected void onCreate() {
         createdAt = LocalDateTime.now();

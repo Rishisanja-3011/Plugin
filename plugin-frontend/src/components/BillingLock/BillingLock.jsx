@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const BillingLockContext = createContext({ hasUnpaid: false, loading: false });
 const BILLING_LOCK_CACHE_KEY = 'plugin_has_unpaid';
-const BILLING_LOCK_REFRESH_INTERVAL_MS = 1000;
+const BILLING_LOCK_REFRESH_INTERVAL_MS = 10000;
 
 function readCachedBillingLock() {
   const cached = sessionStorage.getItem(BILLING_LOCK_CACHE_KEY);

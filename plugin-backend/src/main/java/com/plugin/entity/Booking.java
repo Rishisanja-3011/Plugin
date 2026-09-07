@@ -57,6 +57,12 @@ public class Booking {
 
     private LocalDateTime endTime;
 
+    private LocalDateTime reservedUntil;
+    private LocalDateTime holdExpiresAt;
+    private Boolean etaLiveTraffic;
+    private String requestKey;
+    private String requestFingerprint;
+
     private Integer requestedDurationMinutes;
 
     private Double originLatitude;

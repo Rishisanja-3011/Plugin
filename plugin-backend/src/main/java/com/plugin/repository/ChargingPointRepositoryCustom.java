@@ -11,5 +11,13 @@ public interface ChargingPointRepositoryCustom {
 
     LocalDateTime findLatestUpdatedAtForStationIds(List<Long> stationIds);
 
-    ChargingPoint lockAvailablePointForStation(Long stationId, PointType pointType);
+    ChargingPoint reserveAvailablePoint(Long pointId, Long bookingId);
+
+    ChargingPoint claimPointForSession(Long pointId, Long bookingId, Long sessionId);
+
+    boolean releaseReservationForBooking(Long pointId, Long bookingId);
+
+    boolean releasePointForSession(Long pointId, Long sessionId);
+
+    void touchSchedule(Long pointId);
 }

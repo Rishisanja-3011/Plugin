@@ -21,6 +21,7 @@ import com.plugin.enums.StationManagerBusinessDocumentType;
 import com.plugin.enums.StationManagerBusinessType;
 import com.plugin.enums.StationManagerFileSlot;
 import com.plugin.exception.BadRequestException;
+import com.plugin.exception.ConflictException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.StationManagerApplicationRepository;
 import com.plugin.repository.StationRepository;
@@ -38,6 +39,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -60,8 +62,8 @@ public class StationManagerApplicationService {
     private final AuthService authService;
     private final StationManagerFileService stationManagerFileService;
     private final StationManagerDirectoryService stationManagerDirectoryService;
-    private final StationManagerCredentialEmailService stationManagerCredentialEmailService;
     private final StationManagerTrackingEmailService stationManagerTrackingEmailService;
+    private final StationManagerAccessSetupService stationManagerAccessSetupService;
     private final PasswordEncoder passwordEncoder;
 
     private static final int APPLICATION_REFERENCE_LENGTH = 11;
@@ -104,17 +106,23 @@ public class StationManagerApplicationService {
                 .orElse(null);
     }
 
-    public StationManagerStatusLookupResponse getStatusByReferenceId(String referenceId) {
+    public StationManagerStatusLookupResponse getStatusByReferenceId(String referenceId, String authenticatedEmail) {
         StationManagerApplication application = ensureApplicationReferenceId(getApplicationByReferenceId(referenceId));
+        User requester = getUserByEmail(authenticatedEmail);
+        boolean linkedOwner = application.getUser() != null
+                && application.getUser().getId() != null
+                && application.getUser().getId().equals(requester.getId());
+        boolean originalApplicant = application.getEmail() != null
+                && application.getEmail().equalsIgnoreCase(requester.getEmail());
+        if (!linkedOwner && !originalApplicant) {
+            throw new ResourceNotFoundException("KYC application not found for this tracking ID");
+        }
         return StationManagerStatusLookupResponse.builder()
                 .applicationReferenceId(application.getApplicationReferenceId())
                 .status(application.getStatus())
                 .submittedAt(application.getSubmittedAt())
                 .reviewedAt(application.getReviewedAt())
-                .reviewNotes(application.getReviewNotes())
                 .portalAccessReady(isPortalAccessReady(application))
-                .credentialsIssuedAt(application.getCredentialsIssuedAt())
-                .application(toPublicLookupApplication(application))
                 .build();
     }
 
@@ -123,9 +131,38 @@ public class StationManagerApplicationService {
                                                               StationManagerApplicationRequest request,
                                                               Map<StationManagerFileSlot, MultipartFile> standardFiles,
                                                               Map<StationManagerBusinessDocumentType, MultipartFile> businessDocumentFiles) {
-        StationManagerApplication application = findAccessibleApplication(authenticatedEmail)
-                .or(() -> applicationRepository.findByEmailIgnoreCase(request.getEmail()))
-                .orElse(StationManagerApplication.builder().build());
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new BadRequestException("A verified account is required to submit an application.");
+        }
+        User requester = getUserByEmail(authenticatedEmail);
+        StationManagerApplication application = findOwnedApplication(requester).orElse(null);
+
+        if (application == null) {
+            if (requester.getRole() != Role.CUSTOMER) {
+                throw new BadRequestException("Only a customer account can create a station manager application.");
+            }
+            if (!requester.getEmail().equalsIgnoreCase(request.getEmail().trim())) {
+                throw new BadRequestException("The application email must match your verified account email.");
+            }
+            if (applicationRepository.findByEmailIgnoreCase(request.getEmail()).isPresent()) {
+                throw new ConflictException("An application already exists for this verified account.");
+            }
+            application = StationManagerApplication.builder().build();
+        } else {
+            if (application.getEmail() == null
+                    || !application.getEmail().equalsIgnoreCase(request.getEmail().trim())) {
+                throw new BadRequestException("The application contact email cannot be changed here.");
+            }
+            boolean linkedOperator = requester.getRole() == Role.STATION_OPERATOR
+                    && application.getUser() != null
+                    && requester.getId().equals(application.getUser().getId());
+            if (application.getStatus() == StationManagerApplicationStatus.PENDING) {
+                throw new ConflictException("This application is already under review.");
+            }
+            if (application.getStatus() == StationManagerApplicationStatus.APPROVED && !linkedOperator) {
+                throw new ConflictException("An approved application cannot be changed through this endpoint.");
+            }
+        }
 
         validatePortalEmailAvailability(application, request.getEmail());
 
@@ -179,6 +216,9 @@ public class StationManagerApplicationService {
                                                                                String query,
                                                                                boolean linkedStationOnly) {
         String normalizedQuery = normalize(query);
+        if (normalizedQuery != null && normalizedQuery.length() > 100) {
+            throw new BadRequestException("Application search must not exceed 100 characters");
+        }
         if (normalizedQuery != null && normalizedQuery.matches("\\d{11}")) {
             try {
                 StationManagerApplication application = getApplicationByReferenceId(normalizedQuery);
@@ -207,6 +247,7 @@ public class StationManagerApplicationService {
     @Transactional
     public StationManagerApplicationResponse approve(Long id, String actor, StationManagerReviewRequest request) {
         StationManagerApplication application = getApplicationById(id);
+        requirePendingReview(application);
         User linkedUser = application.getUser();
 
         Station station = application.getApprovedStation();
@@ -250,6 +291,7 @@ public class StationManagerApplicationService {
     @Transactional
     public StationManagerApplicationResponse reject(Long id, String actor, StationManagerReviewRequest request) {
         StationManagerApplication application = getApplicationById(id);
+        requirePendingReview(application);
 
         application.setStatus(StationManagerApplicationStatus.REJECTED);
         application.setReviewedAt(LocalDateTime.now());
@@ -273,9 +315,11 @@ public class StationManagerApplicationService {
         if (application.getStatus() != StationManagerApplicationStatus.APPROVED) {
             throw new BadRequestException("Approve the application before issuing portal credentials.");
         }
+        if (application.getCredentialsIssuedAt() != null) {
+            throw new BadRequestException("Station manager access has already been configured.");
+        }
 
         String portalEmail = normalizePortalLoginEmail(request.getPortalLoginEmail());
-        String portalPassword = validatePortalPassword(request.getPassword());
         User linkedUser = application.getUser();
         validatePortalLoginAvailability(linkedUser, portalEmail);
 
@@ -285,21 +329,22 @@ public class StationManagerApplicationService {
                     .email(portalEmail)
                     .phone(application.getPhone())
                     .role(Role.STATION_OPERATOR)
-                    .active(true)
+                    .active(false)
                     .build();
         } else {
             linkedUser.setFullName(application.getFullName());
             linkedUser.setEmail(portalEmail);
             linkedUser.setPhone(application.getPhone());
             linkedUser.setRole(Role.STATION_OPERATOR);
-            linkedUser.setActive(true);
+            linkedUser.setActive(false);
         }
 
-        linkedUser.setPassword(passwordEncoder.encode(portalPassword));
+        linkedUser.setPassword(passwordEncoder.encode(generatePendingAccessSecret()));
+        linkedUser.revokeSessions();
         linkedUser = userRepository.save(linkedUser);
 
         application.setUser(linkedUser);
-        application.setCredentialsIssuedAt(LocalDateTime.now());
+        application.setCredentialsIssuedAt(null);
         application.setCredentialsIssuedBy(actor);
 
         Station approvedStation = application.getApprovedStation();
@@ -331,20 +376,15 @@ public class StationManagerApplicationService {
         application = ensureApplicationReferenceId(application);
         stationManagerDirectoryService.upsertFromApplication(application);
         try {
-            stationManagerCredentialEmailService.sendCredentials(
-                    application.getEmail(),
-                    application.getFullName(),
-                    portalEmail,
-                    portalPassword
-            );
+            stationManagerAccessSetupService.issueInvitation(application, linkedUser, actor);
         } catch (IllegalStateException ex) {
             throw new BadRequestException(ex.getMessage());
         }
 
-        auditService.log("ISSUE_STATION_MANAGER_CREDENTIALS", "STATION_MANAGER_APPLICATION", application.getId(), actor,
-                "Issued portal credentials for " + application.getBusinessName());
+        auditService.log("ISSUE_STATION_MANAGER_ACCESS_INVITATION", "STATION_MANAGER_APPLICATION", application.getId(), actor,
+                "Issued a one-time portal access invitation for " + application.getBusinessName());
 
-        return toResponse(application, portalPassword);
+        return toResponse(application);
     }
 
     public StationManagerFileService.DownloadedFile getMyStandardFile(String email, StationManagerFileSlot slotType) {
@@ -358,13 +398,25 @@ public class StationManagerApplicationService {
         return stationManagerFileService.getBusinessDocumentFile(application.getId(), documentType);
     }
 
-    public StationManagerFileService.DownloadedFile getAdminStandardFile(Long applicationId, StationManagerFileSlot slotType) {
-        return stationManagerFileService.getStandardFile(applicationId, slotType);
+    public StationManagerFileService.DownloadedFile getAdminStandardFile(
+            Long applicationId,
+            StationManagerFileSlot slotType,
+            String actor) {
+        StationManagerFileService.DownloadedFile file =
+                stationManagerFileService.getStandardFile(applicationId, slotType);
+        auditService.log("DOWNLOAD_KYC_FILE", "STATION_MANAGER_APPLICATION", applicationId, actor,
+                "Downloaded KYC file slot " + slotType.name());
+        return file;
     }
 
     public StationManagerFileService.DownloadedFile getAdminBusinessDocumentFile(Long applicationId,
-                                                                                 StationManagerBusinessDocumentType documentType) {
-        return stationManagerFileService.getBusinessDocumentFile(applicationId, documentType);
+                                                                                 StationManagerBusinessDocumentType documentType,
+                                                                                 String actor) {
+        StationManagerFileService.DownloadedFile file =
+                stationManagerFileService.getBusinessDocumentFile(applicationId, documentType);
+        auditService.log("DOWNLOAD_KYC_FILE", "STATION_MANAGER_APPLICATION", applicationId, actor,
+                "Downloaded KYC business document " + documentType.name());
+        return file;
     }
 
     private void validateRequest(StationManagerApplication application,
@@ -379,8 +431,24 @@ public class StationManagerApplicationService {
             throw new BadRequestException("Number of chargers must be at least 1.");
         }
 
+        long totalUploadSize = 0L;
+        for (MultipartFile file : standardFiles.values()) {
+            totalUploadSize = addUploadSize(totalUploadSize, file);
+        }
+        for (MultipartFile file : businessDocumentFiles.values()) {
+            totalUploadSize = addUploadSize(totalUploadSize, file);
+        }
+        standardFiles.values().forEach(stationManagerFileService::validateUpload);
+        businessDocumentFiles.values().forEach(stationManagerFileService::validateUpload);
+
         validateStandardFiles(application, standardFiles);
         validateBusinessDocuments(application, request.getBusinessType(), request.getBusinessDocuments(), businessDocumentFiles);
+    }
+
+    private void requirePendingReview(StationManagerApplication application) {
+        if (application.getStatus() != StationManagerApplicationStatus.PENDING) {
+            throw new BadRequestException("This station manager application has already been reviewed.");
+        }
     }
 
     private void validatePortalEmailAvailability(StationManagerApplication application, String email) {
@@ -389,7 +457,7 @@ public class StationManagerApplicationService {
             return;
         }
 
-        userRepository.findByEmail(normalizedEmail).ifPresent(existingUser -> {
+        userRepository.findByEmailIgnoreCase(normalizedEmail).ifPresent(existingUser -> {
             if (application.getUser() == null || !existingUser.getId().equals(application.getUser().getId())) {
                 throw new BadRequestException("This email is already in use for a portal account. Please use a different email.");
             }
@@ -397,7 +465,7 @@ public class StationManagerApplicationService {
     }
 
     private void validatePortalLoginAvailability(User linkedUser, String portalLoginEmail) {
-        userRepository.findByEmail(portalLoginEmail).ifPresent(existingUser -> {
+        userRepository.findByEmailIgnoreCase(portalLoginEmail).ifPresent(existingUser -> {
             if (linkedUser == null || !existingUser.getId().equals(linkedUser.getId())) {
                 throw new BadRequestException("This portal login email is already in use.");
             }
@@ -664,10 +732,6 @@ public class StationManagerApplicationService {
     }
 
     private StationManagerApplicationResponse toResponse(StationManagerApplication application) {
-        return toResponse(application, null);
-    }
-
-    private StationManagerApplicationResponse toResponse(StationManagerApplication application, String temporaryPassword) {
         List<StationManagerDocumentResponse> documents = application.getBusinessDocuments().stream()
                 .sorted(Comparator.comparing(doc -> doc.getDocumentType().name()))
                 .map(document -> StationManagerDocumentResponse.builder()
@@ -738,26 +802,11 @@ public class StationManagerApplicationService {
                 .reviewNotes(application.getReviewNotes())
                 .portalAccessReady(isPortalAccessReady(application))
                 .portalLoginEmail(application.getUser() != null ? application.getUser().getEmail() : null)
-                .temporaryPassword(temporaryPassword)
                 .credentialsIssuedAt(application.getCredentialsIssuedAt())
                 .credentialsIssuedBy(application.getCredentialsIssuedBy())
                 .createdAt(application.getCreatedAt())
                 .updatedAt(application.getUpdatedAt())
                 .build();
-    }
-
-    private StationManagerApplicationResponse toPublicLookupApplication(StationManagerApplication application) {
-        StationManagerApplicationResponse response = toResponse(application);
-        response.setId(null);
-        response.setUserId(null);
-        response.setApprovedStationId(null);
-        response.setReviewedBy(null);
-        response.setPortalLoginEmail(null);
-        response.setTemporaryPassword(null);
-        response.setCredentialsIssuedBy(null);
-        response.setCreatedAt(null);
-        response.setUpdatedAt(null);
-        return response;
     }
 
     private StationManagerApplication getApplicationForUser(String email) {
@@ -773,11 +822,19 @@ public class StationManagerApplicationService {
             return Optional.empty();
         }
 
-        Optional<StationManagerApplication> byLinkedUser = userRepository.findByEmail(normalizedEmail)
+        Optional<StationManagerApplication> byLinkedUser = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .flatMap(user -> applicationRepository.findByUserId(user.getId())
                         .or(() -> applicationRepository.findByEmailIgnoreCase(user.getEmail())));
 
         return byLinkedUser.isPresent() ? byLinkedUser : applicationRepository.findByEmailIgnoreCase(normalizedEmail);
+    }
+
+    private Optional<StationManagerApplication> findOwnedApplication(User user) {
+        if (user == null || user.getId() == null) {
+            return Optional.empty();
+        }
+        return applicationRepository.findByUserId(user.getId())
+                .or(() -> applicationRepository.findByEmailIgnoreCase(user.getEmail()));
     }
 
     private StationManagerApplication getApplicationByReferenceId(String referenceId) {
@@ -785,14 +842,7 @@ public class StationManagerApplicationService {
 
         return applicationRepository.findByApplicationReferenceId(normalizedReferenceId)
                 .map(this::ensureApplicationReferenceId)
-                .orElseGet(() -> getLegacyApplicationByReferenceId(normalizedReferenceId));
-    }
-
-    private StationManagerApplication getLegacyApplicationByReferenceId(String normalizedReferenceId) {
-        if (!normalizedReferenceId.startsWith("0")) {
-            throw new ResourceNotFoundException("KYC application not found for this tracking ID");
-        }
-        return ensureApplicationReferenceId(getApplicationById(legacyApplicationIdFromReferenceId(normalizedReferenceId)));
+                .orElseThrow(() -> new ResourceNotFoundException("KYC application not found for this tracking ID"));
     }
 
     private StationManagerApplication getApplicationById(Long id) {
@@ -801,12 +851,25 @@ public class StationManagerApplicationService {
     }
 
     private User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private boolean hasUploadedFile(MultipartFile file) {
         return file != null && !file.isEmpty();
+    }
+
+    private long addUploadSize(long currentTotal, MultipartFile file) {
+        if (!hasUploadedFile(file)) {
+            return currentTotal;
+        }
+        long size = file.getSize();
+        if (size <= 0
+                || size > StationManagerFileService.MAX_FILE_SIZE_BYTES
+                || currentTotal > StationManagerFileService.MAX_TOTAL_UPLOAD_SIZE_BYTES - size) {
+            throw new BadRequestException("Each file must be 10 MB or smaller and total uploads must be 50 MB or smaller.");
+        }
+        return currentTotal + size;
     }
 
     private String normalize(String value) {
@@ -822,8 +885,8 @@ public class StationManagerApplicationService {
     }
 
     private String normalizeReferenceId(String value) {
-        String normalized = value == null ? "" : value.replaceAll("\\D", "");
-        if (normalized.length() != APPLICATION_REFERENCE_LENGTH) {
+        String normalized = value == null ? "" : value.trim();
+        if (!normalized.matches("\\d{" + APPLICATION_REFERENCE_LENGTH + "}")) {
             throw new BadRequestException("Enter a valid 11-digit KYC tracking ID.");
         }
         return normalized;
@@ -840,27 +903,16 @@ public class StationManagerApplicationService {
         return normalized;
     }
 
-    private String validatePortalPassword(String value) {
-        if (value == null || value.isBlank()) {
-            throw new BadRequestException("Portal password is required.");
-        }
-        String password = value.trim();
-        if (password.length() < 6) {
-            throw new BadRequestException("Portal password must be at least 6 characters.");
-        }
-        return password;
-    }
-
     private boolean isPortalAccessReady(StationManagerApplication application) {
-        return application.getUser() != null && application.getCredentialsIssuedAt() != null;
+        return application.getUser() != null
+                && Boolean.TRUE.equals(application.getUser().getActive())
+                && application.getCredentialsIssuedAt() != null;
     }
 
-    private Long legacyApplicationIdFromReferenceId(String referenceId) {
-        try {
-            return Long.parseLong(normalizeReferenceId(referenceId));
-        } catch (NumberFormatException ex) {
-            throw new BadRequestException("Enter a valid 11-digit KYC tracking ID.");
-        }
+    private String generatePendingAccessSecret() {
+        byte[] random = new byte[32];
+        SECURE_RANDOM.nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 
     private StationManagerApplication ensureApplicationReferenceId(StationManagerApplication application) {

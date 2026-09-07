@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../../api/admin';
@@ -85,7 +85,7 @@ function statusTone(status) {
   return 'warning';
 }
 
-function DetailSection({ title, items, registerItemRef }) {
+function DetailSection({ title, items }) {
   return (
     <section className="manager-review__section">
       <h3>{title}</h3>
@@ -93,7 +93,6 @@ function DetailSection({ title, items, registerItemRef }) {
         {items.map((item) => (
           <div
             key={item.key || item.label}
-            ref={(node) => registerItemRef?.(item.key || item.label, node)}
             className={`manager-review__detail-item${item.actions?.length ? ' manager-review__detail-item--file' : ''}`}
           >
             <span>{item.label}</span>
@@ -137,29 +136,6 @@ function downloadBlobResponse(response, fallbackName) {
   window.URL.revokeObjectURL(url);
 }
 
-function getBlobFileMeta(response, fallbackName) {
-  const contentDisposition = response.headers['content-disposition'] || '';
-  const match = contentDisposition.match(/filename="?([^"]+)"?/i);
-  const fileName = match?.[1] || fallbackName || 'document';
-  const contentType = response.data?.type || response.headers['content-type'] || 'application/octet-stream';
-  return { fileName, contentType };
-}
-
-function getPreviewKind(contentType, fileName) {
-  const normalizedType = String(contentType || '').toLowerCase();
-  const normalizedName = String(fileName || '').toLowerCase();
-
-  if (normalizedType.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/.test(normalizedName)) {
-    return 'image';
-  }
-
-  if (normalizedType.includes('pdf') || normalizedName.endsWith('.pdf')) {
-    return 'pdf';
-  }
-
-  return 'other';
-}
-
 function buildPortalLoginSuggestion(application) {
   const source = application?.portalLoginEmail
     || application?.businessName
@@ -191,15 +167,9 @@ export default function StationManagerApplications() {
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
-  const [credentialForm, setCredentialForm] = useState({ portalLoginEmail: '', password: '' });
+  const [credentialForm, setCredentialForm] = useState({ portalLoginEmail: '' });
   const [actionLoading, setActionLoading] = useState('');
   const [downloadLoading, setDownloadLoading] = useState('');
-  const [previewLoading, setPreviewLoading] = useState('');
-  const [previewFile, setPreviewFile] = useState(null);
-  const previewSectionRef = useRef(null);
-  const detailItemRefs = useRef({});
-  const previewSourceRef = useRef(null);
-  const [pendingReturnTarget, setPendingReturnTarget] = useState(null);
 
   const fetchApplications = async (nextPage = page, nextSearch = searchTerm, nextStatus = statusFilter) => {
     setLoading(true);
@@ -241,8 +211,7 @@ export default function StationManagerApplications() {
       setSelectedApplication(null);
       setSelectedLoading(false);
       setReviewNotes('');
-      setCredentialForm({ portalLoginEmail: '', password: '' });
-      setPreviewFile(null);
+      setCredentialForm({ portalLoginEmail: '' });
       return undefined;
     }
 
@@ -272,12 +241,6 @@ export default function StationManagerApplications() {
     };
   }, [applicationId, navigate, toast]);
 
-  useEffect(() => () => {
-    if (previewFile?.url) {
-      window.URL.revokeObjectURL(previewFile.url);
-    }
-  }, [previewFile]);
-
   useEffect(() => {
     if (!selectedApplication) {
       return;
@@ -285,76 +248,8 @@ export default function StationManagerApplications() {
 
     setCredentialForm({
       portalLoginEmail: selectedApplication.portalLoginEmail || buildPortalLoginSuggestion(selectedApplication),
-      password: '',
     });
   }, [selectedApplication?.id, selectedApplication?.portalLoginEmail]);
-
-  useEffect(() => {
-    if (!previewFile || !previewSectionRef.current) {
-      return;
-    }
-
-    previewSectionRef.current.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }, [previewFile]);
-
-  useEffect(() => {
-    if (previewFile || !pendingReturnTarget) {
-      return;
-    }
-
-    const scrollBack = () => {
-      if (typeof pendingReturnTarget.scrollY === 'number') {
-        window.scrollTo({
-          top: pendingReturnTarget.scrollY,
-          behavior: 'smooth',
-        });
-        setPendingReturnTarget(null);
-        return;
-      }
-
-      const sourceNode = detailItemRefs.current[pendingReturnTarget.key];
-      if (sourceNode) {
-        sourceNode.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-      }
-      setPendingReturnTarget(null);
-    };
-
-    const firstFrame = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(scrollBack);
-    });
-
-    return () => window.cancelAnimationFrame(firstFrame);
-  }, [pendingReturnTarget, previewFile]);
-
-  const registerDetailItemRef = (key, node) => {
-    if (!key) return;
-
-    if (node) {
-      detailItemRefs.current[key] = node;
-      return;
-    }
-
-    delete detailItemRefs.current[key];
-  };
-
-  const rememberPreviewSource = (key) => {
-    previewSourceRef.current = {
-      key,
-      scrollY: window.scrollY,
-    };
-  };
-
-  const closePreviewAndReturn = () => {
-    setPendingReturnTarget(previewSourceRef.current);
-    previewSourceRef.current = null;
-    updatePreviewFile(null);
-  };
 
   const openApplication = (nextApplicationId) => {
     navigate(`/admin/station-manager-applications/${nextApplicationId}`);
@@ -398,7 +293,6 @@ export default function StationManagerApplications() {
   const handleIssueCredentials = async () => {
     if (!selectedApplication?.id) return;
     const portalLoginEmail = credentialForm.portalLoginEmail.trim().toLowerCase();
-    const password = credentialForm.password;
 
     if (!portalLoginEmail) {
       toast.error('Enter the station manager portal login email.');
@@ -410,26 +304,19 @@ export default function StationManagerApplications() {
       return;
     }
 
-    if (!password.trim()) {
-      toast.error('Enter the portal password.');
-      return;
-    }
-
     setActionLoading('credentials');
     try {
       const response = await adminApi.issueStationManagerCredentials(selectedApplication.id, {
         portalLoginEmail,
-        password,
       });
       setSelectedApplication(response.data);
       setCredentialForm({
         portalLoginEmail: response.data?.portalLoginEmail || portalLoginEmail,
-        password: '',
       });
-      toast.success(`Portal credentials emailed to ${response.data?.email || selectedApplication.email}.`);
+      toast.success(`A one-time access invitation was emailed to ${response.data?.email || selectedApplication.email}.`);
       fetchApplications(page, searchTerm, statusFilter);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to issue portal credentials.');
+      toast.error(err.response?.data?.message || 'Failed to issue the access invitation.');
     } finally {
       setActionLoading('');
     }
@@ -463,64 +350,10 @@ export default function StationManagerApplications() {
     }
   };
 
-  const updatePreviewFile = (nextFile) => {
-    setPreviewFile((currentFile) => {
-      if (currentFile?.url) {
-        window.URL.revokeObjectURL(currentFile.url);
-      }
-      return nextFile;
-    });
-  };
-
-  const handlePreviewStandardFile = async (slotType, fallbackName, label) => {
-    if (!selectedApplication?.id) return;
-    const previewKey = `standard-${slotType}`;
-    setPreviewLoading(previewKey);
-    try {
-      const response = await adminApi.downloadStationManagerFile(selectedApplication.id, slotType);
-      const { fileName, contentType } = getBlobFileMeta(response, fallbackName);
-      updatePreviewFile({
-        label,
-        fileName,
-        contentType,
-        kind: getPreviewKind(contentType, fileName),
-        url: window.URL.createObjectURL(response.data),
-      });
-    } catch {
-      toast.error('Failed to open file preview.');
-    } finally {
-      setPreviewLoading('');
-    }
-  };
-
-  const handlePreviewBusinessDocument = async (documentType, fallbackName, label) => {
-    if (!selectedApplication?.id) return;
-    const previewKey = `business-${documentType}`;
-    setPreviewLoading(previewKey);
-    try {
-      const response = await adminApi.downloadStationManagerBusinessDocument(selectedApplication.id, documentType);
-      const { fileName, contentType } = getBlobFileMeta(response, fallbackName);
-      updatePreviewFile({
-        label,
-        fileName,
-        contentType,
-        kind: getPreviewKind(contentType, fileName),
-        url: window.URL.createObjectURL(response.data),
-      });
-    } catch {
-      toast.error('Failed to open business document preview.');
-    } finally {
-      setPreviewLoading('');
-    }
-  };
-
   const buildFileDetailItem = ({
     key,
     label,
     fileName,
-    previewLabel = label,
-    onView,
-    previewKey,
     onDownload,
     downloadKey,
     meta = [],
@@ -531,32 +364,19 @@ export default function StationManagerApplications() {
     meta,
     actions: [
       {
-        key: `${key}-view`,
-        label: previewLoading === previewKey ? 'Opening...' : 'View',
-        onClick: () => {
-          rememberPreviewSource(key);
-          onView();
-        },
-        disabled: !fileName || previewLoading === previewKey,
-      },
-      {
         key: `${key}-download`,
         label: downloadLoading === downloadKey ? 'Downloading...' : 'Download',
         onClick: onDownload,
         disabled: !fileName || downloadLoading === downloadKey,
       },
     ],
-    previewLabel,
   });
 
   const createStandardFileItem = (label, slotType, field, meta = []) => buildFileDetailItem({
     key: field,
     label,
     fileName: selectedApplication?.[field],
-    previewLabel: label,
-    previewKey: `standard-${slotType}`,
     downloadKey: `standard-${slotType}`,
-    onView: () => handlePreviewStandardFile(slotType, selectedApplication?.[field], label),
     onDownload: () => handleDownloadStandardFile(slotType, selectedApplication?.[field]),
     meta,
   });
@@ -565,14 +385,7 @@ export default function StationManagerApplications() {
     key: `business-document-${document.id || document.documentType}`,
     label: DOCUMENT_TYPE_LABELS[document.documentType] || document.documentType,
     fileName: document.documentReference,
-    previewLabel: DOCUMENT_TYPE_LABELS[document.documentType] || document.documentType,
-    previewKey: `business-${document.documentType}`,
     downloadKey: `business-${document.documentType}`,
-    onView: () => handlePreviewBusinessDocument(
-      document.documentType,
-      document.documentReference,
-      DOCUMENT_TYPE_LABELS[document.documentType] || document.documentType
-    ),
     onDownload: () => handleDownloadBusinessDocument(document.documentType, document.documentReference),
     meta: [
       document.referenceNumber ? `Ref No: ${document.referenceNumber}` : null,
@@ -691,75 +504,20 @@ export default function StationManagerApplications() {
                   <div><span>Reviewed By</span><strong>{selectedApplication.reviewedBy || '-'}</strong></div>
                 </div>
 
-                {previewFile && (
-                  <section ref={previewSectionRef} className="manager-review__section manager-review__preview-banner">
-                    <div className="manager-review__preview-header">
-                      <div>
-                        <h3>File Preview</h3>
-                        <p className="manager-review__preview-copy">{previewFile.label}: {previewFile.fileName}</p>
-                      </div>
-                      <div className="manager-review__preview-actions">
-                        <a
-                          href={previewFile.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn--outline btn--sm"
-                        >
-                          Open Full File
-                        </a>
-                        <a
-                          href={previewFile.url}
-                          download={previewFile.fileName}
-                          className="btn btn--outline btn--sm"
-                        >
-                          Download Copy
-                        </a>
-                        <button
-                          type="button"
-                          className="btn btn--outline btn--sm"
-                          onClick={closePreviewAndReturn}
-                        >
-                          Close Preview
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="manager-review__preview-surface">
-                      {previewFile.kind === 'image' ? (
-                        <img
-                          src={previewFile.url}
-                          alt={previewFile.fileName}
-                          className="manager-review__preview-image"
-                        />
-                      ) : previewFile.kind === 'pdf' ? (
-                        <iframe
-                          title={previewFile.fileName}
-                          src={previewFile.url}
-                          className="manager-review__preview-frame"
-                        />
-                      ) : (
-                        <div className="manager-review__preview-empty">
-                          <strong>Preview is not available for this file type.</strong>
-                          <span>Use Open Full File or Download Copy to inspect it.</span>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                )}
-
                 <div className="manager-review__body manager-review__body--page">
-                  <DetailSection title="Personal Details" items={personalItems} registerItemRef={registerDetailItemRef} />
-                  <DetailSection title="Business Details" items={businessItems} registerItemRef={registerDetailItemRef} />
-                  <DetailSection title="Station Details" items={stationItems} registerItemRef={registerDetailItemRef} />
-                  <DetailSection title="Bank Details" items={bankItems} registerItemRef={registerDetailItemRef} />
-                  <DetailSection title="Charger Details" items={chargerItems} registerItemRef={registerDetailItemRef} />
-                  <DetailSection title="Portal Credentials" items={portalItems} registerItemRef={registerDetailItemRef} />
+                  <DetailSection title="Personal Details" items={personalItems} />
+                  <DetailSection title="Business Details" items={businessItems} />
+                  <DetailSection title="Station Details" items={stationItems} />
+                  <DetailSection title="Bank Details" items={bankItems} />
+                  <DetailSection title="Charger Details" items={chargerItems} />
+                  <DetailSection title="Portal Access" items={portalItems} />
 
                   {selectedApplication.status === 'APPROVED' && (
                     <section className="manager-review__section">
                       <h3>Credential Setup</h3>
                       <p className="manager-review__credential-help">
-                        Create the station manager login below. These credentials will be emailed to {selectedApplication.email}.
+                        Choose the station manager login email. A short-lived, one-time password setup link
+                        will be sent to {selectedApplication.email}. No reusable password is emailed or shown here.
                       </p>
                       <div className="manager-review__credential-grid">
                         <label className="manager-review__field">
@@ -771,33 +529,6 @@ export default function StationManagerApplications() {
                             placeholder="station.manager@plugin.com"
                           />
                         </label>
-                        <label className="manager-review__field">
-                          <span>Portal Password</span>
-                          <input
-                            type="password"
-                            value={credentialForm.password}
-                            onChange={(event) => handleCredentialFieldChange('password', event.target.value)}
-                            placeholder="Enter portal password"
-                          />
-                        </label>
-                      </div>
-                    </section>
-                  )}
-
-                  {selectedApplication.temporaryPassword && (
-                    <section className="manager-review__section">
-                      <h3>Credentials Sent</h3>
-                      <div className="manager-review__detail-grid">
-                        <div className="manager-review__detail-item">
-                          <span>Portal Login Email</span>
-                          <strong>{portalLoginStatus}</strong>
-                          <small>Emailed to {selectedApplication.email}.</small>
-                        </div>
-                        <div className="manager-review__detail-item">
-                          <span>Issued Password</span>
-                          <strong>{selectedApplication.temporaryPassword}</strong>
-                          <small>This password was sent to the station manager by email.</small>
-                        </div>
                       </div>
                     </section>
                   )}
@@ -845,10 +576,10 @@ export default function StationManagerApplications() {
                       disabled={actionLoading === 'credentials'}
                     >
                       {actionLoading === 'credentials'
-                        ? 'Emailing Credentials...'
+                        ? 'Emailing Invitation...'
                         : selectedApplication.portalAccessReady
-                          ? 'Update & Email Credentials'
-                          : 'Email Portal Credentials'}
+                          ? 'Reissue Setup Invitation'
+                          : 'Email Setup Invitation'}
                     </button>
                   )}
                 </div>

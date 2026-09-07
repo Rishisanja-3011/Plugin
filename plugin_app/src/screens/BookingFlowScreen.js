@@ -339,6 +339,9 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
   const [createdBooking, setCreatedBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [dynamicEta, setDynamicEta] = useState(true);
+  const bookingAttempt = useRef(null);
+  const submittingRef = useRef(false);
   const [error, setError] = useState('');
 
   const stationId = params?.stationId || params?.station?.id;
@@ -444,11 +447,13 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
     if (blockedStatuses.has(String(selectedPoint.status || '').toUpperCase())) {
       return 'Selected charging point is unavailable. Choose another connector.';
     }
-    if (!date || !time) return 'Choose date and start time.';
-    if (!startTime) return 'Choose a valid start time.';
-    const selected = selectedStartDateTime;
-    if (!selected) return 'Enter a valid date and time.';
-    if (selected <= new Date()) return 'Start time must be in the future.';
+    if (!dynamicEta) {
+      if (!date || !time) return 'Choose date and start time.';
+      if (!startTime) return 'Choose a valid start time.';
+      const selected = selectedStartDateTime;
+      if (!selected) return 'Enter a valid date and time.';
+      if (selected <= new Date()) return 'Start time must be in the future.';
+    }
     if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 60) {
       return 'Duration must be between 1 and 60 minutes.';
     }
@@ -465,35 +470,43 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
   };
 
   const confirmBooking = async () => {
+    if (submittingRef.current) return;
     const message = scheduleError();
     if (message) {
       showNotice('Fix schedule', message, { tone: 'warning' });
       return;
     }
     try {
+      submittingRef.current = true;
       setSubmitting(true);
       setError('');
-      const origin = await getBookingOrigin();
-      if (!origin) {
-        showNotice('Location needed', 'Allow location so Plugin can calculate your ETA and hold a virtual spot.', { tone: 'warning' });
-        return;
+      const signature = JSON.stringify([stationId, selectedPoint?.id, dynamicEta, date, time, period, duration]);
+      if (bookingAttempt.current?.signature !== signature) {
+        const origin = dynamicEta ? await getBookingOrigin() : null;
+        if (dynamicEta && !origin) {
+          showNotice('Location needed', 'Allow location so Plugin can calculate your arrival and reserve a charging window.', { tone: 'warning' });
+          return;
+        }
+        bookingAttempt.current = { signature, payload: {
+          stationId,
+          pointTypePreference: selectedPoint?.pointType,
+          dynamicEta,
+          ...(dynamicEta ? { originLatitude: origin.latitude, originLongitude: origin.longitude }
+            : { chargingPointId: selectedPoint.id, startTime: toLocalDateTime(selectedStartDateTime) }),
+          durationMinutes: clampDurationMinutes(durationMinutes),
+          requestKey: `mobile_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        } };
       }
-      const booking = await api.bookings.create({
-        stationId,
-        pointTypePreference: selectedPoint?.pointType,
-        startTime: toLocalDateTime(selectedStartDateTime),
-        durationMinutes: clampDurationMinutes(durationMinutes),
-        originLatitude: origin.latitude,
-        originLongitude: origin.longitude,
-      });
+      const booking = await api.bookings.create(bookingAttempt.current.payload);
       await scheduleBookingStartNotification(booking).catch(() => false);
       setCreatedBooking(booking);
       setStep(4);
-      showNotice('Booking confirmed', 'Your virtual spot is active. A connector will lock when you are near the station.', { tone: 'success' });
+      showNotice('Booking confirmed', `Your charging window starts ${dateTime(booking.startTime)}.`, { tone: 'success' });
     } catch (requestError) {
       setError(requestError.message);
       showNotice('Booking failed', requestError.message, { tone: 'danger' });
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -551,6 +564,11 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
       {step === 2 ? (
         <Card>
           <Text style={styles.cardTitle}>Schedule your charging slot</Text>
+          <View style={styles.actions}>
+            <Button title="Charge on arrival" variant={dynamicEta ? 'primary' : 'outline'} onPress={() => setDynamicEta(true)} style={styles.actionHalf} />
+            <Button title="Choose a time" variant={dynamicEta ? 'outline' : 'primary'} onPress={() => setDynamicEta(false)} style={styles.actionHalf} />
+          </View>
+          {dynamicEta ? <Text style={styles.previewMeta}>We reserve the earliest available window for your arrival. Busy stations may have a wait. Your arrival deadline is capped at 2 hours from booking; keep location updates on during your trip.</Text> : <>
           <View style={styles.schedulePreview}>
             <View style={styles.previewIcon}>
               <Ionicons name="calendar-clear-outline" size={19} color={colors.primary} />
@@ -585,6 +603,7 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
             onTimeBlur={handleTimeTextBlur}
             onPeriodChange={setPeriod}
           />
+          </>}
           <DurationSelector value={duration} onChange={setDurationValue} />
           <View style={styles.actions}>
             <Button title="Back" variant="outline" onPress={startsWithConnector ? goBack : () => setStep(1)} style={styles.actionHalf} />
@@ -599,7 +618,7 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
           <SummaryRow label="Station" value={brandText(station?.name)} />
           <SummaryRow label="Connector" value={selectedPoint?.identifier || selectedPoint?.connectorType} />
           <SummaryRow label="Vehicle" value={activeVehicle?.vehicleRegistration || profile?.vehicleRegistration} />
-          <SummaryRow label="Start" value={dateTime(selectedStartDateTime)} />
+          <SummaryRow label="Start" value={dynamicEta ? 'Earliest available window after arrival' : dateTime(selectedStartDateTime)} />
           <SummaryRow label="Duration" value={`${clampDurationMinutes(durationMinutes)} min`} />
           <SummaryRow label="Rate" value={matchedPricing?.ratePerUnit != null ? `${money(matchedPricing.ratePerUnit)} / ${matchedPricing.rateType || 'kWh'}` : 'Not configured'} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -614,7 +633,8 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
         <Card style={styles.doneCard}>
           <View style={styles.doneIcon}><Ionicons name="checkmark" size={28} color={colors.white} /></View>
           <Text style={styles.doneTitle}>Your slot is reserved</Text>
-          <Text style={styles.doneText}>Booking {createdBooking?.referenceId || `#${createdBooking?.id}`} is confirmed as a virtual spot. Your connector is assigned automatically near the station.</Text>
+          <Text style={styles.doneText}>Booking {createdBooking?.referenceId || `#${createdBooking?.id}`} starts {dateTime(createdBooking?.startTime)} at connector {createdBooking?.chargingPointIdentifier || 'shown in booking details'}.</Text>
+          {createdBooking?.gracePeriodEndTime ? <Text style={styles.doneText}>Wait after arrival: {Math.ceil((createdBooking.waitSeconds || 0) / 60)} min. Arrive by {dateTime(createdBooking.gracePeriodEndTime)}. {createdBooking.etaLiveTraffic ? 'Travel estimate includes traffic.' : 'Travel time is approximate; live traffic is unavailable.'} Check Booking Details to enable background tracking.</Text> : null}
           <Button title="View Booking" onPress={() => navigate('bookingDetails', { bookingId: createdBooking?.id })} style={styles.action} />
           <Button title="Book Another" variant="outline" onPress={() => navigate('stations')} style={styles.secondaryAction} />
         </Card>

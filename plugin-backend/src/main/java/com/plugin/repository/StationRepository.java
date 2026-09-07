@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface StationRepository extends MongoRepository<Station, String>, StationRepositoryCustom {
 
     Optional<Station> findById(Long id);
+    @Query("{ 'id': ?0, 'active': { $in: [true, 1] } }")
+    Optional<Station> findByIdAndActiveTrue(Long id);
     List<Station> findByIdIn(List<Long> ids);
     @Query("{ 'active': { $in: [true, 1] } }")
     Page<Station> findByActiveTrue(Pageable pageable);

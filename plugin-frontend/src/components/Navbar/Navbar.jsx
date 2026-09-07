@@ -51,6 +51,7 @@ export default function Navbar() {
   const blockLogout = isCustomer && (hasUnpaid || hasActiveSession);
   const panelLabel = user?.role === 'STATION_OPERATOR' ? 'Manager Panel' : 'Admin Panel';
   const settingsPath = isAdmin ? '/admin/dashboard' : '/customer/profile';
+  const isLanding = location.pathname === '/';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -135,7 +136,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className={`navbar ${scrolled ? 'navbar--scrolled' : ''}`}>
+    <nav className={`navbar ${isLanding ? 'navbar--landing' : ''} ${scrolled ? 'navbar--scrolled' : ''}`}>
       <div className="navbar__inner container">
         {isAdmin ? (
           <div className="navbar__brand" aria-label="Plugin">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../../components/Toast/Toast';
@@ -29,6 +29,8 @@ export default function BookingFlow() {
   const [pricing, setPricing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const bookingAttempt = useRef(null);
   const [createdBookingId, setCreatedBookingId] = useState(null);
 
   const [selectedPoint, setSelectedPoint] = useState(null);
@@ -131,6 +133,7 @@ export default function BookingFlow() {
   };
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
     if (!selectedPoint || !date || !time) {
       toast.error('Please complete all fields.');
       return;
@@ -144,21 +147,30 @@ export default function BookingFlow() {
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const startDateTime = `${date}T${time}:00`;
-      const res = await bookingsApi.create({
+      const payload = {
         stationId,
         chargingPointId: selectedPoint.id,
         startTime: startDateTime,
         durationMinutes,
-      });
+      };
+      const signature = JSON.stringify(payload);
+      if (bookingAttempt.current?.signature !== signature) {
+        const requestKey = globalThis.crypto?.randomUUID?.()
+          || `web_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        bookingAttempt.current = { signature, payload: { ...payload, requestKey } };
+      }
+      const res = await bookingsApi.create(bookingAttempt.current.payload);
       setCreatedBookingId(res.data?.id ?? null);
       setStep(4);
       toast.success('Booking confirmed. You can track payment in Billing.');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create booking.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

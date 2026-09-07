@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.annotation.PostConstruct;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
@@ -48,6 +49,9 @@ public class RazorpayPaymentService {
 
     @Value("${app.razorpay.minimum-amount:1.00}")
     private BigDecimal minimumAmount;
+
+    @Value("${app.production:false}")
+    private boolean productionMode;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = createRestTemplate();
@@ -87,6 +91,17 @@ public class RazorpayPaymentService {
 
     public boolean isTestMode() {
         return keyId != null && keyId.startsWith("rzp_test_");
+    }
+
+    @PostConstruct
+    void validateProductionConfiguration() {
+        if (!productionMode) {
+            return;
+        }
+        if (isBlank(keyId) || isBlank(keySecret) || !keyId.startsWith("rzp_live_")) {
+            throw new IllegalStateException(
+                    "Production requires configured Razorpay live credentials; test mode is not allowed");
+        }
     }
 
     public String createCustomer(User user) {
@@ -309,6 +324,30 @@ public class RazorpayPaymentService {
             );
         } catch (Exception ex) {
             return false;
+        }
+    }
+
+    /**
+     * A checkout signature authenticates the callback, but it does not replace
+     * server-side settlement validation. Wallet money is spendable only after
+     * Razorpay reports the exact order, amount and currency as captured.
+     */
+    public void requireCapturedPayment(String orderId, String paymentId, BigDecimal expectedAmount) {
+        Map<?, ?> payment = fetchPayment(paymentId);
+        if (!orderId.equals(stringValue(payment.get("order_id")))) {
+            throw new BadRequestException("Razorpay payment does not belong to this order.");
+        }
+        Object rawAmount = payment.get("amount");
+        long actualAmount = rawAmount instanceof Number number ? number.longValue() : -1L;
+        long requiredAmount = toPaise(resolvePayableAmount(expectedAmount)).longValue();
+        if (actualAmount != requiredAmount) {
+            throw new BadRequestException("Razorpay payment amount does not match the wallet top-up.");
+        }
+        if (!currency.equalsIgnoreCase(stringValue(payment.get("currency")))) {
+            throw new BadRequestException("Razorpay payment currency does not match the wallet top-up.");
+        }
+        if (!"captured".equalsIgnoreCase(stringValue(payment.get("status")))) {
+            throw new BadRequestException("Razorpay payment is not captured yet.");
         }
     }
 

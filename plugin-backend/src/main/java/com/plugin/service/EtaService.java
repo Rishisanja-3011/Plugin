@@ -23,6 +23,7 @@ public class EtaService {
 
     private static final double EARTH_RADIUS_METERS = 6_371_000;
     private static final double FALLBACK_METERS_PER_SECOND = 35_000.0 / 3600.0;
+    private static final int MAX_CACHE_ENTRIES = 2000;
 
     private final RestTemplate restTemplate;
     private final ConcurrentMap<String, CachedEta> cache = new ConcurrentHashMap<>();
@@ -59,7 +60,16 @@ public class EtaService {
         EtaResult result = hasGoogleMapsKey()
                 ? googleEstimate(originLatitude, originLongitude, destinationLatitude, destinationLongitude, directDistanceMeters)
                 : fallbackEstimate(directDistanceMeters);
-        cache.put(cacheKey, new CachedEta(result, now.plusSeconds(Math.max(10, cacheTtlSeconds))));
+        synchronized (cache) {
+            cache.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+            while (cache.size() >= MAX_CACHE_ENTRIES) {
+                String oldest = cache.entrySet().stream()
+                        .min(java.util.Comparator.comparing(entry -> entry.getValue().expiresAt()))
+                        .orElseThrow().getKey();
+                cache.remove(oldest);
+            }
+            cache.put(cacheKey, new CachedEta(result, now.plusSeconds(Math.max(10, cacheTtlSeconds))));
+        }
         return result;
     }
 
@@ -101,7 +111,8 @@ public class EtaService {
                 return parsed;
             }
         } catch (RestClientException | ClassCastException ex) {
-            log.warn("Google Distance Matrix ETA lookup failed; using fallback ETA", ex);
+            log.warn("Google Distance Matrix ETA lookup failed; using fallback ETA; type={}",
+                    ex.getClass().getName());
         }
         return fallbackEstimate(fallbackDistanceMeters);
     }
@@ -134,7 +145,7 @@ public class EtaService {
         if (durationSeconds <= 0 || distanceMeters <= 0) {
             return null;
         }
-        return new EtaResult(durationSeconds, (double) distanceMeters, true);
+        return new EtaResult(durationSeconds, (double) distanceMeters, element.get("duration_in_traffic") != null);
     }
 
     private long numericValue(Map<?, ?> valueContainer) {

@@ -41,18 +41,16 @@ public class ChargingPointRepositoryImpl implements ChargingPointRepositoryCusto
     }
 
     @Override
-    public ChargingPoint lockAvailablePointForStation(Long stationId, PointType pointType) {
-        Criteria criteria = Criteria.where("stationId").is(stationId)
-                .and("status").is(PointStatus.AVAILABLE);
-        if (pointType != null) {
-            criteria = criteria.and("pointType").is(pointType);
-        }
-
-        Query query = Query.query(criteria)
-                .with(Sort.by(Sort.Direction.ASC, "id"))
-                .limit(1);
+    public ChargingPoint reserveAvailablePoint(Long pointId, Long bookingId) {
+        Query query = Query.query(new Criteria().andOperator(
+                Criteria.where("id").is(pointId),
+                Criteria.where("status").is(PointStatus.AVAILABLE)
+        ));
         Update update = new Update()
                 .set("status", PointStatus.RESERVED)
+                .set("reservedByBookingId", bookingId)
+                .unset("activeSessionId")
+                .inc("version", 1L)
                 .set("updatedAt", LocalDateTime.now());
         return mongoTemplate.findAndModify(
                 query,
@@ -60,5 +58,66 @@ public class ChargingPointRepositoryImpl implements ChargingPointRepositoryCusto
                 FindAndModifyOptions.options().returnNew(true),
                 ChargingPoint.class
         );
+    }
+
+    @Override
+    public ChargingPoint claimPointForSession(Long pointId, Long bookingId, Long sessionId) {
+        Criteria available = Criteria.where("status").is(PointStatus.AVAILABLE);
+        Criteria ownedReservation = new Criteria().andOperator(
+                Criteria.where("status").is(PointStatus.RESERVED),
+                Criteria.where("reservedByBookingId").is(bookingId)
+        );
+        Query query = Query.query(new Criteria().andOperator(
+                Criteria.where("id").is(pointId),
+                new Criteria().orOperator(available, ownedReservation)
+        ));
+        Update update = new Update()
+                .set("status", PointStatus.CHARGING)
+                .set("activeSessionId", sessionId)
+                .unset("reservedByBookingId")
+                .inc("version", 1L)
+                .set("updatedAt", LocalDateTime.now());
+        return mongoTemplate.findAndModify(query, update,
+                FindAndModifyOptions.options().returnNew(true), ChargingPoint.class);
+    }
+
+    @Override
+    public boolean releaseReservationForBooking(Long pointId, Long bookingId) {
+        Query query = Query.query(new Criteria().andOperator(
+                Criteria.where("id").is(pointId),
+                Criteria.where("status").is(PointStatus.RESERVED),
+                Criteria.where("reservedByBookingId").is(bookingId)
+        ));
+        Update update = new Update()
+                .set("status", PointStatus.AVAILABLE)
+                .unset("reservedByBookingId")
+                .inc("version", 1L)
+                .set("updatedAt", LocalDateTime.now());
+        return mongoTemplate.updateFirst(query, update, ChargingPoint.class).getModifiedCount() == 1;
+    }
+
+    @Override
+    public boolean releasePointForSession(Long pointId, Long sessionId) {
+        Query query = Query.query(new Criteria().andOperator(
+                Criteria.where("id").is(pointId),
+                Criteria.where("status").is(PointStatus.CHARGING),
+                Criteria.where("activeSessionId").is(sessionId)
+        ));
+        Update update = new Update()
+                .set("status", PointStatus.AVAILABLE)
+                .unset("activeSessionId")
+                .inc("version", 1L)
+                .set("updatedAt", LocalDateTime.now());
+        return mongoTemplate.updateFirst(query, update, ChargingPoint.class).getModifiedCount() == 1;
+    }
+
+    @Override
+    public void touchSchedule(Long pointId) {
+        Query query = Query.query(Criteria.where("id").is(pointId));
+        Update update = new Update()
+                .inc("scheduleRevision", 1L)
+                .inc("version", 1L)
+                .set("updatedAt", LocalDateTime.now());
+        mongoTemplate.updateFirst(query, update, ChargingPoint.class);
     }
 }

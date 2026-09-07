@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast/Toast';
 import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
-import { motion } from 'framer-motion';
-import './Login.css';
+import AuthShell from '../auth/AuthShell';
+import EyeIcon from '../auth/EyeIcon';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -83,137 +84,91 @@ export default function Login() {
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <motion.main
-      className="login"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+    <AuthShell
+      eyebrow="Network live"
+      headline={<>Every connector,<br />accounted for.</>}
+      note="Sign in to see which bays are genuinely free, hold a charging window before you drive, and settle every session to the kilowatt-hour."
+      title="Sign in"
+      subtitle="Welcome back. Enter your credentials to continue."
     >
-      <div className="login__split">
-        <motion.div
-          className="login__panel login__panel--brand"
-          initial={{ opacity: 0, x: -24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <video
-            className="login__video"
-            src="/pluginvideo.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
+      <motion.form
+        className="auth-form"
+        onSubmit={handleSubmit}
+        animate={hasErrors ? { x: [0, -7, 7, -5, 5, 0] } : { x: 0 }}
+        transition={{ duration: 0.38 }}
+        noValidate
+      >
+        <div className="auth-field">
+          <label htmlFor="email" className="auth-label">Email</label>
+          <input
+            id="email"
+            type="email"
+            className={`auth-input ${errors.email ? 'auth-input--invalid' : ''}`}
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email || errors.password) {
+                setErrors((prev) => ({ ...prev, email: '', password: '' }));
+              }
+            }}
+            autoComplete="email"
           />
-        </motion.div>
+          {errors.email && <span className="auth-error">{errors.email}</span>}
+        </div>
 
-        <motion.div
-          className="login__panel login__panel--form"
-          initial={{ opacity: 0, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-        >
-          <div className="login__form-wrap">
-            <h2 className="login__form-title">Sign In</h2>
-            <p className="login__form-subtitle">Welcome back. Enter your credentials to continue.</p>
-
-            <motion.form
-              className={`login__form ${hasErrors ? 'login__form--shake' : ''}`}
-              onSubmit={handleSubmit}
-              animate={hasErrors ? { x: [0, -8, 8, -8, 8, 0] } : {}}
-              transition={{ duration: 0.4 }}
+        <div className="auth-field">
+          <label htmlFor="password" className="auth-label">Password</label>
+          <div className="auth-input-wrap">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              className={`auth-input auth-input--toggle ${errors.password ? 'auth-input--invalid' : ''}`}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) {
+                  setErrors((prev) => ({ ...prev, password: '' }));
+                }
+              }}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              className="auth-toggle"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              <div className="login__field">
-                <label htmlFor="email" className="login__label">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="login__input"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email || errors.password) {
-                      setErrors((prev) => ({ ...prev, email: '', password: '' }));
-                    }
-                  }}
-                  autoComplete="email"
-                />
-                {errors.email && <span className="login__error">{errors.email}</span>}
-              </div>
-
-              <div className="login__field">
-                <label htmlFor="password" className="login__label">Password</label>
-                <div className="login__input-wrap">
-                  <span className="login__input-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                      <rect x="3" y="11" width="18" height="10" rx="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  </span>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="login__input login__input--with-icon login__input--with-toggle"
-                    placeholder="********"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (errors.password) {
-                        setErrors((prev) => ({ ...prev, password: '' }));
-                      }
-                    }}
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    className="login__toggle"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
-                        <path d="M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {errors.password && <span className="login__error">{errors.password}</span>}
-              </div>
-
-              <button type="submit" className="login__submit" disabled={loading}>
-                {loading ? (
-                  <span className="login__submit-inner">
-                    <span className="login__spinner" />
-                    Signing in...
-                  </span>
-                ) : (
-                  'Sign In'
-                )}
-              </button>
-
-              <div className="login__divider"><span>or continue with</span></div>
-              <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
-
-              <Link to="/forgot-password" className="login__forgot">
-                Forgot password?
-              </Link>
-
-              <p className="login__footer">
-                Don&apos;t have an account?{' '}
-                <Link to="/register" className="login__link">Register</Link>
-              </p>
-            </motion.form>
+              <EyeIcon off={showPassword} />
+            </button>
           </div>
-        </motion.div>
-      </div>
-    </motion.main>
+          {errors.password && <span className="auth-error">{errors.password}</span>}
+        </div>
+
+        <button type="submit" className="auth-submit" disabled={loading}>
+          {loading ? (
+            <span className="auth-submit-inner">
+              <span className="auth-spinner" />
+              Signing in...
+            </span>
+          ) : (
+            'Sign in'
+          )}
+        </button>
+
+        <div className="auth-divider">or continue with</div>
+        <GoogleAuthButton onCredential={handleGoogleCredential} onError={toast.error} disabled={loading} />
+
+        <p className="auth-inline">
+          <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
+        </p>
+
+        <p className="auth-foot">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="auth-link">Create one</Link>
+        </p>
+      </motion.form>
+    </AuthShell>
   );
 }

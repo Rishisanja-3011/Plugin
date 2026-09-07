@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '../api/auth';
 import { stationManagerApi } from '../api/stationManager';
+import { clearAuthToken, getAuthToken, setAuthToken } from '../utils/authStorage';
 
 const AuthContext = createContext(null);
 
@@ -49,13 +50,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const persistUser = (nextUser) => {
+    // Remove the legacy persistent PII cache. User data now lives in memory only.
+    localStorage.removeItem('plugin_user');
     if (nextUser) {
-      localStorage.setItem('plugin_user', JSON.stringify(nextUser));
       setUser(nextUser);
       return nextUser;
     }
 
-    localStorage.removeItem('plugin_user');
     setUser(null);
     return null;
   };
@@ -63,7 +64,6 @@ export function AuthProvider({ children }) {
   const syncUserProfile = (profile) => {
     setUser((prev) => {
       const nextUser = mergeUserWithProfileSummary(prev ?? {}, profile);
-      localStorage.setItem('plugin_user', JSON.stringify(nextUser));
       return nextUser;
     });
   };
@@ -76,7 +76,7 @@ export function AuthProvider({ children }) {
 
   const applyAuthSession = async (data, options = {}) => {
     const { refreshProfile = data?.role === 'CUSTOMER' } = options;
-    localStorage.setItem('plugin_token', data.token);
+    setAuthToken(data.token);
     persistUser(data);
 
     if (!refreshProfile) {
@@ -92,24 +92,30 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem('plugin_user');
-    const token = localStorage.getItem('plugin_token');
-    if (stored && token) {
-      try {
-        const parsedUser = JSON.parse(stored);
-        setUser(parsedUser);
-        authApi.getProfile()
-          .then((res) => {
-            syncUserProfile(res.data);
-          })
-          .catch(() => {
-            // Keep the last known user state; axios auth handling will redirect on real auth failures.
-          });
-      } catch {
-        logout();
-      }
+    let active = true;
+    localStorage.removeItem('plugin_user');
+    const token = getAuthToken();
+    if (!token) {
+      setLoading(false);
+      return () => {
+        active = false;
+      };
     }
-    setLoading(false);
+
+    authApi.getProfile()
+      .then((res) => {
+        if (active) syncUserProfile(res.data);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -133,7 +139,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('plugin_token');
+    clearAuthToken();
     persistUser(null);
   };
 

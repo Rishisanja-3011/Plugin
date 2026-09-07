@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface PendingRegistrationRepository extends MongoRepository<PendingRegistration, String> {
     Optional<PendingRegistration> findByEmail(String email);
-    Optional<PendingRegistration> findByToken(String token);
+    Optional<PendingRegistration> findByEmailIgnoreCase(String email);
     boolean existsByEmail(String email);
 }

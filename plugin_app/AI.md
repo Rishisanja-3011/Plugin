@@ -26,7 +26,7 @@ cd C:\Users\sarth\OneDrive\Desktop\antiplugin\plugin_app
 npm start
 ```
 
-Update the installed Android APK through USB:
+Install the self-contained local Android APK through USB:
 
 ```powershell
 cd C:\Users\sarth\OneDrive\Desktop\antiplugin\plugin_app
@@ -189,3 +189,10 @@ If Expo Go shows `RNGoogleSignin could not be found`:
 If launcher icon/splash/native config does not update:
 
 - Rebuild and install with `npm run android:update`.
+
+Local connectivity commands:
+
+- `npm start` / `npm run wireless`: Expo Go over LAN with automatic Wi-Fi host and Metro-port selection.
+- `npm run expo:wired`: Expo Go through USB port forwarding.
+- `npm run android:wireless`: embedded local APK using the current Wi-Fi backend address; Metro is not required.
+- `npm run android:wired` / `npm run android:update`: embedded local APK using `adb reverse` to backend port 8091; Metro is not required.

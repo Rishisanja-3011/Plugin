@@ -29,7 +29,7 @@ public class SessionController {
     public ResponseEntity<SessionResponse> endSession(
             @PathVariable Long sessionId,
             Authentication auth) {
-        return ResponseEntity.ok(sessionService.endSession(sessionId, auth.getName()));
+        return ResponseEntity.ok(sessionService.endMySession(sessionId, auth.getName()));
     }
 
     @GetMapping("/my")
@@ -38,7 +38,7 @@ public class SessionController {
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         return ResponseEntity.ok(sessionService.getMySessions(auth.getName(),
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @GetMapping("/my/active")
@@ -47,7 +47,15 @@ public class SessionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SessionResponse> getSession(@PathVariable Long id) {
-        return ResponseEntity.ok(sessionService.getSessionById(id));
+    public ResponseEntity<SessionResponse> getSession(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(sessionService.getSessionForCaller(id, auth.getName()));
+    }
+
+    private int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private int safeSize(int size) {
+        return Math.max(1, Math.min(100, size));
     }
 }

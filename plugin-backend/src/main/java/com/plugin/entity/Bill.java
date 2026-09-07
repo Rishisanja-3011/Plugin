@@ -3,6 +3,7 @@ package com.plugin.entity;
 import com.plugin.enums.PaymentStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -24,7 +25,11 @@ public class Bill {
 
     private ChargingSession session;
 
+    @Indexed(unique = true, sparse = true)
     private Long sessionId;
+
+    @Version
+    private Long version;
 
     private User customer;
 

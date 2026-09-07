@@ -20,12 +20,14 @@ public class StationRepositoryImpl implements StationRepositoryCustom {
     @Override
     public Page<Station> searchStations(String query, Pageable pageable) {
         Pattern pattern = Pattern.compile(Pattern.quote(query == null ? "" : query), Pattern.CASE_INSENSITIVE);
-        Criteria criteria = new Criteria().orOperator(
-                Criteria.where("city").regex(pattern),
-                Criteria.where("name").regex(pattern),
-                Criteria.where("pincode").regex(pattern),
-                Criteria.where("address").regex(pattern)
-        );
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("active").in(true, 1),
+                new Criteria().orOperator(
+                        Criteria.where("city").regex(pattern),
+                        Criteria.where("name").regex(pattern),
+                        Criteria.where("pincode").regex(pattern),
+                        Criteria.where("address").regex(pattern)
+                ));
 
         Query countQuery = Query.query(criteria);
         long total = mongoTemplate.count(countQuery, Station.class);

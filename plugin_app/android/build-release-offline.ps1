@@ -27,6 +27,7 @@ foreach ($cacheName in @('modules-2', 'jars-9')) {
 }
 
 $env:NODE_ENV = 'production'
+$env:EXPO_PUBLIC_ALLOW_DEV_NETWORKING = 'false'
 $env:JAVA_HOME = $jdkHome
 $env:PATH = "$jdkHome\bin;$env:PATH"
 $env:GRADLE_USER_HOME = $gradleHome

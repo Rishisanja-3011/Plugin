@@ -10,11 +10,11 @@ import Landing from './pages/Landing/Landing';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword';
-import EmailInbox from './pages/EmailInbox/EmailInbox';
 import Search from './pages/Search/Search';
 import StationDetails from './pages/StationDetails/StationDetails';
 import StationManagerApply from './pages/StationManagerApply/StationManagerApply';
 import StationManagerApplyIntro from './pages/StationManagerApplyIntro/StationManagerApplyIntro';
+import StationManagerAccessSetup from './pages/StationManagerAccessSetup/StationManagerAccessSetup';
 
 // Customer pages
 import CustomerDashboard from './pages/customer/Dashboard/Dashboard';
@@ -41,8 +41,11 @@ import AdminStationManagers from './pages/admin/StationManagers/StationManagers'
 
 export default function App() {
   const location = useLocation();
-  const isLogin = location.pathname === '/login';
   const isAdminRoute = location.pathname.startsWith('/admin');
+  // the landing page ships its own dark navbar + footer
+  const isLanding = location.pathname === '/';
+  // login and register are full-bleed: their own brand mark, no chrome
+  const isAuth = location.pathname === '/login' || location.pathname === '/register';
 
   useEffect(() => {
     if (!window?.history || !('scrollRestoration' in window.history)) {
@@ -66,18 +69,18 @@ export default function App() {
   return (
     <>
       <BillingLock>
-        <Navbar />
+        {!isLanding && !isAuth && <Navbar />}
         <Routes location={location}>
           {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/email-inbox" element={<EmailInbox />} />
           <Route path="/search" element={<Search />} />
           <Route path="/stations/:id" element={<StationDetails />} />
           <Route path="/station-manager/apply" element={<StationManagerApplyIntro />} />
-          <Route path="/station-manager/apply/form" element={<StationManagerApply />} />
+          <Route path="/station-manager/setup-access" element={<StationManagerAccessSetup />} />
+          <Route path="/station-manager/apply/form" element={<ProtectedRoute roles={['CUSTOMER']}><StationManagerApply /></ProtectedRoute>} />
 
           {/* Customer */}
           <Route path="/customer/dashboard" element={<ProtectedRoute role="CUSTOMER"><CustomerDashboard /></ProtectedRoute>} />
@@ -88,23 +91,23 @@ export default function App() {
           <Route path="/customer/profile" element={<ProtectedRoute role="CUSTOMER"><Profile /></ProtectedRoute>} />
 
           {/* Admin */}
-          <Route path="/admin/dashboard" element={<ProtectedRoute role="ADMIN"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/re-kyc" element={<ProtectedRoute roles={['STATION_OPERATOR']}><StationManagerApply /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications/:id" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />
-          <Route path="/admin/station-managers" element={<ProtectedRoute role="ADMIN"><AdminStationManagers /></ProtectedRoute>} />
-          <Route path="/admin/stations" element={<ProtectedRoute role="ADMIN"><AdminStations /></ProtectedRoute>} />
-          <Route path="/admin/charging-points" element={<ProtectedRoute role="ADMIN"><AdminChargingPoints /></ProtectedRoute>} />
-          <Route path="/admin/pricing" element={<ProtectedRoute role="ADMIN"><AdminPricing /></ProtectedRoute>} />
-          <Route path="/admin/bookings" element={<ProtectedRoute role="ADMIN"><AdminBookings /></ProtectedRoute>} />
-          <Route path="/admin/customers" element={<ProtectedRoute role="ADMIN"><AdminCustomers /></ProtectedRoute>} />
-          <Route path="/admin/sessions" element={<ProtectedRoute role="ADMIN"><AdminSessions /></ProtectedRoute>} />
-          <Route path="/admin/revenue" element={<ProtectedRoute role="ADMIN"><AdminRevenue /></ProtectedRoute>} />
-          <Route path="/admin/analytics" element={<ProtectedRoute role="ADMIN"><AdminAnalytics /></ProtectedRoute>} />
-          <Route path="/admin/audit-logs" element={<ProtectedRoute role="ADMIN"><AdminAuditLogs /></ProtectedRoute>} />
-          <Route path="/admin/notifications" element={<ProtectedRoute role="ADMIN"><AdminNotifications /></ProtectedRoute>} />
+          <Route path="/admin/station-managers" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagers /></ProtectedRoute>} />
+          <Route path="/admin/stations" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><AdminStations /></ProtectedRoute>} />
+          <Route path="/admin/charging-points" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><AdminChargingPoints /></ProtectedRoute>} />
+          <Route path="/admin/pricing" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><AdminPricing /></ProtectedRoute>} />
+          <Route path="/admin/bookings" element={<ProtectedRoute roles={['ADMIN']}><AdminBookings /></ProtectedRoute>} />
+          <Route path="/admin/customers" element={<ProtectedRoute roles={['ADMIN']}><AdminCustomers /></ProtectedRoute>} />
+          <Route path="/admin/sessions" element={<ProtectedRoute roles={['ADMIN']}><AdminSessions /></ProtectedRoute>} />
+          <Route path="/admin/revenue" element={<ProtectedRoute roles={['ADMIN']}><AdminRevenue /></ProtectedRoute>} />
+          <Route path="/admin/analytics" element={<ProtectedRoute roles={['ADMIN']}><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['ADMIN']}><AdminAuditLogs /></ProtectedRoute>} />
+          <Route path="/admin/notifications" element={<ProtectedRoute roles={['ADMIN']}><AdminNotifications /></ProtectedRoute>} />
         </Routes>
-        {!isAdminRoute && <Footer compact={isLogin} userSide />}
+        {!isAdminRoute && !isLanding && !isAuth && <Footer userSide />}
       </BillingLock>
     </>
   );

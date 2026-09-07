@@ -1,6 +1,5 @@
 package com.plugin.controller;
 
-import com.plugin.config.JwtService;
 import com.plugin.dto.response.NotificationResponse;
 import com.plugin.entity.User;
 import com.plugin.service.AuthService;
@@ -28,8 +27,10 @@ public class NotificationController {
             @RequestParam(defaultValue = "20") int size,
             Authentication auth) {
         User user = authService.getUserByEmail(auth.getName());
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
         return ResponseEntity.ok(notificationService.getMyNotifications(user.getId(),
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage, safeSize)));
     }
 
     @GetMapping("/unread-count")
@@ -39,8 +40,9 @@ public class NotificationController {
     }
 
     @PatchMapping("/{id}/read")
-    public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
-        notificationService.markAsRead(id);
+    public ResponseEntity<Void> markAsRead(@PathVariable Long id, Authentication auth) {
+        User user = authService.getUserByEmail(auth.getName());
+        notificationService.markAsRead(id, user.getId());
         return ResponseEntity.ok().build();
     }
 

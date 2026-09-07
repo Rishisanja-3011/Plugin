@@ -13,8 +13,5 @@ public class StationManagerStatusLookupResponse {
     private StationManagerApplicationStatus status;
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
-    private String reviewNotes;
     private Boolean portalAccessReady;
-    private LocalDateTime credentialsIssuedAt;
-    private StationManagerApplicationResponse application;
 }

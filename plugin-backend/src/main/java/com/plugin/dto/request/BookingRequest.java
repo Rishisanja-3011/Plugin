@@ -19,4 +19,8 @@ public class BookingRequest {
     private String pointTypePreference; // FAST or SLOW, used if auto-assign
     private Double originLatitude;
     private Double originLongitude;
+    private Boolean dynamicEta;
+    @jakarta.validation.constraints.Size(max = 80)
+    @jakarta.validation.constraints.Pattern(regexp = "[A-Za-z0-9_-]+")
+    private String requestKey;
 }

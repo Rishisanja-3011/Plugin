@@ -37,19 +37,27 @@ MongoDB changes included in this project:
 
 ## Configuration
 
-The backend reads MongoDB settings from environment variables:
+The backend reads runtime settings from environment variables:
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
 | `MONGODB_URI` | MongoDB connection URI | `mongodb+srv://<username>:<password>@<cluster-host>/?appName=plugindb` |
 | `MONGODB_DATABASE` | Database name | `plugindb` |
-| `JWT_SECRET` | JWT signing secret | Use a long private value |
-| `SERVER_PORT` | Backend port | `8081` |
+| `JWT_SECRET` | JWT signing secret; required, at least 32 bytes | Random private value |
+| `JWT_ISSUER` | Exact issuer required in every JWT | `plugin-api` |
+| `JWT_AUDIENCE` | Exact audience required in every JWT | `plugin-clients` |
+| `OTP_PEPPER` | HMAC key for OTP records; required, at least 32 bytes | A different random value |
+| `RATE_LIMIT_PEPPER` | HMAC key for rate-limit identities; required, at least 32 bytes | A third random value |
+| `APP_PRODUCTION` | Enables production-only fail-closed checks | `false` locally; `true` in production |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated exact browser origins | `http://localhost:5173` locally |
+| `GOOGLE_CLIENT_IDS` | Comma-separated Google OAuth client IDs accepted by the backend | Web and Android client IDs |
+| `TRUSTED_PROXY_CIDRS` | Reverse-proxy addresses/CIDRs allowed to supply `X-Forwarded-For` | Empty for direct local access |
+| `SERVER_PORT` | Backend port | `8091` |
 | `MAIL_USERNAME` | SMTP account used for OTP emails | `plugin.available@gmail.com` |
 | `MAIL_PASSWORD` | SMTP/app password for OTP emails | Gmail app password or SMTP password |
 | `MAIL_FROM` | Sender address for OTP emails | Same as `MAIL_USERNAME` |
 
-For local development, you can also create `plugin-backend/application-local.yml`. This file is ignored by Git.
+`JWT_SECRET`, `OTP_PEPPER`, and `RATE_LIMIT_PEPPER` must be independent random values. The application fails to start when any one is missing or shorter than 32 bytes. For local development, you can also create `plugin-backend/application-local.yml`. This file is ignored by Git.
 
 ```yaml
 spring:
@@ -61,32 +69,61 @@ spring:
 
 Do not commit real Atlas usernames, passwords, app passwords, or JWT secrets.
 
+See [Security hardening and launch gates](docs/SECURITY-HARDENING.md) before exposing any environment to the internet. The current code is hardened for testing, but the production blockers in that document still need external infrastructure and operational work.
+
 ## Run Backend
+
+For a local test run, the repository includes a wrapper that generates fresh
+process-only JWT, OTP, and rate-limit keys without printing or storing them:
+
+```powershell
+cd plugin-backend
+.\run-local-secure.cmd
+```
+
+To supply an Atlas connection, SMTP settings, or stable local values yourself,
+use the explicit setup below.
 
 ```powershell
 cd plugin-backend
 
+$secureRng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$jwtBytes = New-Object byte[] 48
+$secureRng.GetBytes($jwtBytes)
+$otpBytes = New-Object byte[] 48
+$secureRng.GetBytes($otpBytes)
+$rateBytes = New-Object byte[] 48
+$secureRng.GetBytes($rateBytes)
+$secureRng.Dispose()
+
 $env:MONGODB_URI="mongodb+srv://<username>:<password>@<cluster-host>/?appName=plugindb"
 $env:MONGODB_DATABASE="plugindb"
-$env:JWT_SECRET="replace-with-a-long-private-secret"
+$env:JWT_SECRET=[Convert]::ToBase64String($jwtBytes)
+$env:OTP_PEPPER=[Convert]::ToBase64String($otpBytes)
+$env:RATE_LIMIT_PEPPER=[Convert]::ToBase64String($rateBytes)
+$env:APP_PRODUCTION="false"
+$env:CORS_ALLOWED_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+$env:TRUSTED_PROXY_CIDRS=""
+$env:GOOGLE_CLIENT_IDS="<web-client-id>.apps.googleusercontent.com,<android-client-id>.apps.googleusercontent.com"
 $env:MAIL_USERNAME="plugin.available@gmail.com"
 $env:MAIL_PASSWORD="replace-with-mail-app-password"
 $env:MAIL_FROM="plugin.available@gmail.com"
+$env:WEBSITE_URL="http://localhost:5173"
 
-mvn clean install -DskipTests
+mvn clean verify
 mvn spring-boot:run
 ```
 
 Backend URL:
 
 ```text
-http://localhost:8081
+http://localhost:8091
 ```
 
-If port `8081` is already in use, stop the existing Java process or run with a different port:
+If port `8091` is already in use, stop the existing Java process or run with a different port:
 
 ```powershell
-$env:SERVER_PORT="8091"
+$env:SERVER_PORT="8092"
 mvn spring-boot:run
 ```
 
@@ -94,7 +131,7 @@ mvn spring-boot:run
 
 ```powershell
 cd plugin-frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -103,6 +140,19 @@ Frontend URL:
 ```text
 http://localhost:5173
 ```
+
+The checked-in frontend development environment proxies `/api` to `http://127.0.0.1:8091`. Production builds require an absolute HTTPS `VITE_API_BASE_URL` and fail if it is missing or insecure.
+
+## Run Mobile App
+
+```powershell
+cd plugin_app
+npm install
+npm test
+npm start
+```
+
+Debug builds may use an explicit LAN HTTP API for local testing. Release builds require an HTTPS API URL, production signing credentials, Google configuration, and the release security check described in [Security hardening and launch gates](docs/SECURITY-HARDENING.md).
 
 ## Accounts
 
@@ -138,7 +188,12 @@ The application does not create demo users on startup. Use the users already sto
 | `POST` | `/api/auth/register` | Register customer |
 | `POST` | `/api/auth/login` | Login and receive JWT |
 | `POST` | `/api/auth/forgot-password` | Request password reset OTP |
-| `POST` | `/api/auth/reset-password` | Reset password |
+| `POST` | `/api/auth/google` | Sign in with a server-validated Google token |
+| `POST` | `/api/auth/confirm-otp` | Confirm registration OTP |
+| `POST` | `/api/auth/resend-otp` | Resend registration OTP |
+| `POST` | `/api/auth/forgot-password/send-otp` | Request password-reset OTP |
+| `POST` | `/api/auth/forgot-password/verify-otp` | Verify password-reset OTP |
+| `POST` | `/api/auth/forgot-password/reset` | Complete password reset |
 
 ### Public Stations
 
@@ -154,18 +209,29 @@ The application does not create demo users on startup. Use the users already sto
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/customer/dashboard` | Customer dashboard summary |
 | `GET` | `/api/profile` | Customer profile |
 | `PUT` | `/api/profile` | Update profile |
 | `GET` | `/api/bookings/my` | Customer bookings |
 | `POST` | `/api/bookings` | Create booking |
 | `PUT` | `/api/bookings/{id}` | Update booking |
-| `DELETE` | `/api/bookings/{id}` | Cancel booking |
+| `POST` | `/api/bookings/{id}/cancel` | Cancel booking |
 | `GET` | `/api/sessions/my` | Customer sessions |
 | `POST` | `/api/sessions/start/{bookingId}` | Start session |
 | `POST` | `/api/sessions/end/{sessionId}` | End session |
 | `GET` | `/api/bills/my` | Customer bills |
-| `POST` | `/api/bills/{id}/pay` | Mark bill paid |
+| `GET` | `/api/bills/{id}` | Get an owned bill |
+| `POST` | `/api/bills/my/{id}/wallet-pay` | Pay an owned bill from wallet |
+| `GET` | `/api/bills/my/{id}/invoice` | Download an owned invoice |
+
+### Station Manager Application
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/station-manager/reference-data` | Public application reference data |
+| `GET` | `/api/station-manager/status/{referenceId}` | Minimal status for the authenticated application owner |
+| `GET` | `/api/station-manager/application` | Authenticated applicant's application |
+| `POST` | `/api/station-manager/application` | Submit authenticated multipart KYC application |
+| `POST` | `/api/station-manager/access/setup` | Consume one-time operator invitation and set password |
 
 ### Admin
 
@@ -201,7 +267,23 @@ Frontend build:
 
 ```powershell
 cd plugin-frontend
+npm test
+$env:VITE_API_BASE_URL="https://api.example.com/api"
+$env:VITE_GOOGLE_CLIENT_ID="your_web_client_id.apps.googleusercontent.com"
 npm run build
+npm run audit:production
+```
+
+Mobile security checks:
+
+```powershell
+cd plugin_app
+npm test
+$env:PLUGIN_BUILD_PROFILE="production"
+$env:EXPO_PUBLIC_API_BASE_URL="https://api.example.com/api"
+$env:EXPO_PUBLIC_GOOGLE_CLIENT_ID="your_web_client_id.apps.googleusercontent.com"
+$env:EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="your_restricted_maps_key"
+npm run security:release
 ```
 
 ## Project Structure
@@ -233,15 +315,35 @@ plugin-frontend/
     |-- context/
     |-- pages/
     `-- styles/
+
+plugin_app/
+|-- app.config.js
+|-- package.json
+|-- android/
+|-- scripts/
+`-- src/
 ```
+
+## ETA Charging Reservations
+
+- Mobile booking offers **Charge on arrival** (location-based) or **Choose a time** (fixed schedule). A selected fixed time is not replaced by GPS estimates.
+- ETA bookings reserve an actual connector calendar window, including a 20-minute late-arrival allowance. If arrival-time capacity is full, the response shows the next available window and wait; requests outside the two-hour arrival hold limit or station hours are rejected.
+- Location refreshes may move an unlocked window but cannot extend the original two-hour hold deadline or revive an expired reservation. A physical connector is claimed only within one mile and two minutes of the reserved start. Starting requires a fresh location and cannot overlap the next reservation.
+- Clients send a `requestKey` for safe retries. Reuse it only for the identical booking payload; use a new key for a new attempt. Transaction contention returns an availability conflict instead of overbooking. MongoDB must run as a replica set.
+- ETA screens distinguish live-traffic estimates from approximate fallback estimates. GPS and network access remain necessary; estimates are not guaranteed arrival times.
+- Background mobile updates require a rebuilt native app containing `expo-task-manager` and background location permissions. Enable tracking from booking details. Force-stopping the app, revoked permissions, OS restrictions, or loss of connectivity can stop updates; the arrival deadline still applies.
 
 ## Notes for Deployment
 
-- Configure Atlas network access for the deployment server IP.
-- Store `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET` as environment variables.
+- Do not treat a successful build as production approval. Complete every no-go item in [Security hardening and launch gates](docs/SECURITY-HARDENING.md).
+- Configure Atlas network access for only the deployment server and require a replica set for transaction-protected booking, session, and wallet operations.
+- Store all runtime secrets in `/etc/plugin/plugin-backend.env` as `root:root` mode `600`, matching the backend deployment workflow.
+- Set `APP_PRODUCTION=true`, exact HTTPS CORS origins, production Google client IDs, live Razorpay credentials, and only the real reverse proxy CIDRs.
+- Razorpay test credentials and test confirmation are intentionally available only while `APP_PRODUCTION=false`; production startup rejects test keys.
 - Keep `plugin-backend/application-local.yml` only on local machines.
-- Confirm collection names match the migrated Atlas data before deploying.
-- Run backend compile/tests and frontend build before pushing release changes.
+- Reconcile duplicate identifiers before the fail-closed unique MongoDB indexes are created.
+- Terminate TLS at a trusted edge/reverse proxy and attach the required CloudFront response-headers policy.
+- Run backend tests, frontend security checks/build/audit, mobile release checks, and public post-deployment health checks before release.
 
 ## License
 

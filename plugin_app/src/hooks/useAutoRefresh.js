@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
-export default function useAutoRefresh(callback, { enabled = true, intervalMs = 4000 } = {}) {
+export default function useAutoRefresh(callback, { enabled = true, intervalMs = 10000 } = {}) {
   const callbackRef = useRef(callback);
   const busyRef = useRef(false);
   const activeRef = useRef(AppState.currentState === 'active');
@@ -21,22 +21,37 @@ export default function useAutoRefresh(callback, { enabled = true, intervalMs = 
     if (!enabled) return undefined;
     let mounted = true;
 
+    let timer;
+    let consecutiveFailures = 0;
+
+    const schedule = (delayMs) => {
+      if (mounted) timer = setTimeout(tick, delayMs);
+    };
+
     const tick = async () => {
-      if (!mounted || !activeRef.current || busyRef.current) return;
+      if (!mounted) return;
+      if (!activeRef.current || busyRef.current) {
+        schedule(intervalMs);
+        return;
+      }
       busyRef.current = true;
       try {
         await callbackRef.current?.();
+        consecutiveFailures = 0;
       } catch {
         // Silent refresh should never interrupt the visible screen.
+        consecutiveFailures += 1;
       } finally {
         busyRef.current = false;
+        const nextDelay = Math.min(intervalMs * (2 ** consecutiveFailures), 60000);
+        schedule(nextDelay);
       }
     };
 
-    const timer = setInterval(tick, intervalMs);
+    schedule(intervalMs);
     return () => {
       mounted = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [enabled, intervalMs]);
 }

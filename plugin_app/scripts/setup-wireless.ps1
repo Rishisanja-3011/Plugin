@@ -69,11 +69,13 @@ $values['EXPO_PUBLIC_API_BASE_URL'] = ''
 $values['EXPO_PUBLIC_API_LAN_BASE_URL'] = $lanUrl
 $values['EXPO_PUBLIC_API_PORT'] = [string]$BackendPort
 $values['EXPO_PUBLIC_METRO_HOST'] = $metroHost
+$values['EXPO_PUBLIC_ALLOW_DEV_NETWORKING'] = 'true'
 
 $env:EXPO_PUBLIC_API_BASE_URL = ''
 $env:EXPO_PUBLIC_API_LAN_BASE_URL = $lanUrl
 $env:EXPO_PUBLIC_API_PORT = [string]$BackendPort
 $env:EXPO_PUBLIC_METRO_HOST = $metroHost
+$env:EXPO_PUBLIC_ALLOW_DEV_NETWORKING = 'true'
 $env:REACT_NATIVE_PACKAGER_HOSTNAME = $HostIp
 
 $output = @(
@@ -82,11 +84,16 @@ $output = @(
   "EXPO_PUBLIC_API_BASE_URL=$($values['EXPO_PUBLIC_API_BASE_URL'])",
   "EXPO_PUBLIC_API_LAN_BASE_URL=$($values['EXPO_PUBLIC_API_LAN_BASE_URL'])",
   "EXPO_PUBLIC_API_PORT=$($values['EXPO_PUBLIC_API_PORT'])",
-  "EXPO_PUBLIC_METRO_HOST=$($values['EXPO_PUBLIC_METRO_HOST'])"
+  "EXPO_PUBLIC_METRO_HOST=$($values['EXPO_PUBLIC_METRO_HOST'])",
+  "EXPO_PUBLIC_ALLOW_DEV_NETWORKING=$($values['EXPO_PUBLIC_ALLOW_DEV_NETWORKING'])"
 )
 
 Set-Content -Path $envPath -Value $output -Encoding utf8
 
 Write-Host "Wireless API URL set to $lanUrl"
 Write-Host "Wireless Metro host set to $metroHost"
-Write-Host "Keep the Android phone on the same Wi-Fi/hotspot as this PC."
+if ($HostIp -eq '127.0.0.1') {
+  Write-Host 'USB mode selected. adb reverse must remain active while the local API is in use.'
+} else {
+  Write-Host 'Keep the Android phone on the same Wi-Fi/hotspot as this PC.'
+}

@@ -29,6 +29,9 @@ public class AdminCustomerService {
 
     public Page<AdminCustomerResponse> getCustomers(Pageable pageable, String name, Boolean active) {
         String normalizedName = name == null ? null : name.trim();
+        if (normalizedName != null && normalizedName.length() > 100) {
+            throw new BadRequestException("Customer search must not exceed 100 characters");
+        }
         boolean hasName = normalizedName != null && !normalizedName.isEmpty();
 
         if (active != null && hasName) {
@@ -59,19 +62,19 @@ public class AdminCustomerService {
             throw new BadRequestException("Only customer accounts can be updated");
         }
 
-        customer.setActive(active);
+        if (!java.util.Objects.equals(customer.getActive(), active)) {
+            customer.setActive(active);
+            customer.revokeSessions();
+        }
         customer = userRepository.save(customer);
 
-        try {
-            auditService.log(
-                    "UPDATE_CUSTOMER_STATUS",
-                    "USER",
-                    customer.getId(),
-                    actor,
-                    "Customer account set to " + (active ? "ACTIVE" : "DEACTIVATED")
-            );
-        } catch (Exception ignored) {
-        }
+        auditService.log(
+                "UPDATE_CUSTOMER_STATUS",
+                "USER",
+                customer.getId(),
+                actor,
+                "Customer account set to " + (active ? "ACTIVE" : "DEACTIVATED")
+        );
 
         return toResponse(customer);
     }

@@ -1,0 +1,6 @@
+target/
+.env
+application-local.yml
+*.log
+.idea/
+.vscode/

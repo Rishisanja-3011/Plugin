@@ -20,8 +20,8 @@ public class StationManagerDirectorySyncRunner implements ApplicationRunner {
         try {
             stationManagerDirectoryService.syncApprovedApplications();
         } catch (DataAccessException ex) {
-            log.warn("Skipping station manager directory sync because MongoDB is unavailable: {}",
-                    ex.getMessage());
+            log.warn("Skipping station manager directory sync because MongoDB is unavailable; type={}",
+                    ex.getClass().getName());
         }
     }
 }

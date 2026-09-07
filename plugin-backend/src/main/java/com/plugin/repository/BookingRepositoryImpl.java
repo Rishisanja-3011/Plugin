@@ -21,8 +21,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BookingRepositoryImpl implements BookingRepositoryCustom {
 
-    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(BookingStatus.CONFIRMED, BookingStatus.MODIFIED);
-    private static final List<BookingStatus> BUSY_STATUSES = List.of(BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(
+            BookingStatus.CONFIRMED, BookingStatus.MODIFIED, BookingStatus.IN_PROGRESS);
+    private static final List<BookingStatus> BUSY_STATUSES = List.of(
+            BookingStatus.CONFIRMED, BookingStatus.MODIFIED,
+            BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED);
 
     private final MongoTemplate mongoTemplate;
 
@@ -31,7 +34,11 @@ public class BookingRepositoryImpl implements BookingRepositoryCustom {
         Query query = Query.query(new Criteria().andOperator(
                 relationIdCriteria("customerId", "customer.id", customerId),
                 Criteria.where("status").in(ACTIVE_STATUSES),
-                Criteria.where("endTime").gt(now)
+                new Criteria().orOperator(
+                        Criteria.where("status").is(BookingStatus.IN_PROGRESS),
+                        Criteria.where("gracePeriodEndTime").gt(now),
+                        new Criteria().andOperator(Criteria.where("gracePeriodEndTime").is(null),
+                                Criteria.where("endTime").gt(now)))
         ));
         return mongoTemplate.exists(query, Booking.class);
     }
@@ -159,7 +166,9 @@ public class BookingRepositoryImpl implements BookingRepositoryCustom {
                 relationIdCriteria("chargingPointId", "chargingPoint.id", pointId),
                 Criteria.where("status").in(ACTIVE_STATUSES),
                 Criteria.where("startTime").lt(endTime),
-                Criteria.where("endTime").gt(startTime)
+                new Criteria().orOperator(Criteria.where("reservedUntil").gt(startTime),
+                        new Criteria().andOperator(Criteria.where("reservedUntil").is(null),
+                                Criteria.where("endTime").gt(startTime)))
         ));
     }
 
@@ -200,7 +209,8 @@ public class BookingRepositoryImpl implements BookingRepositoryCustom {
                 completed++;
             } else if (status == BookingStatus.CANCELLED) {
                 cancelled++;
-            } else if (status == BookingStatus.CONFIRMED || status == BookingStatus.MODIFIED) {
+            } else if (status == BookingStatus.CONFIRMED || status == BookingStatus.MODIFIED
+                    || status == BookingStatus.IN_PROGRESS) {
                 active++;
             }
         }

@@ -16,7 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -31,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
@@ -72,8 +72,8 @@ public class SessionService {
             activeSessions.forEach(this::scheduleExactCompletion);
             log.info("Scheduled {} active session completion task(s)", activeSessions.size());
         } catch (DataAccessException ex) {
-            log.warn("Skipping active session completion scheduling because MongoDB is unavailable: {}",
-                    ex.getMessage());
+            log.warn("Skipping active session completion scheduling because MongoDB is unavailable; type={}",
+                    ex.getClass().getName());
         }
     }
 
@@ -83,9 +83,16 @@ public class SessionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = referenceResolver.hydrate(booking);
 
-        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
-            throw new BadRequestException("You can only start sessions for your own bookings");
+        User actor = userRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        Long bookingCustomerId = booking.getCustomerId() != null
+                ? booking.getCustomerId()
+                : booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        if (!actor.getId().equals(bookingCustomerId)) {
+            throw new ResourceNotFoundException("Booking not found");
         }
+        booking.setCustomer(actor);
+        booking.setCustomerId(actor.getId());
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
                 || booking.getStatus() == BookingStatus.NO_SHOW) {
@@ -101,26 +108,52 @@ public class SessionService {
 
         booking = prepareDynamicBookingForSessionStart(booking);
         validateBookingStartWindow(booking);
+        if (booking.getStation() == null || !Boolean.TRUE.equals(booking.getStation().getActive())) {
+            throw new BadRequestException("Station is currently inactive");
+        }
 
-        if (booking.getChargingPoint() == null) {
+        Long pointId = booking.getAssignedChargingPointId() != null
+                ? booking.getAssignedChargingPointId()
+                : booking.getChargingPointId();
+        if (pointId == null) {
             throw new BadRequestException("A connector will be assigned when you are within 1 mile of the station.");
         }
 
-        if (booking.getChargingPoint().getStatus() == PointStatus.OUT_OF_SERVICE
-                || booking.getChargingPoint().getStatus() == PointStatus.UNAVAILABLE) {
+        ChargingPoint currentPoint = cpRepository.findById(pointId)
+                .orElseThrow(() -> new ResourceNotFoundException("Charging point not found"));
+        currentPoint = referenceResolver.hydrate(currentPoint);
+        Long bookedStationId = booking.getStationId() != null
+                ? booking.getStationId()
+                : booking.getStation() != null ? booking.getStation().getId() : null;
+        Long currentStationId = currentPoint.getStationId() != null
+                ? currentPoint.getStationId()
+                : currentPoint.getStation() != null ? currentPoint.getStation().getId() : null;
+        if (bookedStationId == null || !bookedStationId.equals(currentStationId)) {
+            throw new BadRequestException("Charging point no longer belongs to the booked station");
+        }
+        if (currentPoint.getStatus() == PointStatus.OUT_OF_SERVICE
+                || currentPoint.getStatus() == PointStatus.UNAVAILABLE) {
             throw new BadRequestException("Charging point is currently unavailable. Please wait for admin to restore it.");
         }
+        if (currentPoint.getStatus() == PointStatus.CHARGING) {
+            throw new ConflictException("Charging point is already in use");
+        }
+        if (currentPoint.getStatus() == PointStatus.RESERVED
+                && !bookingId.equals(currentPoint.getReservedByBookingId())) {
+            throw new ConflictException("Charging point is reserved for another booking");
+        }
+        booking.setChargingPoint(currentPoint);
+        booking.setChargingPointId(currentPoint.getId());
 
         ensureLockedPricing(booking, "Session started for booking " + booking.getReferenceId() + ".");
         walletService.ensureReadyForSessionStart(booking.getCustomer());
 
-        ChargingPoint cp = booking.getChargingPoint();
-        cp.setStatus(PointStatus.CHARGING);
-        cpRepository.save(cp);
+        booking.setStatus(BookingStatus.IN_PROGRESS);
+        booking = bookingRepository.save(booking);
 
         ChargingSession session = ChargingSession.builder()
                 .booking(booking)
-                .chargingPoint(cp)
+                .chargingPoint(currentPoint)
                 .customer(booking.getCustomer())
                 .startTime(AppClock.now().withNano(0))
                 .status(SessionStatus.IN_PROGRESS)
@@ -129,18 +162,37 @@ public class SessionService {
                 .build();
 
         session = sessionRepository.save(session);
-        scheduleExactCompletion(session);
+        ChargingPoint claimedPoint = cpRepository.claimPointForSession(
+                currentPoint.getId(), booking.getId(), session.getId());
+        if (claimedPoint == null) {
+            throw new ConflictException("Charging point is no longer available");
+        }
+        session.setChargingPoint(claimedPoint);
+        session = sessionRepository.save(session);
+        scheduleExactCompletionAfterCommit(session.getId());
         auditService.log("START_SESSION", "SESSION", session.getId(), customerEmail,
                 "Session started for booking " + booking.getReferenceId());
         return toResponse(session);
     }
 
     public SessionResponse endSession(Long sessionId, String performedBy) {
+        return endSessionInternal(sessionId, performedBy, false);
+    }
+
+    public SessionResponse endMySession(Long sessionId, String customerEmail) {
+        return endSessionInternal(sessionId, customerEmail, true);
+    }
+
+    private SessionResponse endSessionInternal(Long sessionId, String performedBy, boolean requireOwnership) {
         synchronized (completionLock) {
             return runWithTransientCompletionRetry(() -> transactionTemplate.execute(status -> {
                 ChargingSession session = sessionRepository.findById(sessionId)
                         .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
                 session = referenceResolver.hydrate(session);
+
+                if (requireOwnership && !isSessionOwnedBy(session, performedBy)) {
+                    throw new ResourceNotFoundException("Session not found");
+                }
 
                 if (session.getStatus() != SessionStatus.IN_PROGRESS) {
                     if (session.getStatus() == SessionStatus.COMPLETED) {
@@ -181,13 +233,22 @@ public class SessionService {
 
         // Mark charging point available
         ChargingPoint cp = session.getChargingPoint();
-        cp.setStatus(PointStatus.AVAILABLE);
-        cpRepository.save(cp);
+        if (cp != null && cp.getId() != null
+                && !cpRepository.releasePointForSession(cp.getId(), session.getId())) {
+            log.warn("Connector {} was not released for session {}; its current safety/ownership state was preserved",
+                    cp.getId(), session.getId());
+        }
 
         // Mark booking completed
-        Booking booking = session.getBooking();
+        Long bookingId = session.getBookingId() != null
+                ? session.getBookingId()
+                : session.getBooking() != null ? session.getBooking().getId() : null;
+        Booking booking = bookingId != null ? bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found")) : session.getBooking();
         booking.setStatus(BookingStatus.COMPLETED);
+        BookingLocationPrivacy.clearPreciseLocation(booking);
         bookingRepository.save(booking);
+        session.setBooking(booking);
 
         // Generate bill
         generateBill(session);
@@ -204,8 +265,6 @@ public class SessionService {
         return toResponse(session);
     }
 
-    @Scheduled(initialDelayString = "${app.sessions.auto-complete-initial-delay-ms:1000}",
-            fixedRateString = "${app.sessions.auto-complete-check-ms:1000}")
     public void autoCompleteExpiredSessions() {
         LocalDateTime now = AppClock.now();
         List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
@@ -219,8 +278,6 @@ public class SessionService {
         }
     }
 
-    @Scheduled(initialDelayString = "${app.wallet.monitor-initial-delay-ms:2000}",
-            fixedRateString = "${app.wallet.monitor-check-ms:3000}")
     public void monitorActiveWalletBalances() {
         List<ChargingSession> activeSessions = sessionRepository.findByStatus(SessionStatus.IN_PROGRESS);
         LocalDateTime now = AppClock.now();
@@ -232,7 +289,8 @@ public class SessionService {
                 }
                 monitorWalletForSession(hydrated);
             } catch (Exception ex) {
-                log.warn("Failed to monitor wallet for session {}", session.getId(), ex);
+                log.warn("Failed to monitor wallet for session {}; type={}",
+                        session.getId(), ex.getClass().getName());
             }
         }
     }
@@ -261,6 +319,7 @@ public class SessionService {
         releaseReservedPointIfNeeded(booking);
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason("Booking expired because the reserved charging window was missed.");
+        BookingLocationPrivacy.clearPreciseLocation(booking);
         bookingRepository.save(booking);
 
         Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
@@ -273,7 +332,8 @@ public class SessionService {
                         "Your booking " + booking.getReferenceId() + " at " + stationName +
                                 " was cancelled because the selected charging time was missed.");
             } catch (Exception ex) {
-                log.warn("Failed to send missed booking notification for booking {}", booking.getId(), ex);
+                log.warn("Failed to send missed booking notification for booking {}; type={}",
+                        booking.getId(), ex.getClass().getName());
             }
         }
 
@@ -281,7 +341,8 @@ public class SessionService {
             auditService.log("EXPIRE_BOOKING", "BOOKING", booking.getId(), "system",
                     "Booking expired automatically: " + booking.getReferenceId());
         } catch (Exception ex) {
-            log.warn("Failed to write missed booking audit log for booking {}", booking.getId(), ex);
+            log.warn("Failed to write missed booking audit log for booking {}; type={}",
+                    booking.getId(), ex.getClass().getName());
         }
     }
 
@@ -292,7 +353,7 @@ public class SessionService {
 
         LocalDateTime now = AppClock.now().withNano(0);
         LocalDateTime graceEnd = AppClock.fromStoredScheduleTime(booking.getGracePeriodEndTime());
-        if (graceEnd != null && now.isAfter(graceEnd)) {
+        if (graceEnd != null && !now.isBefore(graceEnd)) {
             cancelMissedBooking(booking);
             throw new BadRequestException("This booking grace period has expired and the session can no longer be started.");
         }
@@ -304,8 +365,27 @@ public class SessionService {
         int durationMinutes = booking.getRequestedDurationMinutes() != null
                 ? Math.max(1, Math.min(60, booking.getRequestedDurationMinutes()))
                 : Math.max(1, resolveBillingDurationMinutesForBooking(booking));
+        StationOperatingHoursPolicy.validate(
+                booking.getStation(), now, now.plusMinutes(durationMinutes));
+        if (booking.getLastLocationPingAt() == null
+                || Duration.between(booking.getLastLocationPingAt(), now).getSeconds() > 120
+                || booking.getLastDistanceMeters() == null || booking.getLastDistanceMeters() > 1609.344) {
+            throw new BadRequestException("Refresh your location near the station before starting charging.");
+        }
+        LocalDateTime reservedStart = AppClock.fromStoredScheduleTime(booking.getStartTime());
+        if (now.isBefore(reservedStart)) {
+            throw new BadRequestException("Your connector window starts at " + reservedStart.format(SESSION_START_TIME_FORMAT) + ".");
+        }
+        LocalDateTime adjustedEnd = AppClock.toStoredScheduleTime(now.plusMinutes(durationMinutes));
+        if ((booking.getReservedUntil() != null && adjustedEnd.isAfter(booking.getReservedUntil()))
+                || !bookingRepository.findOverlappingBookingsExcluding(booking.getChargingPoint().getId(),
+                        AppClock.toStoredScheduleTime(now), adjustedEnd, booking.getId()).isEmpty()) {
+            throw new ConflictException("A full session would overlap another reservation. Please reschedule.");
+        }
+        cpRepository.touchSchedule(booking.getChargingPoint().getId());
         booking.setStartTime(AppClock.toStoredScheduleTime(now));
-        booking.setEndTime(AppClock.toStoredScheduleTime(now.plusMinutes(durationMinutes)));
+        booking.setEndTime(adjustedEnd);
+        booking.setReservedUntil(adjustedEnd);
         booking.setVirtualSpot(false);
         return bookingRepository.save(booking);
     }
@@ -320,15 +400,13 @@ public class SessionService {
     }
 
     private void releaseReservedPointIfNeeded(Booking booking) {
-        ChargingPoint point = booking.getChargingPoint();
-        if (point == null && booking.getAssignedChargingPointId() != null) {
-            point = cpRepository.findById(booking.getAssignedChargingPointId()).orElse(null);
-        }
-        if (point == null || point.getStatus() != PointStatus.RESERVED) {
+        Long pointId = booking.getAssignedChargingPointId() != null
+                ? booking.getAssignedChargingPointId()
+                : booking.getChargingPointId();
+        if (pointId == null || booking.getId() == null) {
             return;
         }
-        point.setStatus(PointStatus.AVAILABLE);
-        cpRepository.save(point);
+        cpRepository.releaseReservationForBooking(pointId, booking.getId());
     }
 
     private LocalDateTime resolveAllowedSessionEndTime(ChargingSession session, LocalDateTime now) {
@@ -397,6 +475,20 @@ public class SessionService {
                         .orElseThrow(() -> new ResourceNotFoundException("Session not found"))));
     }
 
+    public SessionResponse getSessionForCaller(Long id, String actorEmail) {
+        ChargingSession session = sessionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Long customerId = session.getCustomerId() != null
+                ? session.getCustomerId()
+                : session.getCustomer() != null ? session.getCustomer().getId() : null;
+        if (actor.getRole() != Role.ADMIN && !actor.getId().equals(customerId)) {
+            throw new ResourceNotFoundException("Session not found");
+        }
+        return withReferenceCache(() -> toResponse(session));
+    }
+
     private void generateBill(ChargingSession session) {
         session = referenceResolver.hydrate(session);
         if (session.getId() != null && billRepository.existsBySessionId(session.getId())) {
@@ -429,7 +521,8 @@ public class SessionService {
             totalAmount = BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP);
         }
 
-        String invoiceNumber = "INV-" + System.currentTimeMillis();
+        String invoiceNumber = "INV-" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 20).toUpperCase();
         WalletService.WalletSettlementResult walletSettlement =
                 walletService.settleCompletedSession(session, totalAmount, invoiceNumber);
         session.setWalletDebitedAmount(walletSettlement.walletDebitedAmount());
@@ -542,10 +635,6 @@ public class SessionService {
     private void monitorWalletForSession(ChargingSession session) {
         BigDecimal estimatedCost = estimateLiveCost(session);
         WalletService.WalletSessionMonitorResult result = walletService.applyLiveSessionDebit(session, estimatedCost);
-        session.setWalletDebitedAmount(result.walletDebitedAmount());
-        session.setWalletBalanceAfterLastDebit(result.balanceAfter());
-        session.setWalletLastCheckedAt(AppClock.now());
-        sessionRepository.save(session);
         if (result.shouldStop()) {
             stopSessionForWalletCutoff(session.getId(), result.reason());
         }
@@ -595,7 +684,8 @@ public class SessionService {
                             "Your wallet ran out of balance and Auto-Top-Up could not continue the session.");
                 });
             } catch (Exception ex) {
-                log.warn("Failed to stop session {} after wallet cut-off", sessionId, ex);
+                log.warn("Failed to stop session {} after wallet cut-off; type={}",
+                        sessionId, ex.getClass().getName());
             }
         }
     }
@@ -688,6 +778,39 @@ public class SessionService {
         }
     }
 
+    private void scheduleExactCompletionAfterCommit(Long sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        Runnable schedule = () -> sessionRepository.findById(sessionId).ifPresent(this::scheduleExactCompletion);
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    schedule.run();
+                }
+            });
+        } else {
+            schedule.run();
+        }
+    }
+
+    private boolean isSessionOwnedBy(ChargingSession session, String email) {
+        if (session == null || email == null) {
+            return false;
+        }
+        Long customerId = session.getCustomerId() != null
+                ? session.getCustomerId()
+                : session.getCustomer() != null ? session.getCustomer().getId() : null;
+        if (customerId == null) {
+            return false;
+        }
+        return userRepository.findByEmail(email)
+                .map(User::getId)
+                .map(customerId::equals)
+                .orElse(false);
+    }
+
     private void autoCompleteSessionById(Long sessionId) {
         if (sessionId == null) {
             return;
@@ -701,7 +824,8 @@ public class SessionService {
                     return null;
                 });
             } catch (Exception ex) {
-                log.warn("Failed to auto-complete session {} at its scheduled end time", sessionId, ex);
+                log.warn("Failed to auto-complete session {} at its scheduled end time; type={}",
+                        sessionId, ex.getClass().getName());
             }
         }
     }

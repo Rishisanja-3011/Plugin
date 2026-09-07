@@ -4,6 +4,7 @@ import com.plugin.enums.PointStatus;
 import com.plugin.enums.PointType;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -33,6 +34,18 @@ public class ChargingPoint {
     private String connectorType;
 
     private PointStatus status;
+
+    /** Booking that owns a live proximity reservation, if any. */
+    private Long reservedByBookingId;
+
+    /** Session that currently owns the connector, if any. */
+    private Long activeSessionId;
+
+    /** Incremented whenever the future booking schedule is changed. */
+    private Long scheduleRevision;
+
+    @Version
+    private Long version;
 
     private LocalDateTime createdAt;
 

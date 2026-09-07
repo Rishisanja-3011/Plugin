@@ -17,11 +17,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import java.nio.charset.StandardCharsets;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -29,6 +32,8 @@ import java.util.Map;
 @RequestMapping("/api/station-manager")
 @RequiredArgsConstructor
 public class StationManagerApplicationController {
+
+    private static final int MAX_APPLICATION_JSON_BYTES = 200_000;
 
     private final StationManagerApplicationService stationManagerApplicationService;
     private final ObjectMapper objectMapper;
@@ -40,13 +45,18 @@ public class StationManagerApplicationController {
     }
 
     @GetMapping("/status/{referenceId}")
-    public ResponseEntity<StationManagerStatusLookupResponse> getApplicationStatus(@PathVariable String referenceId) {
-        return ResponseEntity.ok(stationManagerApplicationService.getStatusByReferenceId(referenceId));
+    public ResponseEntity<StationManagerStatusLookupResponse> getApplicationStatus(@PathVariable String referenceId,
+                                                                                    Authentication auth) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(stationManagerApplicationService.getStatusByReferenceId(referenceId, auth.getName()));
     }
 
     @GetMapping("/application")
     public ResponseEntity<StationManagerApplicationResponse> getMyApplication(Authentication auth) {
-        return ResponseEntity.ok(stationManagerApplicationService.getMyApplication(auth.getName()));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(stationManagerApplicationService.getMyApplication(auth.getName()));
     }
 
     @PostMapping(value = "/application", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -54,17 +64,21 @@ public class StationManagerApplicationController {
             Authentication auth,
             MultipartHttpServletRequest multipartRequest) {
         StationManagerApplicationRequest request = parseApplicationRequest(multipartRequest);
-        return ResponseEntity.ok(stationManagerApplicationService.submitApplication(
-                auth != null ? auth.getName() : null,
-                request,
-                extractStandardFiles(multipartRequest),
-                extractBusinessDocumentFiles(multipartRequest)
-        ));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(stationManagerApplicationService.submitApplication(
+                        auth != null ? auth.getName() : null,
+                        request,
+                        extractStandardFiles(multipartRequest),
+                        extractBusinessDocumentFiles(multipartRequest)
+                ));
     }
 
     @PostMapping("/session")
     public ResponseEntity<AuthResponse> refreshManagerSession(Authentication auth) {
-        return ResponseEntity.ok(stationManagerApplicationService.refreshManagerSession(auth.getName()));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(stationManagerApplicationService.refreshManagerSession(auth.getName()));
     }
 
     @GetMapping("/application/files/{slotType}")
@@ -100,7 +114,12 @@ public class StationManagerApplicationController {
                 continue;
             }
             String rawType = key.substring("businessDocumentFiles.".length());
-            StationManagerBusinessDocumentType documentType = StationManagerBusinessDocumentType.valueOf(rawType);
+            StationManagerBusinessDocumentType documentType;
+            try {
+                documentType = StationManagerBusinessDocumentType.valueOf(rawType);
+            } catch (IllegalArgumentException ex) {
+                throw new BadRequestException("Unsupported business document type.");
+            }
             putIfPresent(files, documentType, entry.getValue());
         }
         return files;
@@ -117,14 +136,24 @@ public class StationManagerApplicationController {
 
         if ((rawApplication == null || rawApplication.isBlank()) && request.getFile("application") != null) {
             try {
-                rawApplication = new String(request.getFile("application").getBytes());
+                MultipartFile applicationFile = request.getFile("application");
+                if (applicationFile.getSize() > MAX_APPLICATION_JSON_BYTES) {
+                    throw new BadRequestException("Application data is too large.");
+                }
+                rawApplication = new String(applicationFile.getBytes(), StandardCharsets.UTF_8);
             } catch (Exception ex) {
+                if (ex instanceof BadRequestException badRequestException) {
+                    throw badRequestException;
+                }
                 throw new BadRequestException("Failed to read application data.");
             }
         }
 
         if (rawApplication == null || rawApplication.isBlank()) {
             throw new BadRequestException("Application data is required.");
+        }
+        if (rawApplication.getBytes(StandardCharsets.UTF_8).length > MAX_APPLICATION_JSON_BYTES) {
+            throw new BadRequestException("Application data is too large.");
         }
 
         try {
@@ -143,12 +172,19 @@ public class StationManagerApplicationController {
     }
 
     private ResponseEntity<byte[]> buildFileResponse(StationManagerFileService.DownloadedFile file) {
-        MediaType mediaType = file.contentType() != null && !file.contentType().isBlank()
-                ? MediaType.parseMediaType(file.contentType())
-                : MediaType.APPLICATION_OCTET_STREAM;
+        String disposition = ContentDisposition.attachment()
+                .filename(file.fileName(), StandardCharsets.UTF_8)
+                .build()
+                .toString();
         return ResponseEntity.ok()
-                .contentType(mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(file.data().length)
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "sandbox; default-src 'none'")
+                .header("Cross-Origin-Resource-Policy", "same-origin")
+                .header("Referrer-Policy", "no-referrer")
                 .body(file.data());
     }
 }

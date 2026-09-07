@@ -3,6 +3,7 @@ package com.plugin.entity;
 import com.plugin.enums.SessionStatus;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -21,7 +22,11 @@ public class ChargingSession {
 
     private Booking booking;
 
+    @Indexed(unique = true, sparse = true)
     private Long bookingId;
+
+    @Version
+    private Long version;
 
     private ChargingPoint chargingPoint;
 

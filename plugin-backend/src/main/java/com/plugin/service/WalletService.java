@@ -19,11 +19,13 @@ import com.plugin.enums.WalletTransactionStatus;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.UserRepository;
+import com.plugin.repository.ChargingSessionRepository;
 import com.plugin.repository.WalletLedgerEntryRepository;
 import com.plugin.repository.WalletRepository;
 import com.plugin.repository.WalletTopUpAttemptRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -52,8 +54,13 @@ public class WalletService {
     private final UserRepository userRepository;
     private final RazorpayPaymentService razorpayPaymentService;
     private final NotificationService notificationService;
+    private final ChargingSessionRepository sessionRepository;
+    private final AuditService auditService;
 
     private final Object walletLock = new Object();
+
+    @Value("${app.production:false}")
+    private boolean productionMode;
 
     public record WalletSessionMonitorResult(boolean shouldStop,
                                              String reason,
@@ -147,7 +154,10 @@ public class WalletService {
                 throw new BadRequestException("Set up a Razorpay mandate before enabling Auto-Top-Up.");
             }
             wallet.setAutoTopUpEnabled(request.isEnabled());
-            return toResponse(walletRepository.save(wallet));
+            wallet = walletRepository.save(wallet);
+            auditService.log("UPDATE_AUTO_TOP_UP", "WALLET", wallet.getId(), user.getEmail(),
+                    "Auto top-up set to " + (request.isEnabled() ? "ENABLED" : "DISABLED"));
+            return toResponse(wallet);
         }
     }
 
@@ -156,7 +166,10 @@ public class WalletService {
         User user = findUser(email);
         Wallet wallet = getOrCreateWallet(user);
         wallet.setAutoTopUpEnabled(false);
-        return toResponse(walletRepository.save(wallet));
+        wallet = walletRepository.save(wallet);
+        auditService.log("DISABLE_AUTO_TOP_UP", "WALLET", wallet.getId(), user.getEmail(),
+                "Auto top-up disabled");
+        return toResponse(wallet);
     }
 
     @Transactional
@@ -175,6 +188,9 @@ public class WalletService {
                 .razorpayOrderId(order.orderId())
                 .build();
         topUpAttemptRepository.save(attempt);
+        auditService.log("CREATE_WALLET_TOP_UP_ORDER", "WALLET", wallet.getId(), user.getEmail(),
+                "Created top-up order for Rs. " + amount.toPlainString()
+                        + "; providerOrderId=" + order.orderId());
         return RazorpayOrderResponse.builder()
                 .billId(null)
                 .keyId(razorpayPaymentService.getKeyId())
@@ -207,6 +223,10 @@ public class WalletService {
             if (!attempt.getCustomerId().equals(user.getId())) {
                 throw new BadRequestException("Wallet top-up does not belong to this account.");
             }
+            razorpayPaymentService.requireCapturedPayment(
+                    request.getRazorpayOrderId(),
+                    request.getRazorpayPaymentId(),
+                    attempt.getAmount());
             Wallet wallet = getOrCreateWallet(user);
             if (attempt.getStatus() == WalletTransactionStatus.SUCCEEDED) {
                 return toResponse(wallet);
@@ -250,6 +270,8 @@ public class WalletService {
             wallet.setMandatePaymentId(null);
             wallet.setMandateFailureReason(null);
             wallet = walletRepository.save(wallet);
+            auditService.log("CREATE_WALLET_MANDATE", "WALLET", wallet.getId(), user.getEmail(),
+                    "Created recurring authorization; providerOrderId=" + order.orderId());
             return WalletMandateOrderResponse.builder()
                     .walletId(wallet.getId())
                     .keyId(razorpayPaymentService.getKeyId())
@@ -286,10 +308,15 @@ public class WalletService {
             }
             RazorpayPaymentService.PaymentMethodSummary summary =
                     razorpayPaymentService.fetchPaymentMethodSummary(request.getRazorpayPaymentId());
-            wallet.setRazorpayTokenId(summary.tokenId());
-            if (!isBlank(summary.customerId())) {
-                wallet.setRazorpayCustomerId(summary.customerId());
+            if (!("authorized".equalsIgnoreCase(summary.status())
+                    || "captured".equalsIgnoreCase(summary.status()))) {
+                throw new BadRequestException("Razorpay mandate authorization is not active.");
             }
+            if (!isBlank(summary.customerId())
+                    && !summary.customerId().equals(wallet.getRazorpayCustomerId())) {
+                throw new BadRequestException("Razorpay mandate customer does not match this wallet.");
+            }
+            wallet.setRazorpayTokenId(summary.tokenId());
             wallet.setMandateMethod(summary.method() != null ? summary.method() : wallet.getMandateMethod());
             wallet.setMandateStatus("CONFIRMED");
             wallet.setMandateFailureReason(summary.failureReason());
@@ -299,12 +326,19 @@ public class WalletService {
             wallet.setPaymentMethodNetwork(summary.network());
             wallet.setMandateConfirmedAt(LocalDateTime.now());
             wallet.setAutoTopUpEnabled(true);
-            return toResponse(walletRepository.save(wallet));
+            wallet = walletRepository.save(wallet);
+            auditService.log("CONFIRM_WALLET_MANDATE", "WALLET", wallet.getId(), user.getEmail(),
+                    "Confirmed recurring authorization; providerPaymentId="
+                            + request.getRazorpayPaymentId());
+            return toResponse(wallet);
         }
     }
 
     @Transactional
     public WalletResponse confirmTestMandate(String email, WalletMandateOrderRequest request) {
+        if (productionMode) {
+            throw new BadRequestException("Test mandate fallback is disabled in production.");
+        }
         if (!razorpayPaymentService.isTestMode()) {
             throw new BadRequestException("Test mandate fallback is available only with Razorpay test keys.");
         }
@@ -326,7 +360,10 @@ public class WalletService {
             wallet.setPaymentMethodNetwork("TEST");
             wallet.setMandateConfirmedAt(LocalDateTime.now());
             wallet.setAutoTopUpEnabled(true);
-            return toResponse(walletRepository.save(wallet));
+            wallet = walletRepository.save(wallet);
+            auditService.log("CONFIRM_TEST_WALLET_MANDATE", "WALLET", wallet.getId(), user.getEmail(),
+                    "Confirmed development-only recurring authorization");
+            return toResponse(wallet);
         }
     }
 
@@ -360,7 +397,7 @@ public class WalletService {
             BigDecimal alreadyDebited = normalizeMoney(session.getWalletDebitedAmount());
             BigDecimal delta = targetCost.subtract(alreadyDebited).setScale(2, RoundingMode.HALF_UP);
             if (delta.compareTo(ZERO) <= 0) {
-                return new WalletSessionMonitorResult(false, null, alreadyDebited, wallet.getBalance());
+                return persistMonitorResult(session, false, null, alreadyDebited, wallet.getBalance());
             }
 
             DebitOutcome firstDebit = debitAvailable(wallet, user, delta, session);
@@ -369,11 +406,11 @@ public class WalletService {
             delta = delta.subtract(firstDebit.debited()).setScale(2, RoundingMode.HALF_UP);
 
             if (delta.compareTo(ZERO) <= 0) {
-                return new WalletSessionMonitorResult(false, null, alreadyDebited, wallet.getBalance());
+                return persistMonitorResult(session, false, null, alreadyDebited, wallet.getBalance());
             }
 
             if (!wallet.isAutoTopUpEnabled() || !hasConfirmedMandate(wallet)) {
-                return new WalletSessionMonitorResult(true,
+                return persistMonitorResult(session, true,
                         "Wallet reached zero and Auto-Top-Up is not ready.",
                         alreadyDebited,
                         wallet.getBalance());
@@ -386,13 +423,26 @@ public class WalletService {
             delta = delta.subtract(rescueDebit.debited()).setScale(2, RoundingMode.HALF_UP);
 
             if (delta.compareTo(ZERO) > 0) {
-                return new WalletSessionMonitorResult(true,
+                return persistMonitorResult(session, true,
                         "Auto-Top-Up failed or did not secure enough funds.",
                         alreadyDebited,
                         wallet.getBalance());
             }
-            return new WalletSessionMonitorResult(false, null, alreadyDebited, wallet.getBalance());
+            return persistMonitorResult(session, false, null, alreadyDebited, wallet.getBalance());
         }
+    }
+
+    private WalletSessionMonitorResult persistMonitorResult(ChargingSession session,
+                                                             boolean shouldStop,
+                                                             String reason,
+                                                             BigDecimal debited,
+                                                             BigDecimal balanceAfter) {
+        session.setWalletDebitedAmount(normalizeMoney(debited));
+        session.setWalletBalanceAfterLastDebit(balanceAfter != null ? normalizeMoney(balanceAfter) : null);
+        session.setWalletLastCheckedAt(LocalDateTime.now());
+        sessionRepository.save(session);
+        return new WalletSessionMonitorResult(shouldStop, reason,
+                normalizeMoney(debited), balanceAfter != null ? normalizeMoney(balanceAfter) : null);
     }
 
     @Transactional
@@ -535,12 +585,14 @@ public class WalletService {
                     "Auto-Top-Up added Rs. " + amount.toPlainString() + " to your PLUGIN wallet.");
             return walletRepository.save(wallet);
         } catch (Exception ex) {
-            log.warn("Auto top-up failed for wallet {}", wallet.getId(), ex);
+            log.warn("Auto top-up failed for wallet {}; type={}",
+                    wallet.getId(), ex.getClass().getName());
+            String safeFailure = "Auto top-up failed. Please retry or contact support.";
             attempt.setStatus(WalletTransactionStatus.FAILED);
-            attempt.setFailureReason(ex.getMessage());
+            attempt.setFailureReason(safeFailure);
             attempt.setCompletedAt(LocalDateTime.now());
             topUpAttemptRepository.save(attempt);
-            wallet.setMandateFailureReason(ex.getMessage());
+            wallet.setMandateFailureReason(safeFailure);
             return walletRepository.save(wallet);
         }
     }
@@ -583,6 +635,12 @@ public class WalletService {
                 .razorpayPaymentId(razorpayPaymentId)
                 .description(description)
                 .build());
+        auditService.log("CREDIT_WALLET", "WALLET", wallet.getId(), user.getEmail(),
+                "Credited Rs. " + normalized.toPlainString()
+                        + "; type=" + type
+                        + "; reference=" + referenceType + ":" + referenceId
+                        + "; providerOrderId=" + safeIdentifier(razorpayOrderId)
+                        + "; providerPaymentId=" + safeIdentifier(razorpayPaymentId));
         return wallet;
     }
 
@@ -610,6 +668,10 @@ public class WalletService {
                 .razorpayPaymentId(source.getRazorpayPaymentId())
                 .description("Withdrawal refunded to original payment method")
                 .build());
+        auditService.log("WITHDRAW_WALLET", "WALLET", wallet.getId(), user.getEmail(),
+                "Withdrew Rs. " + normalized.toPlainString()
+                        + "; providerPaymentId=" + safeIdentifier(source.getRazorpayPaymentId())
+                        + "; providerRefundId=" + safeIdentifier(refund.refundId()));
         return wallet;
     }
 
@@ -644,6 +706,9 @@ public class WalletService {
                 .referenceId(referenceId)
                 .description(description)
                 .build());
+        auditService.log("DEBIT_WALLET", "WALLET", wallet.getId(), user.getEmail(),
+                "Debited Rs. " + debit.toPlainString()
+                        + "; reference=" + referenceType + ":" + referenceId);
         return new DebitOutcome(wallet, debit);
     }
 
@@ -662,7 +727,8 @@ public class WalletService {
     }
 
     private boolean isTestSandboxMandate(Wallet wallet) {
-        return razorpayPaymentService.isTestMode()
+        return !productionMode
+                && razorpayPaymentService.isTestMode()
                 && wallet != null
                 && wallet.getRazorpayTokenId() != null
                 && wallet.getRazorpayTokenId().startsWith("test_mandate_");
@@ -695,6 +761,10 @@ public class WalletService {
         BigDecimal normalized = normalizeMoney(value);
         if (normalized.compareTo(ZERO) <= 0) {
             throw new BadRequestException("Withdrawal amount must be greater than zero.");
+        }
+        if (normalized.compareTo(MAX_AUTO_DEBIT) > 0) {
+            throw new BadRequestException("Withdrawal amount cannot exceed Rs. "
+                    + MAX_AUTO_DEBIT.toPlainString() + ".");
         }
         return normalized;
     }
@@ -737,6 +807,10 @@ public class WalletService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String safeIdentifier(String value) {
+        return isBlank(value) ? "none" : value;
     }
 
     private WalletResponse toResponse(Wallet wallet) {

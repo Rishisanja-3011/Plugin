@@ -166,20 +166,24 @@ public class EntityReferenceResolver {
     }
 
     public User resolveUser(User current, Long id) {
-        if (current != null) {
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        if (effectiveId != null) {
+            User resolved = resolve(effectiveId, ResolutionCache::users, userRepository::findById);
+            if (resolved != null) {
+                return resolved;
+            }
         }
-        return resolve(id, ResolutionCache::users, userRepository::findById);
+        return current;
     }
 
     public Station resolveStation(Station current, Long id) {
-        if (current != null) {
-            if (current.getManager() == null && current.getManagerId() != null) {
-                current.setManager(resolveUser(null, current.getManagerId()));
-            }
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        Station station = effectiveId != null
+                ? resolve(effectiveId, ResolutionCache::stations, stationRepository::findById)
+                : null;
+        if (station == null) {
+            station = current;
         }
-        Station station = resolve(id, ResolutionCache::stations, stationRepository::findById);
         if (station != null && station.getManager() == null && station.getManagerId() != null) {
             station.setManager(resolveUser(null, station.getManagerId()));
         }
@@ -187,31 +191,50 @@ public class EntityReferenceResolver {
     }
 
     public ChargingPoint resolveChargingPoint(ChargingPoint current, Long id) {
-        if (current != null) {
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        if (effectiveId != null) {
+            ChargingPoint resolved = resolve(
+                    effectiveId, ResolutionCache::chargingPoints, chargingPointRepository::findById);
+            if (resolved != null) {
+                return resolved;
+            }
         }
-        return resolve(id, ResolutionCache::chargingPoints, chargingPointRepository::findById);
+        return current;
     }
 
     public Booking resolveBooking(Booking current, Long id) {
-        if (current != null) {
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        if (effectiveId != null) {
+            Booking resolved = resolve(effectiveId, ResolutionCache::bookings, bookingRepository::findById);
+            if (resolved != null) {
+                return resolved;
+            }
         }
-        return resolve(id, ResolutionCache::bookings, bookingRepository::findById);
+        return current;
     }
 
     public ChargingSession resolveSession(ChargingSession current, Long id) {
-        if (current != null) {
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        if (effectiveId != null) {
+            ChargingSession resolved = resolve(
+                    effectiveId, ResolutionCache::sessions, chargingSessionRepository::findById);
+            if (resolved != null) {
+                return resolved;
+            }
         }
-        return resolve(id, ResolutionCache::sessions, chargingSessionRepository::findById);
+        return current;
     }
 
     public UserVehicle resolveVehicle(UserVehicle current, Long id) {
-        if (current != null) {
-            return current;
+        Long effectiveId = id != null ? id : current != null ? current.getId() : null;
+        if (effectiveId != null) {
+            UserVehicle resolved = resolve(
+                    effectiveId, ResolutionCache::vehicles, userVehicleRepository::findById);
+            if (resolved != null) {
+                return resolved;
+            }
         }
-        return resolve(id, ResolutionCache::vehicles, userVehicleRepository::findById);
+        return current;
     }
 
     public UserVehicle resolveFirstVehicleForUser(Long userId) {

@@ -68,12 +68,20 @@ public class BookingController {
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         return ResponseEntity.ok(bookingService.getMyBookings(auth.getName(),
-                PageRequest.of(page, size)));
+                PageRequest.of(safePage(page), safeSize(size))));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BookingResponse> getBooking(@PathVariable Long id) {
-        return ResponseEntity.ok(bookingService.getBookingById(id));
+    public ResponseEntity<BookingResponse> getBooking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(bookingService.getBookingForCaller(id, auth.getName()));
+    }
+
+    private int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private int safeSize(int size) {
+        return Math.max(1, Math.min(100, size));
     }
 
 }

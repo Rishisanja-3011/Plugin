@@ -73,7 +73,6 @@ public class StationManagerApplicationResponse {
     private Boolean trackingIdEmailSent;
     private Boolean portalAccessReady;
     private String portalLoginEmail;
-    private String temporaryPassword;
     private LocalDateTime credentialsIssuedAt;
     private String credentialsIssuedBy;
     private LocalDateTime createdAt;

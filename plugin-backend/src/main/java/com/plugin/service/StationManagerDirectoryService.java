@@ -112,7 +112,7 @@ public class StationManagerDirectoryService {
             }
         }
         if (application.getEmail() != null && !application.getEmail().isBlank()) {
-            return userRepository.findByEmail(application.getEmail().trim().toLowerCase(Locale.ROOT));
+            return userRepository.findByEmailIgnoreCase(application.getEmail().trim().toLowerCase(Locale.ROOT));
         }
         return Optional.empty();
     }

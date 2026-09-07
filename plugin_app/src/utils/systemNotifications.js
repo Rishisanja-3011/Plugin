@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { brandText } from './format';
 
@@ -44,7 +44,7 @@ export async function initializeSystemNotifications() {
   }
 
   let permissions = await Notifications.getPermissionsAsync();
-  if (permissions.status !== 'granted' && permissions.canAskAgain) {
+  if (permissions.status !== 'granted' && permissions.canAskAgain && AppState.currentState === 'active') {
     permissions = await Notifications.requestPermissionsAsync();
   }
   return permissions.status === 'granted';
@@ -73,6 +73,10 @@ export async function showSystemNotification(title, body, data = {}) {
 
 export async function scheduleBookingStartNotification(booking) {
   if (!booking?.id || !booking?.startTime) return false;
+  if (!['CONFIRMED', 'MODIFIED'].includes(booking.status)) {
+    await cancelBookingStartNotification(booking.id);
+    return false;
+  }
 
   const Notifications = getNotifications();
   if (!Notifications) return false;
@@ -88,8 +92,10 @@ export async function scheduleBookingStartNotification(booking) {
   await Notifications.scheduleNotificationAsync({
     identifier,
     content: {
-      title: 'Your charging session is ready',
-      body: `${brandText(booking.stationName, 'Your station')} is reserved now. Open Plugin to start charging.`,
+      title: 'Your charging window is starting',
+      body: booking.gracePeriodEndTime
+        ? `Open Plugin at ${brandText(booking.stationName, 'your station')} to refresh your location and check the connector before starting.`
+        : `${brandText(booking.stationName, 'Your station')} is reserved now. Open Plugin to start charging.`,
       data: {
         type: 'booking-start',
         bookingId: String(booking.id),

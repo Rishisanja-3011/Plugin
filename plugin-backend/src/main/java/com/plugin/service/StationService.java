@@ -8,11 +8,13 @@ import com.plugin.entity.Station;
 import com.plugin.entity.User;
 import com.plugin.enums.PointStatus;
 import com.plugin.enums.Role;
+import com.plugin.enums.SessionStatus;
 import com.plugin.exception.BadRequestException;
 import com.plugin.exception.ResourceNotFoundException;
 import com.plugin.repository.BillRepository;
 import com.plugin.repository.BookingRepository;
 import com.plugin.repository.ChargingPointRepository;
+import com.plugin.repository.ChargingSessionRepository;
 import com.plugin.repository.StationManagerApplicationRepository;
 import com.plugin.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class StationService {
 
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
+    private final ChargingSessionRepository chargingSessionRepository;
     private final BookingRepository bookingRepository;
     private final BillRepository billRepository;
     private final StationManagerApplicationRepository stationManagerApplicationRepository;
@@ -44,17 +47,17 @@ public class StationService {
     public Page<StationResponse> getAllStations(String actorEmail, Pageable pageable) {
         User actor = stationOperatorAccessService.getActor(actorEmail);
         if (actor.getRole() == Role.ADMIN) {
-            return toResponsePage(stationRepository.findAll(pageable), pageable);
+            return toResponsePage(stationRepository.findAll(pageable), pageable, true);
         }
-        return toResponsePage(stationRepository.findByManagerId(actor.getId(), pageable), pageable);
+        return toResponsePage(stationRepository.findByManagerId(actor.getId(), pageable), pageable, true);
     }
 
     public Page<StationResponse> getActiveStations(Pageable pageable) {
-        return toResponsePage(stationRepository.findAll(pageable), pageable);
+        return toResponsePage(stationRepository.findByActiveTrue(pageable), pageable, false);
     }
 
     public StationLiveSummaryResponse getLiveSummary() {
-        List<Long> activeStationIds = stationRepository.findAll().stream()//(old-findByActiveTrue(),change for aws deployi)
+        List<Long> activeStationIds = stationRepository.findByActiveTrue().stream()
                 .map(Station::getId)
                 .toList();
         long stationCount = activeStationIds.size();
@@ -84,19 +87,22 @@ public class StationService {
         if (trimmed.isEmpty()) {
             return Page.empty(pageable);
         }
+        if (trimmed.length() > 100) {
+            throw new BadRequestException("Search query must not exceed 100 characters");
+        }
         if (trimmed.matches("\\d+")) {
             if (trimmed.length() < 6) {
                 return Page.empty(pageable);
             }
-            return toResponsePage(stationRepository.findByPincode(trimmed, pageable), pageable);
+            return toResponsePage(stationRepository.findByActiveTrueAndPincode(trimmed, pageable), pageable, false);
         }
-        return toResponsePage(stationRepository.searchStations(trimmed, pageable), pageable);
+        return toResponsePage(stationRepository.searchStations(trimmed, pageable), pageable, false);
     }
 
     public StationResponse getStationById(Long id) {
-        Station station = stationRepository.findById(id)
+        Station station = stationRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found with id: " + id));
-        return toResponse(station);
+        return toResponse(station, false);
     }
 
     @Transactional
@@ -119,7 +125,7 @@ public class StationService {
         station = stationRepository.save(station);
         auditService.log("CREATE_STATION", "STATION", station.getId(), performedBy,
                 "Created station: " + station.getName());
-        return toResponse(station);
+        return toResponse(station, true);
     }
 
     @Transactional
@@ -139,28 +145,34 @@ public class StationService {
         station = stationRepository.save(station);
         auditService.log("UPDATE_STATION", "STATION", station.getId(), performedBy,
                 "Updated station: " + station.getName());
-        return toResponse(station);
+        return toResponse(station, true);
     }
 
     @Transactional
     public StationResponse toggleStationStatus(Long id, String performedBy) {
         Station station = stationOperatorAccessService.getAccessibleStation(id, performedBy);
-        station.setActive(!station.getActive());
-        station = stationRepository.save(station);
-
-        var points = chargingPointRepository.findByStationId(station.getId());
-        if (!station.getActive()) {
-            points.forEach(point -> point.setStatus(PointStatus.UNAVAILABLE));
-            chargingPointRepository.saveAll(points);
-        } else {
-            points.forEach(point -> point.setStatus(PointStatus.AVAILABLE));
-            chargingPointRepository.saveAll(points);
+        boolean isActive = Boolean.TRUE.equals(station.getActive());
+        if (isActive) {
+            List<Long> pointIds = chargingPointRepository.findByStationId(station.getId()).stream()
+                    .map(ChargingPoint::getId)
+                    .toList();
+            if (!pointIds.isEmpty()
+                    && chargingSessionRepository.countByChargingPointIdInAndStatus(
+                    pointIds, SessionStatus.IN_PROGRESS) > 0) {
+                throw new BadRequestException("A station with an active charging session cannot be deactivated");
+            }
         }
+
+        // Station availability and connector safety state are separate controls. In
+        // particular, never turn OUT_OF_SERVICE or actively charging points back to
+        // AVAILABLE as a side effect of reactivating the station.
+        station.setActive(!isActive);
+        station = stationRepository.save(station);
 
         String action = station.getActive() ? "ACTIVATE_STATION" : "DEACTIVATE_STATION";
         auditService.log(action, "STATION", station.getId(), performedBy,
                 (station.getActive() ? "Activated" : "Deactivated") + " station: " + station.getName());
-        return toResponse(station);
+        return toResponse(station, true);
     }
 
     @Transactional
@@ -186,14 +198,16 @@ public class StationService {
         stationRepository.delete(station);
     }
 
-    private StationResponse toResponse(Station station) {
+    private StationResponse toResponse(Station station, boolean includeManager) {
         station = referenceResolver.resolveStation(station, station.getId());
         long total = chargingPointRepository.countByStationId(station.getId());
         long available = chargingPointRepository.countByStationIdAndStatus(station.getId(), PointStatus.AVAILABLE);
-        return toResponse(station, total, available);
+        return toResponse(station, total, available, includeManager);
     }
 
-    private Page<StationResponse> toResponsePage(Page<Station> stationPage, Pageable pageable) {
+    private Page<StationResponse> toResponsePage(Page<Station> stationPage,
+                                                  Pageable pageable,
+                                                  boolean includeManager) {
         List<Station> stations = stationPage.getContent();
         List<Long> stationIds = stations.stream()
                 .map(Station::getId)
@@ -214,14 +228,18 @@ public class StationService {
                     return toResponse(
                             resolved,
                             totalCounts.getOrDefault(stationId, 0L),
-                            availableCounts.getOrDefault(stationId, 0L)
+                            availableCounts.getOrDefault(stationId, 0L),
+                            includeManager
                     );
                 })
                 .toList();
         return new PageImpl<>(content, pageable, stationPage.getTotalElements());
     }
 
-    private StationResponse toResponse(Station station, long total, long available) {
+    private StationResponse toResponse(Station station,
+                                       long total,
+                                       long available,
+                                       boolean includeManager) {
         return StationResponse.builder()
                 .id(station.getId())
                 .name(station.getName())
@@ -231,8 +249,8 @@ public class StationService {
                 .pincode(station.getPincode())
                 .contactPhone(station.getContactPhone())
                 .contactEmail(station.getContactEmail())
-                .managerId(station.getManager() != null ? station.getManager().getId() : null)
-                .managerName(station.getManager() != null ? station.getManager().getFullName() : null)
+                .managerId(includeManager && station.getManager() != null ? station.getManager().getId() : null)
+                .managerName(includeManager && station.getManager() != null ? station.getManager().getFullName() : null)
                 .latitude(station.getLatitude())
                 .longitude(station.getLongitude())
                 .openingTime(station.getOpeningTime())

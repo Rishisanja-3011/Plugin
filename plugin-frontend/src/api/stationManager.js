@@ -9,5 +9,10 @@ export const stationManagerApi = {
       'Content-Type': 'multipart/form-data',
     },
   }),
+  setupAccess: (token, newPassword, confirmPassword) => api.post('/station-manager/access/setup', {
+    token,
+    newPassword,
+    confirmPassword,
+  }),
   refreshSession: () => api.post('/station-manager/session'),
 };

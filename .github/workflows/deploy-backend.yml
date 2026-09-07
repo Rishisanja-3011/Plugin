@@ -1,233 +1,227 @@
-name: Deploy Backend to EC2
+name: Build and deploy backend
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'plugin-backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-backend
+  cancel-in-progress: false
 
 jobs:
-  deploy-backend:
+  build:
     runs-on: ubuntu-latest
-    env:
-      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-      EC2_USER: ${{ secrets.EC2_USER }}
-      EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
-      SERVER_PORT: ${{ secrets.SERVER_PORT }}
-      SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS }}
-      MONGODB_URI: ${{ secrets.MONGODB_URI }}
-      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      MAIL_HOST: ${{ secrets.MAIL_HOST }}
-      MAIL_PORT: ${{ secrets.MAIL_PORT }}
-      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-      MAIL_FROM: ${{ secrets.MAIL_FROM }}
-      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
-      PUBLIC_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-      DEFAULT_RATE_PER_KWH: ${{ secrets.DEFAULT_RATE_PER_KWH }}
-      CHARGING_EFFICIENCY_FACTOR: ${{ secrets.CHARGING_EFFICIENCY_FACTOR }}
-      SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
-      WEBSITE_URL: ${{ secrets.WEBSITE_URL }}
-      GOOGLE_CLIENT_IDS: ${{ secrets.GOOGLE_CLIENT_IDS }}
-      RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-      RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-      RAZORPAY_CURRENCY: ${{ secrets.RAZORPAY_CURRENCY }}
-      RAZORPAY_BUSINESS_NAME: ${{ secrets.RAZORPAY_BUSINESS_NAME }}
-      RAZORPAY_MINIMUM_AMOUNT: ${{ secrets.RAZORPAY_MINIMUM_AMOUNT }}
-
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
         working-directory: plugin-backend
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate backend deployment secrets
-        run: |
-          missing=0
-          for name in EC2_SSH_KEY EC2_HOST EC2_USER EC2_APP_DIR MONGODB_URI JWT_SECRET MAIL_PASSWORD APP_BASE_URL; do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name is not set in GitHub repository secrets"
-              missing=1
-            fi
-          done
-          for name in RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET; do
-            if [ -z "${!name}" ]; then
-              echo "::warning::$name is empty; Razorpay wallet/payment features may not work"
-            fi
-          done
-          exit $missing
-
-      - name: Apply backend deployment defaults
-        run: |
-          SERVER_PORT="${SERVER_PORT:-8081}"
-          SERVER_ADDRESS="${SERVER_ADDRESS:-0.0.0.0}"
-          MONGODB_DATABASE="${MONGODB_DATABASE:-plugindb}"
-          MAIL_HOST="${MAIL_HOST:-smtp.gmail.com}"
-          MAIL_PORT="${MAIL_PORT:-587}"
-          MAIL_USERNAME="${MAIL_USERNAME:-plugin.available@gmail.com}"
-          MAIL_FROM="${MAIL_FROM:-$MAIL_USERNAME}"
-          PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://plugin-backend-alb-520575954.ap-south-1.elb.amazonaws.com/api}"
-          DEFAULT_RATE_PER_KWH="${DEFAULT_RATE_PER_KWH:-15}"
-          CHARGING_EFFICIENCY_FACTOR="${CHARGING_EFFICIENCY_FACTOR:-0.92}"
-          SUPPORT_EMAIL="${SUPPORT_EMAIL:-plugin.onservice@gmail.com}"
-          WEBSITE_URL="${WEBSITE_URL:-www.plugin.com}"
-          GOOGLE_CLIENT_IDS="${GOOGLE_CLIENT_IDS:-380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com,380196336293-5i90qr9kni2p8b2oahpukrlgs081lj99.apps.googleusercontent.com}"
-          RAZORPAY_CURRENCY="${RAZORPAY_CURRENCY:-INR}"
-          RAZORPAY_BUSINESS_NAME="${RAZORPAY_BUSINESS_NAME:-PLUGIN}"
-          RAZORPAY_MINIMUM_AMOUNT="${RAZORPAY_MINIMUM_AMOUNT:-1.00}"
-          {
-            printf 'SERVER_PORT=%s\n' "$SERVER_PORT"
-            printf 'SERVER_ADDRESS=%s\n' "$SERVER_ADDRESS"
-            printf 'MONGODB_DATABASE=%s\n' "$MONGODB_DATABASE"
-            printf 'MAIL_HOST=%s\n' "$MAIL_HOST"
-            printf 'MAIL_PORT=%s\n' "$MAIL_PORT"
-            printf 'MAIL_USERNAME=%s\n' "$MAIL_USERNAME"
-            printf 'MAIL_FROM=%s\n' "$MAIL_FROM"
-            printf 'PUBLIC_API_BASE_URL=%s\n' "$PUBLIC_API_BASE_URL"
-            printf 'DEFAULT_RATE_PER_KWH=%s\n' "$DEFAULT_RATE_PER_KWH"
-            printf 'CHARGING_EFFICIENCY_FACTOR=%s\n' "$CHARGING_EFFICIENCY_FACTOR"
-            printf 'SUPPORT_EMAIL=%s\n' "$SUPPORT_EMAIL"
-            printf 'WEBSITE_URL=%s\n' "$WEBSITE_URL"
-            printf 'GOOGLE_CLIENT_IDS=%s\n' "$GOOGLE_CLIENT_IDS"
-            printf 'RAZORPAY_CURRENCY=%s\n' "$RAZORPAY_CURRENCY"
-            printf 'RAZORPAY_BUSINESS_NAME=%s\n' "$RAZORPAY_BUSINESS_NAME"
-            printf 'RAZORPAY_MINIMUM_AMOUNT=%s\n' "$RAZORPAY_MINIMUM_AMOUNT"
-          } >> "$GITHUB_ENV"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
           java-version: 17
+          cache: maven
 
-      - name: Build Spring Boot JAR
-        run: mvn clean package -DskipTests
+      - name: Test and package Spring Boot application
+        run: mvn --batch-mode --no-transfer-progress clean verify
 
-      - name: Setup SSH
+      - name: Upload tested JAR
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-${{ github.sha }}
+          path: plugin-backend/target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: plugin-backend
+    steps:
+      - name: Download tested JAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: backend-${{ github.sha }}
+          path: plugin-backend/artifact
+
+      - name: Validate deployment configuration
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+          EC2_SSH_PORT: ${{ vars.EC2_SSH_PORT || '22' }}
+          SERVER_PORT: ${{ vars.SERVER_PORT || '8091' }}
+          PUBLIC_API_HEALTHCHECK_URL: ${{ vars.PUBLIC_API_HEALTHCHECK_URL }}
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-          EC2_SSH_HOSTS=""
-          for raw_host in $(printf '%s' "$EC2_HOST" | tr ',' ' '); do
-            host="${raw_host#http://}"
-            host="${host#https://}"
-            host="${host%%/*}"
-            if [ -n "$host" ]; then
-              EC2_SSH_HOSTS="$EC2_SSH_HOSTS $host"
-            fi
+          set -Eeuo pipefail
+          for name in EC2_HOST EC2_USER EC2_APP_DIR EC2_SSH_KEY EC2_KNOWN_HOSTS PUBLIC_API_HEALTHCHECK_URL; do
+            test -n "${!name}" || { echo "::error::$name is required"; exit 1; }
           done
-          if [ -z "$EC2_SSH_HOSTS" ]; then
-            echo "::error::EC2_HOST is empty or invalid"
+          [[ "$EC2_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo '::error::EC2_HOST must be one hostname or IPv4 address without a URL scheme'; exit 1; }
+          [[ "$EC2_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo '::error::EC2_USER is invalid'; exit 1; }
+          [[ "$EC2_APP_DIR" =~ ^/(opt|srv)/[A-Za-z0-9._/-]+$ ]] || { echo '::error::EC2_APP_DIR must be a specific path below /opt or /srv'; exit 1; }
+          [[ "$EC2_SSH_PORT" =~ ^[0-9]{1,5}$ && "$SERVER_PORT" =~ ^[0-9]{1,5}$ ]] || { echo '::error::SSH and server ports must be numeric'; exit 1; }
+          case "$PUBLIC_API_HEALTHCHECK_URL" in
+            https://*) ;;
+            *) echo '::error::PUBLIC_API_HEALTHCHECK_URL must use HTTPS'; exit 1 ;;
+          esac
+
+      - name: Configure strict SSH host verification
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_PORT: ${{ vars.EC2_SSH_PORT || '22' }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          install -d -m 700 "$RUNNER_TEMP/plugin-ssh"
+          printf '%s\n' "$EC2_SSH_KEY" > "$RUNNER_TEMP/plugin-ssh/deploy_key"
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > "$RUNNER_TEMP/plugin-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/plugin-ssh/deploy_key" "$RUNNER_TEMP/plugin-ssh/known_hosts"
+          lookup="$EC2_HOST"
+          if [ "$EC2_SSH_PORT" != '22' ]; then lookup="[$EC2_HOST]:$EC2_SSH_PORT"; fi
+          ssh-keygen -F "$lookup" -f "$RUNNER_TEMP/plugin-ssh/known_hosts" >/dev/null || {
+            echo '::error::EC2_KNOWN_HOSTS does not contain the configured host and port'
             exit 1
+          }
+
+      - name: Upload versioned JAR and atomically activate it
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+          EC2_SSH_PORT: ${{ vars.EC2_SSH_PORT || '22' }}
+          SERVER_PORT: ${{ vars.SERVER_PORT || '8091' }}
+        run: |
+          set -Eeuo pipefail
+          jar_path="$(find artifact -maxdepth 1 -type f -name '*.jar' -print -quit)"
+          test -n "$jar_path" || { echo '::error::Downloaded JAR is missing'; exit 1; }
+          expected_sha="$(sha256sum "$jar_path" | awk '{print $1}')"
+          ssh_options=(-i "$RUNNER_TEMP/plugin-ssh/deploy_key" -p "$EC2_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/plugin-ssh/known_hosts" -o ConnectTimeout=30)
+          remote_upload="/tmp/plugin-${GITHUB_SHA}.jar.upload"
+          scp -i "$RUNNER_TEMP/plugin-ssh/deploy_key" -P "$EC2_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/plugin-ssh/known_hosts" -o ConnectTimeout=30 \
+            "$jar_path" "$EC2_USER@$EC2_HOST:$remote_upload"
+
+          ssh "${ssh_options[@]}" "$EC2_USER@$EC2_HOST" \
+            "bash -s -- '$EC2_APP_DIR' '$expected_sha' '$SERVER_PORT' '$GITHUB_SHA'" <<'REMOTE'
+          set -Eeuo pipefail
+          app_dir="$1"
+          expected_sha="$2"
+          server_port="$3"
+          release_id="$4"
+          upload="/tmp/plugin-${release_id}.jar.upload"
+          release_dir="$app_dir/releases"
+          release_jar="$release_dir/plugin-${release_id}.jar"
+          previous=''
+          trap 'rm -f -- "$upload"' EXIT
+
+          actual_sha="$(sha256sum "$upload" | awk '{print $1}')"
+          test "$actual_sha" = "$expected_sha" || { echo 'Uploaded JAR checksum mismatch' >&2; exit 1; }
+          sudo test -f /etc/plugin/plugin-backend.env || { echo 'Provision /etc/plugin/plugin-backend.env before deployment' >&2; exit 1; }
+          test "$(sudo stat -c '%a' /etc/plugin/plugin-backend.env)" = '600' || { echo 'Runtime environment file must be root-owned mode 600' >&2; exit 1; }
+          test "$(sudo stat -c '%U:%G' /etc/plugin/plugin-backend.env)" = 'root:root' || { echo 'Runtime environment file must be owned by root:root' >&2; exit 1; }
+
+          if ! id -u plugin >/dev/null 2>&1; then
+            sudo useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin plugin
           fi
-          echo "EC2_SSH_HOSTS=$EC2_SSH_HOSTS" >> "$GITHUB_ENV"
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            ssh-keyscan -T 20 -H "$EC2_SSH_HOST" >> ~/.ssh/known_hosts || true
-          done
+          sudo install -d -o root -g root -m 0755 "$app_dir" "$release_dir"
+          if sudo test -e "$app_dir/plugin.jar"; then
+            if sudo test -L "$app_dir/plugin.jar"; then
+              previous="$(sudo readlink -f "$app_dir/plugin.jar")"
+            else
+              previous="$release_dir/plugin-before-${release_id}.jar"
+              sudo install -o root -g root -m 0444 "$app_dir/plugin.jar" "$previous"
+            fi
+          fi
+          sudo install -o root -g root -m 0444 "$upload" "$release_jar"
 
-      - name: Prepare EC2 app directory
-        run: |
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-              "sudo mkdir -p '$EC2_APP_DIR' && sudo chown -R '$EC2_USER:$EC2_USER' '$EC2_APP_DIR'"
-          done
-
-      - name: Upload JAR to EC2
-        run: |
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 target/*.jar "$EC2_USER@$EC2_SSH_HOST:$EC2_APP_DIR/plugin.jar"
-          done
-
-      - name: Upload backend runtime environment to EC2
-        run: |
-          {
-            printf 'SERVER_PORT=%s\n' "$SERVER_PORT"
-            printf 'SERVER_ADDRESS=%s\n' "$SERVER_ADDRESS"
-            printf 'MONGODB_URI=%s\n' "$MONGODB_URI"
-            printf 'MONGODB_DATABASE=%s\n' "$MONGODB_DATABASE"
-            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
-            printf 'MAIL_HOST=%s\n' "$MAIL_HOST"
-            printf 'MAIL_PORT=%s\n' "$MAIL_PORT"
-            printf 'MAIL_USERNAME=%s\n' "$MAIL_USERNAME"
-            printf 'MAIL_PASSWORD=%s\n' "$MAIL_PASSWORD"
-            printf 'MAIL_FROM=%s\n' "$MAIL_FROM"
-            printf 'APP_BASE_URL=%s\n' "$APP_BASE_URL"
-            printf 'DEFAULT_RATE_PER_KWH=%s\n' "$DEFAULT_RATE_PER_KWH"
-            printf 'CHARGING_EFFICIENCY_FACTOR=%s\n' "$CHARGING_EFFICIENCY_FACTOR"
-            printf 'SUPPORT_EMAIL=%s\n' "$SUPPORT_EMAIL"
-            printf 'WEBSITE_URL=%s\n' "$WEBSITE_URL"
-            printf 'GOOGLE_CLIENT_IDS=%s\n' "$GOOGLE_CLIENT_IDS"
-            printf 'RAZORPAY_KEY_ID=%s\n' "$RAZORPAY_KEY_ID"
-            printf 'RAZORPAY_KEY_SECRET=%s\n' "$RAZORPAY_KEY_SECRET"
-            printf 'RAZORPAY_CURRENCY=%s\n' "$RAZORPAY_CURRENCY"
-            printf 'RAZORPAY_BUSINESS_NAME=%s\n' "$RAZORPAY_BUSINESS_NAME"
-            printf 'RAZORPAY_MINIMUM_AMOUNT=%s\n' "$RAZORPAY_MINIMUM_AMOUNT"
-          } > plugin-backend.env
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            scp -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 plugin-backend.env "$EC2_USER@$EC2_SSH_HOST:/tmp/plugin-backend.env"
-            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" << 'EOF'
-              sudo mkdir -p /etc/plugin
-              sudo mv /tmp/plugin-backend.env /etc/plugin/plugin-backend.env
-              sudo chown root:root /etc/plugin/plugin-backend.env
-              sudo chmod 600 /etc/plugin/plugin-backend.env
-              sudo systemctl daemon-reload
-          EOF
-          done
-
-      - name: Install Spring Boot systemd service
-        run: |
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-              "sudo tee /etc/systemd/system/plugin-backend.service > /dev/null" << EOF
+          sudo tee /etc/systemd/system/plugin-backend.service >/dev/null <<UNIT
           [Unit]
           Description=Plugin Backend Spring Boot App
-          After=network.target
+          After=network-online.target
+          Wants=network-online.target
 
           [Service]
-          User=$EC2_USER
-          WorkingDirectory=$EC2_APP_DIR
-          ExecStart=/usr/bin/java -jar $EC2_APP_DIR/plugin.jar
-          Restart=always
-          RestartSec=5
+          Type=simple
+          User=plugin
+          WorkingDirectory=$app_dir
           EnvironmentFile=/etc/plugin/plugin-backend.env
+          ExecStart=/usr/bin/java -Duser.timezone=Asia/Kolkata -jar $app_dir/plugin.jar
+          Restart=on-failure
+          RestartSec=5
           SuccessExitStatus=143
+          UMask=0077
+          NoNewPrivileges=true
+          PrivateTmp=true
+          PrivateDevices=true
+          ProtectSystem=strict
+          ProtectHome=true
+          ProtectKernelTunables=true
+          ProtectKernelModules=true
+          ProtectControlGroups=true
+          ProtectClock=true
+          RestrictSUIDSGID=true
+          RestrictNamespaces=true
+          RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+          LockPersonality=true
+          CapabilityBoundingSet=
+          AmbientCapabilities=
 
           [Install]
           WantedBy=multi-user.target
-          EOF
-            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" \
-              "sudo systemctl daemon-reload && sudo systemctl enable plugin-backend"
-          done
+          UNIT
 
-      - name: Restart Spring Boot Service
-        run: |
-          for EC2_SSH_HOST in $EC2_SSH_HOSTS; do
-            ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$EC2_USER@$EC2_SSH_HOST" "SERVER_PORT='$SERVER_PORT' bash -s" << 'EOF'
-              sudo systemctl stop plugin-backend || true
-              pids=$(sudo ss -ltnp "sport = :$SERVER_PORT" | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)
-              if [ -n "$pids" ]; then
-                sudo kill $pids || true
-                sleep 2
-              fi
-              sudo systemctl restart plugin-backend
-              sudo systemctl status plugin-backend --no-pager
-          EOF
-          done
+          sudo ln -sfn "releases/plugin-${release_id}.jar" "$app_dir/plugin.jar.next"
+          sudo mv -Tf "$app_dir/plugin.jar.next" "$app_dir/plugin.jar"
+          sudo systemctl daemon-reload
+          sudo systemctl enable plugin-backend >/dev/null
+          sudo systemctl restart plugin-backend
 
-      - name: Verify public Google auth route
-        run: |
-          response_file="$(mktemp)"
-          status=$(curl -sS -o "$response_file" -w "%{http_code}" \
-            -X POST "$PUBLIC_API_BASE_URL/auth/google" \
-            -H "Content-Type: application/json" \
-            --data '{"accessToken":"invalid-deploy-smoke-token"}' || true)
-          body="$(cat "$response_file")"
-          echo "Google auth smoke status: $status"
-          if printf '%s' "$body" | grep -q "No static resource"; then
-            echo "::error::Public backend is still serving an old app without /api/auth/google"
+          healthy=0
+          for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${server_port}/api/stations?size=1" >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then
+            echo 'New backend release failed its local readiness check; rolling back' >&2
+            if [ -n "$previous" ] && sudo test -f "$previous"; then
+              case "$previous" in
+                "$release_dir"/*)
+                  sudo ln -sfn "$previous" "$app_dir/plugin.jar.next"
+                  sudo mv -Tf "$app_dir/plugin.jar.next" "$app_dir/plugin.jar"
+                  sudo systemctl restart plugin-backend
+                  ;;
+              esac
+            fi
             exit 1
           fi
+          REMOTE
+
+      - name: Fail deployment if the public API is unhealthy
+        env:
+          PUBLIC_API_HEALTHCHECK_URL: ${{ vars.PUBLIC_API_HEALTHCHECK_URL }}
+        run: curl --fail --silent --show-error --location --retry 5 --retry-all-errors --max-time 20 "$PUBLIC_API_HEALTHCHECK_URL" --output /dev/null

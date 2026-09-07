@@ -15,7 +15,7 @@ const ensureInvoiceDirectory = () => {
 };
 
 const downloadAuthenticatedFile = async (path, destination, token) => {
-  const baseUrls = await getApiBaseUrlsForRequest();
+  const baseUrls = await getApiBaseUrlsForRequest({ method: 'GET', authenticated: true });
   const separator = path.includes('?') ? '&' : '?';
   let lastError = null;
 
@@ -36,8 +36,7 @@ const downloadAuthenticatedFile = async (path, destination, token) => {
     }
   }
 
-  const tried = baseUrls.join(', ');
-  const error = new Error(`Cannot reach Plugin server to download the invoice. Tried ${tried}.`);
+  const error = new Error('Cannot reach Plugin server to download the invoice. Please check your connection and try again.');
   error.cause = lastError;
   throw error;
 };

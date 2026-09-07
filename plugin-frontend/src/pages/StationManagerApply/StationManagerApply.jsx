@@ -109,7 +109,10 @@ const STANDARD_FILE_FIELDS = [
   },
 ];
 
-const FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp';
+const FILE_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_FILE_EXTENSION = /\.(pdf|png|jpe?g)$/i;
 const INDIAN_PHONE_DIGITS = 10;
 const AADHAAR_DIGITS = 12;
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -668,6 +671,10 @@ export default function StationManagerApply() {
   };
 
   const updateStandardFile = (fieldKey, file) => {
+    if (file && (file.size <= 0 || file.size > MAX_FILE_BYTES || !ALLOWED_FILE_EXTENSION.test(file.name))) {
+      toast.error('Choose a genuine PDF, PNG, or JPEG file no larger than 10 MB.');
+      return;
+    }
     setSelectedFiles((prev) => ({
       ...prev,
       [fieldKey]: file || null,
@@ -675,6 +682,10 @@ export default function StationManagerApply() {
   };
 
   const updateBusinessDocumentFile = (documentType, file) => {
+    if (file && (file.size <= 0 || file.size > MAX_FILE_BYTES || !ALLOWED_FILE_EXTENSION.test(file.name))) {
+      toast.error('Choose a genuine PDF, PNG, or JPEG file no larger than 10 MB.');
+      return;
+    }
     setSelectedBusinessFiles((prev) => ({
       ...prev,
       [documentType]: file || null,
@@ -683,6 +694,14 @@ export default function StationManagerApply() {
 
   const validateApplication = () => {
     const nextErrors = {};
+
+    const totalUploadBytes = [
+      ...Object.values(selectedFiles),
+      ...Object.values(selectedBusinessFiles),
+    ].filter(Boolean).reduce((total, file) => total + Number(file.size || 0), 0);
+    if (totalUploadBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      nextErrors.businessDocuments = 'Total selected uploads must be 50 MB or smaller.';
+    }
 
     const cleanFullName = form.fullName.trim();
     if (!cleanFullName || !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(cleanFullName)) {

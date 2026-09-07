@@ -29,6 +29,8 @@ public interface ChargingSessionRepository extends MongoRepository<ChargingSessi
     boolean existsByCustomerId(Long customerId);
 
     boolean existsByCustomerIdAndStatus(Long customerId, SessionStatus status);
+    boolean existsByChargingPointId(Long chargingPointId);
+    boolean existsByChargingPointIdAndStatus(Long chargingPointId, SessionStatus status);
 
     void deleteByCustomerId(Long customerId);
 

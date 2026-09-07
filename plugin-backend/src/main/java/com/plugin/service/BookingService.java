@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +25,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
 @Service
@@ -52,16 +49,33 @@ public class BookingService {
     private final EntityReferenceResolver referenceResolver;
     private final ChargingSessionRepository sessionRepository;
     private final EtaService etaService;
-
-    private final ConcurrentMap<Long, LocalDateTime> userLocationPingLimiter = new ConcurrentHashMap<>();
+    private final BookingTransactionRunner transactionRunner;
+    private final EtaSlotAllocator etaSlotAllocator;
 
     @Value("${app.notifications.booking-start-lookback-minutes:180}")
     private long bookingStartNotificationLookbackMinutes;
 
-    @Transactional
     public BookingResponse createBooking(BookingRequest request, String customerEmail) {
+        return transactionRunner.execute(() -> createBookingOnce(request, customerEmail));
+    }
+
+    private BookingResponse createBookingOnce(BookingRequest request, String customerEmail) {
         User customer = userRepository.findByEmail(customerEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        transactionRunner.claimCustomer(customer.getId());
+        if (request.getRequestKey() != null) {
+            Booking previous = bookingRepository.findByCustomerIdAndRequestKey(customer.getId(), request.getRequestKey()).orElse(null);
+            if (previous != null) {
+                if (!requestFingerprint(request).equals(previous.getRequestFingerprint())) {
+                    throw new ConflictException("This booking request was already used with different details.");
+                }
+                return toResponse(previous);
+            }
+        }
+        if (bookingRepository.existsActiveByCustomerId(
+                customer.getId(), AppClock.toStoredScheduleTime(AppClock.now()))) {
+            throw new ConflictException("Complete or cancel your active booking before creating another one");
+        }
         UserVehicle activeVehicle = resolveActiveVehicle(customer);
         if (activeVehicle == null) {
             throw new BadRequestException("Please add a vehicle in your profile before booking a charging session");
@@ -74,7 +88,11 @@ public class BookingService {
             throw new BadRequestException("Station is currently inactive");
         }
 
-        boolean dynamicEtaBooking = hasOriginCoordinates(request);
+        boolean dynamicEtaBooking = Boolean.TRUE.equals(request.getDynamicEta())
+                || (request.getDynamicEta() == null && hasOriginCoordinates(request) && request.getStartTime() == null);
+        if (dynamicEtaBooking && request.getStartTime() != null) {
+            throw new BadRequestException("Choose either charge on arrival or a scheduled start time.");
+        }
         PointType requestedPointType = resolvePointTypePreference(station.getId(), request.getPointTypePreference());
         LocalDateTime startTime;
         LocalDateTime endTime;
@@ -82,6 +100,9 @@ public class BookingService {
         LocalDateTime gracePeriodEndTime = null;
         Long etaSeconds = null;
         Double lastDistanceMeters = null;
+        Boolean etaLiveTraffic = null;
+        LocalDateTime holdExpiresAt = null;
+        LocalDateTime reservedUntil = null;
         LocalDateTime acceptedPingAt = dynamicEtaBooking ? AppClock.now().withNano(0) : null;
 
         if (dynamicEtaBooking) {
@@ -94,11 +115,14 @@ public class BookingService {
                     station.getLongitude()
             );
             etaSeconds = eta.durationSeconds();
-            lastDistanceMeters = eta.distanceMeters();
+            etaLiveTraffic = eta.liveTraffic();
+            lastDistanceMeters = EtaService.distanceMeters(request.getOriginLatitude(), request.getOriginLongitude(),
+                    station.getLatitude(), station.getLongitude());
             predictedArrivalAt = acceptedPingAt.plusSeconds(eta.durationSeconds()).withNano(0);
             gracePeriodEndTime = predictedArrivalAt.plusMinutes(ETA_GRACE_BUFFER_MINUTES).withNano(0);
             startTime = predictedArrivalAt;
             endTime = predictedArrivalAt.plusMinutes(request.getDurationMinutes()).withNano(0);
+            holdExpiresAt = acceptedPingAt.plusMinutes(EtaSlotAllocator.MAX_HOLD_MINUTES);
         } else {
             if (request.getStartTime() == null) {
                 throw new BadRequestException("Booking start time is required");
@@ -123,8 +147,16 @@ public class BookingService {
         ChargingPoint chargingPoint = null;
 
         if (dynamicEtaBooking) {
-            // Dynamic ETA bookings keep the user in a virtual spot until they are close enough
-            // for proximity lock-in.
+            EtaSlotAllocator.Slot slot = etaSlotAllocator.allocate(station, requestedPointType, predictedArrivalAt,
+                    request.getDurationMinutes(), holdExpiresAt.minusMinutes(ETA_GRACE_BUFFER_MINUTES), null);
+            chargingPoint = slot.point();
+            startTime = slot.start();
+            endTime = slot.end();
+            reservedUntil = slot.reservedUntil();
+            gracePeriodEndTime = startTime.plusMinutes(ETA_GRACE_BUFFER_MINUTES);
+            storedStartTime = AppClock.toStoredScheduleTime(startTime);
+            storedEndTime = AppClock.toStoredScheduleTime(endTime);
+            storedGracePeriodEndTime = AppClock.toStoredScheduleTime(gracePeriodEndTime);
         } else if (request.getChargingPointId() != null) {
             // Specific point requested
             chargingPoint = cpRepository.findById(request.getChargingPointId())
@@ -166,6 +198,11 @@ public class BookingService {
                 .vehicle(activeVehicle)
                 .startTime(storedStartTime)
                 .endTime(storedEndTime)
+                .reservedUntil(AppClock.toStoredScheduleTime(reservedUntil))
+                .holdExpiresAt(AppClock.toStoredScheduleTime(holdExpiresAt))
+                .etaLiveTraffic(etaLiveTraffic)
+                .requestKey(request.getRequestKey())
+                .requestFingerprint(requestFingerprint(request))
                 .requestedDurationMinutes(request.getDurationMinutes())
                 .originLatitude(dynamicEtaBooking ? request.getOriginLatitude() : null)
                 .originLongitude(dynamicEtaBooking ? request.getOriginLongitude() : null)
@@ -183,7 +220,16 @@ public class BookingService {
                 .startNotificationSent(false)
                 .build();
 
+        if (chargingPoint != null && !dynamicEtaBooking) {
+            // All future-schedule changes touch the connector document so concurrent
+            // Mongo transactions contend on one authoritative resource.
+            cpRepository.touchSchedule(chargingPoint.getId());
+        }
         booking = bookingRepository.save(booking);
+        if (dynamicEtaBooking && lastDistanceMeters <= PROXIMITY_LOCK_DISTANCE_METERS) {
+            Booking locked = lockPhysicalPointForBooking(booking);
+            if (locked != null) booking = locked;
+        }
 
         if (lockedPricing.usedFallback()) {
             pricingSnapshotService.notifyAdminsMissingPricing(
@@ -199,7 +245,8 @@ public class BookingService {
         notificationService.send(customer.getId(), "Booking Confirmed",
                 "Your booking " + refId + " at " + station.getName() +
                 (dynamicEtaBooking
-                        ? " is held as a virtual spot until " +
+                        ? " has a reserved charging window at " + startTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))
+                        + ". Arrive by " +
                         gracePeriodEndTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")) + "."
                         : " is confirmed for " + startTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))));
 
@@ -212,12 +259,17 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = hydrate(booking);
 
-        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
-            throw new BadRequestException("You can only modify your own bookings");
+        if (!isBookingOwnedBy(booking, customerEmail)) {
+            throw new ResourceNotFoundException("Booking not found");
         }
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
             throw new BadRequestException("Cannot modify a " + booking.getStatus() + " booking");
+        }
+        if (booking.getStatus() == BookingStatus.IN_PROGRESS
+                || sessionRepository.findByBookingId(bookingId)
+                .filter(session -> session.getStatus() == SessionStatus.IN_PROGRESS).isPresent()) {
+            throw new BadRequestException("Cannot modify a booking after charging has started");
         }
 
         if (Boolean.TRUE.equals(booking.getVirtualSpot()) || booking.getGracePeriodEndTime() != null) {
@@ -258,6 +310,7 @@ public class BookingService {
         if (!overlapping.isEmpty()) {
             throw new ConflictException("New time slot conflicts with existing bookings");
         }
+        cpRepository.touchSchedule(pointId);
 
         if (request.getChargingPointId() != null) {
             booking.setChargingPoint(targetPoint);
@@ -298,12 +351,17 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = hydrate(booking);
 
-        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
-            throw new BadRequestException("You can only request changes for your own bookings");
+        if (!isBookingOwnedBy(booking, customerEmail)) {
+            throw new ResourceNotFoundException("Booking not found");
         }
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
             throw new BadRequestException("Cannot reschedule a " + booking.getStatus() + " booking");
+        }
+        if (booking.getStatus() == BookingStatus.IN_PROGRESS
+                || sessionRepository.findByBookingId(bookingId)
+                .filter(session -> session.getStatus() == SessionStatus.IN_PROGRESS).isPresent()) {
+            throw new BadRequestException("Cannot reschedule a booking after charging has started");
         }
 
         if (!AppClock.fromStoredScheduleTime(booking.getStartTime()).isAfter(LocalDateTime.now())) {
@@ -329,6 +387,7 @@ public class BookingService {
         LocalDateTime storedRequestedEndTime = AppClock.toStoredScheduleTime(requestedEndTime);
 
         validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
+        cpRepository.touchSchedule(booking.getChargingPoint().getId());
 
         booking.setRescheduleRequestStatus(RescheduleRequestStatus.PENDING);
         booking.setRescheduleRequestedStartTime(storedRequestedStartTime);
@@ -359,8 +418,14 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = hydrate(booking);
 
-        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
-            throw new BadRequestException("You can only cancel your own bookings");
+        if (!isBookingOwnedBy(booking, customerEmail)) {
+            throw new ResourceNotFoundException("Booking not found");
+        }
+
+        if (booking.getStatus() == BookingStatus.IN_PROGRESS
+                || sessionRepository.findByBookingId(bookingId)
+                .filter(session -> session.getStatus() == SessionStatus.IN_PROGRESS).isPresent()) {
+            throw new BadRequestException("Cannot cancel a booking after charging has started");
         }
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
@@ -379,6 +444,7 @@ public class BookingService {
         releaseReservedPointIfNeeded(booking);
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason(normalizedReason);
+        BookingLocationPrivacy.clearPreciseLocation(booking);
         clearRescheduleRequestFields(booking);
         resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
@@ -392,14 +458,21 @@ public class BookingService {
         return toResponse(booking);
     }
 
-    @Transactional
     public BookingResponse updateBookingLocation(Long bookingId, BookingLocationPingRequest request, String customerEmail) {
+        return transactionRunner.execute(() -> updateBookingLocationOnce(bookingId, request, customerEmail));
+    }
+
+    private BookingResponse updateBookingLocationOnce(Long bookingId, BookingLocationPingRequest request, String customerEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = hydrate(booking);
 
-        if (!booking.getCustomer().getEmail().equals(customerEmail)) {
-            throw new BadRequestException("You can only update location for your own bookings");
+        if (!isBookingOwnedBy(booking, customerEmail)) {
+            throw new ResourceNotFoundException("Booking not found");
+        }
+
+        if (!Boolean.TRUE.equals(booking.getVirtualSpot()) && booking.getGracePeriodEndTime() == null) {
+            throw new BadRequestException("Location updates are only accepted for ETA bookings");
         }
 
         if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.MODIFIED) {
@@ -408,6 +481,10 @@ public class BookingService {
 
         ensureValidCoordinates(request.getLatitude(), request.getLongitude());
         LocalDateTime now = AppClock.now().withNano(0);
+        if ((booking.getGracePeriodEndTime() != null && !now.isBefore(AppClock.fromStoredScheduleTime(booking.getGracePeriodEndTime())))
+                || (booking.getHoldExpiresAt() != null && !now.isBefore(AppClock.fromStoredScheduleTime(booking.getHoldExpiresAt())))) {
+            return toResponse(expireMissedBooking(booking, "The ETA arrival deadline expired."));
+        }
         if (isLocationPingRateLimited(booking, now)) {
             return toResponse(booking);
         }
@@ -418,6 +495,9 @@ public class BookingService {
         }
 
         Station station = booking.getStation();
+        if (!Boolean.TRUE.equals(station.getActive())) {
+            return toResponse(expireMissedBooking(booking, "The station is no longer available."));
+        }
         ensureStationHasCoordinates(station);
         EtaService.EtaResult eta = etaService.estimate(
                 request.getLatitude(),
@@ -430,23 +510,44 @@ public class BookingService {
         booking.setLastKnownLongitude(request.getLongitude());
         booking.setLastLocationPingAt(now);
         booking.setEtaSeconds(eta.durationSeconds());
-        booking.setLastDistanceMeters(eta.distanceMeters());
-        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
-        if (customerId != null) {
-            userLocationPingLimiter.put(customerId, now);
+        booking.setEtaLiveTraffic(eta.liveTraffic());
+        double proximityDistance = EtaService.distanceMeters(request.getLatitude(), request.getLongitude(),
+                station.getLatitude(), station.getLongitude());
+        booking.setLastDistanceMeters(proximityDistance);
+        if (Boolean.TRUE.equals(booking.getProximityLocked()) && proximityDistance > PROXIMITY_LOCK_DISTANCE_METERS) {
+            releaseReservedPointIfNeeded(booking);
+            booking.setProximityLocked(false);
+            booking.setVirtualSpot(true);
+            booking.setAssignedChargingPointId(null);
         }
-
         if (!Boolean.TRUE.equals(booking.getProximityLocked())) {
             LocalDateTime predictedArrivalAt = now.plusSeconds(eta.durationSeconds()).withNano(0);
-            LocalDateTime gracePeriodEndTime = predictedArrivalAt.plusMinutes(ETA_GRACE_BUFFER_MINUTES).withNano(0);
+            LocalDateTime holdLimit = booking.getHoldExpiresAt() != null
+                    ? AppClock.fromStoredScheduleTime(booking.getHoldExpiresAt())
+                    : AppClock.fromStoredScheduleTime(booking.getGracePeriodEndTime());
+            EtaSlotAllocator.Slot slot;
+            try {
+                slot = etaSlotAllocator.allocate(station, parsePointTypeOrNull(booking.getPointTypePreference()),
+                        predictedArrivalAt, resolveRequestedDurationMinutes(booking),
+                        holdLimit.minusMinutes(ETA_GRACE_BUFFER_MINUTES), booking.getId());
+            } catch (ConflictException | BadRequestException unavailable) {
+                return toResponse(expireMissedBooking(booking, unavailable.getMessage()));
+            }
+            if (booking.getChargingPointId() != null && !booking.getChargingPointId().equals(slot.point().getId())) {
+                cpRepository.touchSchedule(booking.getChargingPointId());
+            }
+            LocalDateTime gracePeriodEndTime = slot.start().plusMinutes(ETA_GRACE_BUFFER_MINUTES);
+            booking.setChargingPoint(slot.point());
+            booking.setChargingPointId(slot.point().getId());
             booking.setPredictedArrivalAt(AppClock.toStoredScheduleTime(predictedArrivalAt));
             booking.setGracePeriodEndTime(AppClock.toStoredScheduleTime(gracePeriodEndTime));
-            booking.setStartTime(AppClock.toStoredScheduleTime(predictedArrivalAt));
-            booking.setEndTime(AppClock.toStoredScheduleTime(
-                    predictedArrivalAt.plusMinutes(resolveRequestedDurationMinutes(booking))));
+            booking.setStartTime(AppClock.toStoredScheduleTime(slot.start()));
+            booking.setEndTime(AppClock.toStoredScheduleTime(slot.end()));
+            booking.setReservedUntil(AppClock.toStoredScheduleTime(slot.reservedUntil()));
+            booking.setStartNotificationSent(false);
         }
 
-        if (eta.distanceMeters() <= PROXIMITY_LOCK_DISTANCE_METERS && !Boolean.TRUE.equals(booking.getProximityLocked())) {
+        if (proximityDistance <= PROXIMITY_LOCK_DISTANCE_METERS && !Boolean.TRUE.equals(booking.getProximityLocked())) {
             Booking lockedBooking = lockPhysicalPointForBooking(booking);
             if (lockedBooking != null) {
                 return toResponse(lockedBooking);
@@ -462,6 +563,12 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         booking = hydrate(booking);
 
+        if (booking.getStatus() == BookingStatus.IN_PROGRESS
+                || sessionRepository.findByBookingId(bookingId)
+                .filter(session -> session.getStatus() == SessionStatus.IN_PROGRESS).isPresent()) {
+            throw new BadRequestException("Cannot cancel a booking after charging has started");
+        }
+
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new BadRequestException("Booking is already cancelled");
         }
@@ -478,22 +585,20 @@ public class BookingService {
         releaseReservedPointIfNeeded(booking);
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason(normalizedReason);
+        BookingLocationPrivacy.clearPreciseLocation(booking);
         clearRescheduleRequestFields(booking);
         resetRescheduleReview(booking);
         booking = bookingRepository.save(booking);
 
-        try {
-            auditService.log("CANCEL_BOOKING", "BOOKING", booking.getId(), adminEmail,
-                    "Booking cancelled by admin: " + booking.getReferenceId() + ". Reason: " + normalizedReason);
-        } catch (Exception ex) {
-            log.warn("Failed to write audit log for admin booking cancel {}", booking.getId(), ex);
-        }
+        auditService.log("CANCEL_BOOKING", "BOOKING", booking.getId(), adminEmail,
+                "Booking cancelled by admin: " + booking.getReferenceId() + ". Reason: " + normalizedReason);
 
         try {
             notificationService.send(booking.getCustomer().getId(), "Booking Cancelled",
                     "Your booking " + booking.getReferenceId() + " has been cancelled by admin. Reason: " + normalizedReason);
         } catch (Exception ex) {
-            log.warn("Failed to send cancel notification for booking {}", booking.getId(), ex);
+            log.warn("Failed to send cancel notification for booking {}; type={}",
+                    booking.getId(), ex.getClass().getName());
         }
 
         return toResponse(booking);
@@ -523,6 +628,7 @@ public class BookingService {
 
         validateRescheduleSlot(booking, requestedStartTime, requestedEndTime);
 
+        cpRepository.touchSchedule(booking.getChargingPoint().getId());
         PricingSnapshotService.PricingSnapshot lockedPricing =
                 pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
 
@@ -617,8 +723,20 @@ public class BookingService {
         );
     }
 
-    @Scheduled(initialDelayString = "${app.notifications.booking-start-initial-delay-ms:10000}",
-            fixedDelayString = "${app.notifications.booking-start-check-ms:30000}")
+    public BookingResponse getBookingForCaller(Long id, String actorEmail) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Long customerId = booking.getCustomerId() != null
+                ? booking.getCustomerId()
+                : booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        if (actor.getRole() != Role.ADMIN && !actor.getId().equals(customerId)) {
+            throw new ResourceNotFoundException("Booking not found");
+        }
+        return withReferenceCache(() -> toResponse(booking));
+    }
+
     @Transactional
     public void sendBookingStartNotifications() {
         LocalDateTime now = LocalDateTime.now();
@@ -645,18 +763,17 @@ public class BookingService {
                         : "your selected time";
                 notificationService.send(customerId, "Session Time Arrived",
                         "Your booking " + hydrated.getReferenceId() + " at " + stationName +
-                                " is ready now for " + selectedTime +
-                                ". Open My Bookings to start your charging session.");
+                                " has a charging window starting at " + selectedTime +
+                                ". Open My Bookings to check your connector and refresh your location before starting.");
                 hydrated.setStartNotificationSent(true);
                 bookingRepository.save(hydrated);
             } catch (Exception ex) {
-                log.warn("Failed to send start notification for booking {}", hydrated.getId(), ex);
+                log.warn("Failed to send start notification for booking {}; type={}",
+                        hydrated.getId(), ex.getClass().getName());
             }
         }
     }
 
-    @Scheduled(initialDelayString = "${app.bookings.expiry-initial-delay-ms:15000}",
-            fixedDelayString = "${app.bookings.expiry-check-ms:30000}")
     @Transactional
     public void expireMissedBookings() {
         LocalDateTime now = LocalDateTime.now();
@@ -684,6 +801,7 @@ public class BookingService {
         releaseReservedPointIfNeeded(booking);
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason(reason);
+        BookingLocationPrivacy.clearPreciseLocation(booking);
         booking = bookingRepository.save(booking);
 
         Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
@@ -696,7 +814,8 @@ public class BookingService {
                         "Your booking " + booking.getReferenceId() + " at " + stationName +
                                 " was cancelled because the selected charging time was missed.");
             } catch (Exception ex) {
-                log.warn("Failed to send missed booking notification for booking {}", booking.getId(), ex);
+                log.warn("Failed to send missed booking notification for booking {}; type={}",
+                        booking.getId(), ex.getClass().getName());
             }
         }
 
@@ -704,18 +823,39 @@ public class BookingService {
             auditService.log("EXPIRE_BOOKING", "BOOKING", booking.getId(), "system",
                     "Booking expired automatically: " + booking.getReferenceId());
         } catch (Exception ex) {
-            log.warn("Failed to write missed booking audit log for booking {}", booking.getId(), ex);
+            log.warn("Failed to write missed booking audit log for booking {}; type={}",
+                    booking.getId(), ex.getClass().getName());
         }
 
         return booking;
     }
 
     private Booking lockPhysicalPointForBooking(Booking booking) {
+        // A later calendar reservation must not block a customer using an earlier window now.
+        LocalDateTime now = AppClock.now().withNano(0);
+        if (AppClock.fromStoredScheduleTime(booking.getStartTime()).isAfter(now.plusMinutes(2))) return null;
         Station station = booking.getStation();
         PointType preferredPointType = parsePointTypeOrNull(booking.getPointTypePreference());
-        ChargingPoint lockedPoint = cpRepository.lockAvailablePointForStation(station.getId(), preferredPointType);
-        if (lockedPoint == null && preferredPointType != null) {
-            lockedPoint = cpRepository.lockAvailablePointForStation(station.getId(), null);
+        List<ChargingPoint> candidates = booking.getChargingPointId() != null
+                ? cpRepository.findById(booking.getChargingPointId()).map(List::of).orElse(List.of())
+                : preferredPointType != null
+                ? cpRepository.findByStationIdAndPointType(station.getId(), preferredPointType)
+                : cpRepository.findByStationId(station.getId());
+        ChargingPoint lockedPoint = null;
+        for (ChargingPoint candidate : candidates) {
+            ChargingPoint current = cpRepository.findById(candidate.getId()).orElse(null);
+            if (current == null || current.getStatus() != PointStatus.AVAILABLE) {
+                continue;
+            }
+            List<Booking> overlaps = bookingRepository.findOverlappingBookingsExcluding(
+                    current.getId(), AppClock.toStoredScheduleTime(now), EtaSlotAllocator.reservationEnd(booking), booking.getId());
+            if (!overlaps.isEmpty()) {
+                continue;
+            }
+            lockedPoint = cpRepository.reserveAvailablePoint(current.getId(), booking.getId());
+            if (lockedPoint != null) {
+                break;
+            }
         }
 
         if (lockedPoint == null) {
@@ -737,7 +877,8 @@ public class BookingService {
                 auditService.log("PROXIMITY_LOCK_BOOKING", "BOOKING", saved.getId(), "system",
                         "Assigned charging point " + lockedPoint.getIdentifier() + " to booking " + saved.getReferenceId());
             } catch (Exception ex) {
-                log.warn("Failed to write proximity lock audit log for booking {}", saved.getId(), ex);
+                log.warn("Failed to write proximity lock audit log for booking {}; type={}",
+                        saved.getId(), ex.getClass().getName());
             }
             try {
                 Long customerId = saved.getCustomer() != null ? saved.getCustomer().getId() : saved.getCustomerId();
@@ -747,11 +888,12 @@ public class BookingService {
                                     lockedPoint.getIdentifier() + " is now assigned to your booking.");
                 }
             } catch (Exception ex) {
-                log.warn("Failed to send proximity lock notification for booking {}", saved.getId(), ex);
+                log.warn("Failed to send proximity lock notification for booking {}; type={}",
+                        saved.getId(), ex.getClass().getName());
             }
             return saved;
         } catch (RuntimeException ex) {
-            releasePointReservation(lockedPoint);
+            cpRepository.releaseReservationForBooking(lockedPoint.getId(), booking.getId());
             throw ex;
         }
     }
@@ -769,15 +911,7 @@ public class BookingService {
             return;
         }
 
-        cpRepository.findById(pointId).ifPresent(point -> releasePointReservation(hydrate(point)));
-    }
-
-    private void releasePointReservation(ChargingPoint point) {
-        if (point == null || point.getStatus() != PointStatus.RESERVED) {
-            return;
-        }
-        point.setStatus(PointStatus.AVAILABLE);
-        cpRepository.save(point);
+        cpRepository.releaseReservationForBooking(pointId, booking.getId());
     }
 
     private boolean hasOriginCoordinates(BookingRequest request) {
@@ -786,6 +920,7 @@ public class BookingService {
 
     private void ensureValidCoordinates(Double latitude, Double longitude) {
         if (latitude == null || longitude == null
+                || !Double.isFinite(latitude) || !Double.isFinite(longitude)
                 || latitude < -90 || latitude > 90
                 || longitude < -180 || longitude > 180) {
             throw new BadRequestException("Valid latitude and longitude are required");
@@ -800,14 +935,7 @@ public class BookingService {
     }
 
     private boolean isLocationPingRateLimited(Booking booking, LocalDateTime now) {
-        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : booking.getCustomerId();
         LocalDateTime latest = booking.getLastLocationPingAt();
-        if (customerId != null) {
-            LocalDateTime userLatest = userLocationPingLimiter.get(customerId);
-            if (userLatest != null && (latest == null || userLatest.isAfter(latest))) {
-                latest = userLatest;
-            }
-        }
         if (latest == null) {
             return false;
         }
@@ -894,24 +1022,24 @@ public class BookingService {
     }
 
     private void validateOperatingHours(Station station, LocalDateTime start, LocalDateTime end) {
-        LocalTime startOfDay = start.toLocalTime();
-        LocalTime endOfDay = end.toLocalTime();
-
-        LocalTime open = station.getOpeningTime();
-        LocalTime close = station.getClosingTime();
-
-        if (close.isAfter(open)) {
-            // Normal hours (e.g., 06:00 - 23:00)
-            if (startOfDay.isBefore(open) || endOfDay.isAfter(close)) {
-                throw new BadRequestException("Booking must be within station operating hours: " +
-                        open + " - " + close);
-            }
-        }
-        // For 24hr or overnight stations, we allow any time
+        StationOperatingHoursPolicy.validate(station, start, end);
     }
 
     private String generateReferenceId() {
-        return "BK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        return "BK-" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 16).toUpperCase();
+    }
+
+    private String requestFingerprint(BookingRequest request) {
+        String value = java.util.Arrays.asList(request.getStationId(), request.getChargingPointId(),
+                request.getPointTypePreference(), request.getStartTime(), request.getDurationMinutes(),
+                request.getDynamicEta(), request.getOriginLatitude(), request.getOriginLongitude()).toString();
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
     private BookingResponse toResponse(Booking b) {
@@ -944,6 +1072,11 @@ public class BookingService {
                 .vehicleRegistration(vehicleRegistration)
                 .startTime(AppClock.fromStoredScheduleTime(b.getStartTime()))
                 .endTime(AppClock.fromStoredScheduleTime(b.getEndTime()))
+                .reservedUntil(AppClock.fromStoredScheduleTime(b.getReservedUntil()))
+                .holdExpiresAt(AppClock.fromStoredScheduleTime(b.getHoldExpiresAt()))
+                .etaLiveTraffic(b.getEtaLiveTraffic())
+                .waitSeconds(b.getPredictedArrivalAt() != null ? Math.max(0,
+                        Duration.between(b.getPredictedArrivalAt(), b.getStartTime()).getSeconds()) : null)
                 .requestedDurationMinutes(b.getRequestedDurationMinutes())
                 .originLatitude(b.getOriginLatitude())
                 .originLongitude(b.getOriginLongitude())
@@ -989,6 +1122,9 @@ public class BookingService {
     }
 
     private void validateRescheduleSlot(Booking booking, LocalDateTime requestedStartTime, LocalDateTime requestedEndTime) {
+        if (booking.getGracePeriodEndTime() != null) {
+            throw new BadRequestException("Arrival bookings update from your location. Cancel this booking to choose a scheduled time.");
+        }
         if (requestedStartTime == null) {
             throw new BadRequestException("Requested start time is required");
         }
@@ -1050,13 +1186,15 @@ public class BookingService {
             try {
                 notificationService.send(admin.getId(), title, message);
             } catch (Exception ex) {
-                log.warn("Failed to notify admin {} for booking workflow", admin.getId(), ex);
+                log.warn("Failed to notify admin {} for booking workflow; type={}",
+                        admin.getId(), ex.getClass().getName());
             }
         }
     }
 
     private boolean isPointBlockedForBooking(PointStatus status) {
-        return status == PointStatus.OUT_OF_SERVICE || status == PointStatus.UNAVAILABLE;
+        return status == PointStatus.OUT_OF_SERVICE || status == PointStatus.UNAVAILABLE
+                || status == PointStatus.RESERVED || status == PointStatus.CHARGING;
     }
 
     private Booking hydrate(Booking booking) {
@@ -1065,6 +1203,22 @@ public class BookingService {
 
     private ChargingPoint hydrate(ChargingPoint chargingPoint) {
         return referenceResolver != null ? referenceResolver.hydrate(chargingPoint) : chargingPoint;
+    }
+
+    private boolean isBookingOwnedBy(Booking booking, String actorEmail) {
+        if (booking == null || actorEmail == null) {
+            return false;
+        }
+        Long bookingCustomerId = booking.getCustomerId() != null
+                ? booking.getCustomerId()
+                : booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        if (bookingCustomerId == null) {
+            return false;
+        }
+        return userRepository.findByEmail(actorEmail)
+                .map(User::getId)
+                .map(bookingCustomerId::equals)
+                .orElse(false);
     }
 
     private <T> T withReferenceCache(Supplier<T> supplier) {

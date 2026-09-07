@@ -11,7 +11,7 @@ Fresh React Native/Expo app for the Plugin mobile experience.
 mvn.cmd spring-boot:run
 ```
 
-3. Start the mobile app:
+3. Start Expo Go over Wi-Fi:
 
 ```powershell
 cd plugin_app
@@ -40,7 +40,7 @@ cd plugin_app
 npm.cmd run wireless
 ```
 
-`npm.cmd run wireless` updates `.env` with the PC's current Wi-Fi IP, exports that IP for Expo, updates the connected Android app's Metro address at runtime, then starts Expo with `--lan`. Wi-Fi IP changes no longer require rebuilding or reinstalling the APK. No `adb reverse` is needed for backend calls.
+`npm.cmd start` and `npm.cmd run wireless` detect the real Wi-Fi adapter, avoid a Metro port already occupied by another project, clear Metro's cache, and open the exact LAN URL in Expo Go. No `adb reverse` is needed for backend calls.
 
 If you only want to refresh the saved LAN API URL without starting Expo:
 
@@ -55,13 +55,23 @@ EXPO_PUBLIC_API_LAN_BASE_URL=http://YOUR_PC_LAN_IP:8091/api
 EXPO_PUBLIC_METRO_HOST=YOUR_PC_LAN_IP:8081
 ```
 
-The wireless script sends `EXPO_PUBLIC_METRO_HOST` to connected debug apps, so they can load Metro over Wi-Fi instead of `localhost:8081`. The first run upgrades an older APK once; afterward, IP changes are applied immediately without another build. If no ADB device is connected, Metro still starts and the app continues to open from its embedded bundle.
+If no ADB device is connected, Metro still starts and prints a QR code to scan in Expo Go.
 
-To reinstall the debug app with the current Wi-Fi IP baked in, connect the phone by USB or wireless ADB once and run:
+To install the self-contained Android app with the current Wi-Fi API address embedded, connect the phone by USB or wireless ADB once and run:
 
 ```powershell
 npm.cmd run android:wireless
 ```
+
+This local APK embeds its JavaScript bundle, so it opens without Metro and cannot show Expo's “failed to download remote update” screen. Rebuild it after app-code changes or when the PC's Wi-Fi IP changes.
+
+For a wired phone, use:
+
+```powershell
+npm.cmd run android:wired
+```
+
+The wired command installs the same self-contained APK, configures `adb reverse` for backend port `8091`, and uses loopback instead of Wi-Fi. To run Expo Go through USB, use `npm.cmd run expo:wired`.
 
 ## Screens Included
 

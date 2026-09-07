@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+  <!-- Local APKs use the developer's LAN/USB backend. Release remains HTTPS-only. -->
+  <application
+    android:usesCleartextTraffic="true"
+    tools:targetApi="28"
+    tools:ignore="GoogleAppIndexingWarning"
+    tools:replace="android:usesCleartextTraffic" />
+</manifest>

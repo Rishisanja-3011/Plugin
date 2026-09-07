@@ -23,43 +23,52 @@ public class StationManagerCredentialEmailService {
     @Value("${app.website.url:www.plugin.com}")
     private String websiteUrl;
 
-    public void sendCredentials(String recipientEmail,
-                                String recipientName,
-                                String portalLoginEmail,
-                                String password) {
+    public void sendAccessInvitation(String recipientEmail,
+                                     String recipientName,
+                                     String portalLoginEmail,
+                                     String setupToken) {
         if (mailSender == null) {
-            throw new IllegalStateException("Mail service is not configured. Credentials could not be emailed.");
+            throw new IllegalStateException("Mail service is not configured. The access invitation could not be emailed.");
         }
 
         String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom : mailUsername;
         if (from == null || from.isBlank()) {
-            throw new IllegalStateException("Mail from address is not configured. Credentials could not be emailed.");
+            throw new IllegalStateException("Mail from address is not configured. The access invitation could not be emailed.");
         }
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(recipientEmail);
             message.setFrom(from);
-            message.setSubject("PLUGIN Station Manager Portal Credentials");
-            message.setText(buildEmailBody(recipientName, portalLoginEmail, password));
+            message.setSubject("Set up your PLUGIN Station Manager access");
+            message.setText(buildEmailBody(recipientName, portalLoginEmail, setupToken));
             mailSender.send(message);
-            log.info("Station manager credentials email sent to {}", recipientEmail);
+            log.info("Station manager access invitation email sent");
         } catch (Exception ex) {
-            log.warn("Failed to send station manager credentials email to {}", recipientEmail, ex);
-            throw new IllegalStateException("Failed to email the station manager credentials. Please try again.");
+            log.warn("Failed to send station manager access invitation email");
+            throw new IllegalStateException("Failed to email the access invitation. Please try again.");
         }
     }
 
-    private String buildEmailBody(String recipientName, String portalLoginEmail, String password) {
+    private String buildEmailBody(String recipientName, String portalLoginEmail, String setupToken) {
         String safeName = (recipientName == null || recipientName.isBlank()) ? "Station Manager" : recipientName;
+        String baseUrl = websiteUrl == null ? "" : websiteUrl.trim();
+        if (!baseUrl.startsWith("https://") && !baseUrl.startsWith("http://")) {
+            baseUrl = "https://" + baseUrl;
+        }
+        while (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        // URL fragments are not sent to the web server or included in HTTP
+        // referrers, keeping the one-time secret out of access logs.
+        String setupUrl = baseUrl + "/station-manager/setup-access#token=" + setupToken;
 
         return "Dear " + safeName + ",\n\n"
-                + "Your PLUGIN Station Manager portal credentials are ready.\n\n"
+                + "Your PLUGIN Station Manager account has been approved.\n\n"
                 + "Login Email: " + portalLoginEmail + "\n"
-                + "Password: " + password + "\n\n"
-                + "You can now sign in to the Station Manager portal using these credentials.\n"
-                + "For security, please change your password after your first login.\n\n"
-                + "Portal: " + websiteUrl + "\n\n"
+                + "Create your password using this one-time link:\n"
+                + setupUrl + "\n\n"
+                + "This link expires shortly and can be used only once. If you did not expect it, ignore this email.\n\n"
                 + "Regards,\n"
                 + "PLUGIN Admin Team";
     }

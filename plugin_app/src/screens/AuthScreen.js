@@ -9,7 +9,7 @@ import { colors, radius } from '../theme/theme';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID
   || Constants.expoConfig?.extra?.googleClientId
-  || '380196336293-ghfo78fd82va3gp0dffren6lk2mqcrg1.apps.googleusercontent.com';
+  || '';
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let googleSignInModule;

@@ -29,7 +29,7 @@ const ROUTE_TRAVELED = '#C0C0C0';
 const MAP_ROUTE_SHADOW = 'rgba(15, 23, 42, 0.20)';
 const WARNING = '#FF6F00';
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyD1Xg_yexX1NZM7mUZiYI8tTJcDY9uZNu4';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const DEFAULT_DELTA = 0.045;
 const NAV_EDGE_PADDING = { top: 142, right: 76, bottom: 244, left: 36 };
 const ROUTE_REFRESH_DISTANCE_METERS = 90;

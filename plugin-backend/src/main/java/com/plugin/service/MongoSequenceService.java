@@ -1,11 +1,13 @@
 package com.plugin.service;
 
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.UpdateOptions;
 import lombok.RequiredArgsConstructor;
 import org.bson.Document;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
@@ -36,14 +38,14 @@ public class MongoSequenceService {
                                                  MongoCollection<Document> sequences,
                                                  String sequenceName) {
         long currentMax = currentMaxId(database, sequenceName);
-        Document existing = sequences.find(Filters.eq("_id", sequenceName)).first();
-        Number existingValue = existing == null ? null : existing.get("seq", Number.class);
-        if (existing == null) {
-            sequences.insertOne(new Document("_id", sequenceName).append("seq", currentMax));
-            return;
-        }
-        if (existingValue == null || existingValue.longValue() < currentMax) {
-            sequences.updateOne(Filters.eq("_id", sequenceName), Updates.set("seq", currentMax));
+        try {
+            // Atomic max never rewinds a counter that another request has advanced.
+            sequences.updateOne(Filters.eq("_id", sequenceName), Updates.max("seq", currentMax),
+                    new UpdateOptions().upsert(true));
+        } catch (MongoWriteException ex) {
+            if (ex.getError().getCode() != 11000) throw ex;
+            // Another first request created the same sequence concurrently.
+            sequences.updateOne(Filters.eq("_id", sequenceName), Updates.max("seq", currentMax));
         }
     }
 

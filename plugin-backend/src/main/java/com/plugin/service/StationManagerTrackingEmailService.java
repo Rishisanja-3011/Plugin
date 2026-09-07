@@ -49,10 +49,10 @@ public class StationManagerTrackingEmailService {
             message.setSubject("PLUGIN KYC Tracking ID");
             message.setText(buildTrackingEmailBody(recipientName, trackingId, businessName, stationName));
             mailSender.send(message);
-            log.info("Station manager tracking email sent to {}", recipientEmail);
+            log.info("Station manager tracking email sent");
             return true;
         } catch (Exception ex) {
-            log.warn("Failed to send station manager tracking email to {}", recipientEmail, ex);
+            log.warn("Station manager tracking email delivery failed; type={}", ex.getClass().getName());
             return false;
         }
     }

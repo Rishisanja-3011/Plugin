@@ -35,7 +35,8 @@ public class WalletController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication auth) {
-        return ResponseEntity.ok(walletService.getMyLedger(auth.getName(), PageRequest.of(page, size)));
+        return ResponseEntity.ok(walletService.getMyLedger(auth.getName(),
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size)))));
     }
 
     @PostMapping("/withdraw")
@@ -85,10 +86,4 @@ public class WalletController {
         return ResponseEntity.ok(walletService.verifyMandate(auth.getName(), request));
     }
 
-    @PostMapping("/mandate/test-confirm")
-    public ResponseEntity<WalletResponse> confirmTestMandate(
-            @Valid @RequestBody WalletMandateOrderRequest request,
-            Authentication auth) {
-        return ResponseEntity.ok(walletService.confirmTestMandate(auth.getName(), request));
-    }
 }

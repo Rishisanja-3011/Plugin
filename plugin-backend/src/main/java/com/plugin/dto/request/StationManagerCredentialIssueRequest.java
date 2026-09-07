@@ -15,9 +15,6 @@ public class StationManagerCredentialIssueRequest {
             regexp = "^[A-Za-z0-9._%+-]+@plugin\\.com$",
             message = "Portal login email must end with @plugin.com."
     )
+    @Size(max = 254)
     private String portalLoginEmail;
-
-    @NotBlank
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters.")
-    private String password;
 }

@@ -15,6 +15,7 @@ public interface BookingRepository extends MongoRepository<Booking, String>, Boo
     Optional<Booking> findById(Long id);
     List<Booking> findByIdIn(List<Long> ids);
     Optional<Booking> findByReferenceId(String referenceId);
+    Optional<Booking> findByCustomerIdAndRequestKey(Long customerId, String requestKey);
 
     Page<Booking> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
 
@@ -36,6 +37,8 @@ public interface BookingRepository extends MongoRepository<Booking, String>, Boo
     boolean existsByCustomerId(Long customerId);
     boolean existsByVehicleId(Long vehicleId);
     boolean existsByStationId(Long stationId);
+    boolean existsByChargingPointId(Long chargingPointId);
+    boolean existsByChargingPointIdAndStatusIn(Long chargingPointId, List<BookingStatus> statuses);
 
     long countByStatus(BookingStatus status);
 

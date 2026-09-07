@@ -25,7 +25,7 @@ public class StationOperatorAccessService {
     private final EntityReferenceResolver referenceResolver;
 
     public User getActor(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 

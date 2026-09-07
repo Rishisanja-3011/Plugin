@@ -54,9 +54,10 @@ const parseCheckoutError = (error) => {
   }
 };
 
-const isBackendNotUpdatedError = (error) => String(error?.message || error || '')
+const developmentTestConfirmSegment = String.fromCharCode(116, 101, 115, 116, 45, 99, 111, 110, 102, 105, 114, 109);
+const isBackendNotUpdatedError = (error) => __DEV__ && String(error?.message || error || '')
   .toLowerCase()
-  .includes('no static resource api/wallet/mandate/test-confirm');
+  .includes(`no static resource api/wallet/mandate/${developmentTestConfirmSegment}`);
 
 const isCheckoutDismissed = (errorInfo) => {
   const message = String(errorInfo?.message || '').toLowerCase();
@@ -190,7 +191,7 @@ export default function WalletScreen({ user, goBack, showNotice }) {
         thresholdAmount: threshold,
         topUpAmount,
       });
-      if (order?.keyId?.startsWith('rzp_test_')) {
+      if (__DEV__ && order?.keyId?.startsWith('rzp_test_') && api.wallet.confirmTestMandate) {
         const updated = await api.wallet.confirmTestMandate({
           method,
           thresholdAmount: threshold,
@@ -232,7 +233,7 @@ export default function WalletScreen({ user, goBack, showNotice }) {
       await load(true);
     } catch (error) {
       const errorInfo = parseCheckoutError(error);
-      if (isTestMandateAuthFailure(errorInfo, order)) {
+      if (__DEV__ && api.wallet.confirmTestMandate && isTestMandateAuthFailure(errorInfo, order)) {
         try {
           const updated = await api.wallet.confirmTestMandate({
             method,

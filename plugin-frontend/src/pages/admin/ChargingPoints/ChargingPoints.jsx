@@ -33,7 +33,7 @@ const cardVariants = {
 };
 
 const emptyForm = { identifier: '', connectorType: '', maxPowerKw: '', pointType: 'FAST', stationId: '' };
-const statusOptions = ['AVAILABLE', 'RESERVED', 'CHARGING', 'OUT_OF_SERVICE', 'UNAVAILABLE'];
+const statusOptions = ['AVAILABLE', 'OUT_OF_SERVICE', 'UNAVAILABLE'];
 
 export default function ChargingPoints() {
   const toast = useToast();

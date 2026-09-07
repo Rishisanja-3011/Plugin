@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast/Toast';
 import { authApi } from '../../api/auth';
 import IconGlyph from '../../components/IconGlyph/IconGlyph';
 import GoogleAuthButton from '../../components/GoogleAuthButton/GoogleAuthButton';
+import './SplitLayout.css';
 import './ForgotPassword.css';
 
 const STEPS = ['Email', 'Delivery', 'Verify OTP', 'New Password'];

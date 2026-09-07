@@ -1,0 +1,371 @@
+/* ==========================================================================
+   PLUGIN - auth stage scene
+
+   One 24s loop drives every bay. Bays are offset by a negative
+   animation-delay (--sc-delay), so the park is already busy on frame one.
+   The unanimated state is a parked, connected, charging car, which is
+   exactly what reduced-motion viewers keep.
+   ========================================================================== */
+
+.sc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  --sc-cycle: 24s;
+  --sc-delay: 0s;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-2: rgba(255, 255, 255, 0.2);
+  --line-3: rgba(255, 255, 255, 0.42);
+  --ink: #ffffff;
+  --live: #4ade9a;
+}
+
+/* ------------------------------------------------------------------- deck */
+
+.sc-deck line {
+  stroke: rgba(255, 255, 255, 0.062);
+  stroke-width: 1;
+}
+
+.sc-wall__face {
+  fill: rgba(255, 255, 255, 0.018);
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
+}
+
+.sc-wall__mullions line {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 1;
+}
+
+.sc-wall__strip {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2;
+}
+
+.sc-wall__cap {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1;
+}
+
+.sc-sweep line {
+  opacity: 0;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.5;
+  animation: sc-sweep 11s linear infinite;
+}
+
+@keyframes sc-sweep {
+  0% { transform: translate(364px, -182px); opacity: 0; }
+  12% { opacity: 0.9; }
+  78% { opacity: 0.5; }
+  100% { transform: translate(-728px, 364px); opacity: 0; }
+}
+
+/* -------------------------------------------------------------------- bay */
+
+.sc-bay__slot {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1.4;
+  stroke-dasharray: 14 12;
+}
+
+.sc-bay__sill {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 2;
+}
+
+.sc-bay__open {
+  fill: rgba(255, 255, 255, 0.035);
+  opacity: 0;
+  animation: sc-open var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+@keyframes sc-open {
+  0% { opacity: 1; }
+  2% { opacity: 0; }
+  89% { opacity: 0; }
+  92% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* -------------------------------------------------------------------- car */
+
+.sc-car-move {
+  animation: sc-car-move var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+.sc-car-fade {
+  animation: sc-car-fade var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+@keyframes sc-car-move {
+  0% { transform: translate(728px, -364px); }
+  1% { transform: translate(720px, -360px); animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  9% { transform: translate(0, 0); }
+  79% { transform: translate(0, 0); animation-timing-function: cubic-bezier(0.5, 0, 0.86, 0.4); }
+  91% { transform: translate(-728px, 364px); }
+  100% { transform: translate(-728px, 364px); }
+}
+
+@keyframes sc-car-fade {
+  0%, 1% { opacity: 0; }
+  4% { opacity: 1; }
+  85% { opacity: 1; }
+  91%, 100% { opacity: 0; }
+}
+
+.sc-car__pool { fill: url(#sc-pool); }
+
+.sc-car__skirt {
+  fill: rgba(255, 255, 255, 0.035);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.sc-car__flank {
+  fill: rgba(255, 255, 255, 0.085);
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.sc-car__face {
+  fill: rgba(255, 255, 255, 0.135);
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.sc-car__deck {
+  fill: rgba(255, 255, 255, 0.055);
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.sc-car__glass {
+  fill: rgba(255, 255, 255, 0.16);
+  stroke: rgba(255, 255, 255, 0.46);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.sc-car__roof {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.sc-car__lamp {
+  fill: rgba(255, 255, 255, 0.88);
+  stroke: none;
+}
+
+.sc-car__port {
+  fill: rgba(255, 255, 255, 0.24);
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1;
+}
+
+.sc-car__wheel {
+  fill: #0d0d0f;
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 1.2;
+}
+
+/* ------------------------------------------------------------------- post */
+
+.sc-post__side {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.sc-post__cap {
+  fill: rgba(255, 255, 255, 0.14);
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.sc-post__face {
+  fill: rgba(255, 255, 255, 0.09);
+  stroke: rgba(255, 255, 255, 0.36);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sc-post__screen {
+  fill: rgba(6, 6, 8, 0.72);
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sc-post__track { fill: rgba(255, 255, 255, 0.14); }
+
+.sc-post__fill {
+  fill: var(--ink);
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transform: scaleX(0.62);
+  animation: sc-fill var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+@keyframes sc-fill {
+  0%, 12% { transform: scaleX(0.02); }
+  71% { transform: scaleX(1); }
+  76% { transform: scaleX(1); }
+  76.5%, 100% { transform: scaleX(0.02); }
+}
+
+.sc-post__slot { fill: rgba(255, 255, 255, 0.3); }
+.sc-post__grill { fill: rgba(255, 255, 255, 0.12); }
+
+.sc-post__led {
+  fill: var(--live);
+  animation: sc-led var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+@keyframes sc-led {
+  0%, 9% { fill: rgba(255, 255, 255, 0.24); }
+  12%, 71% { fill: var(--live); }
+  74%, 87% { fill: var(--ink); }
+  90%, 100% { fill: rgba(255, 255, 255, 0.24); }
+}
+
+/* ------------------------------------------------------------------ cable */
+
+.sc-cable {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  animation: sc-cable var(--sc-cycle) linear infinite;
+  animation-delay: var(--sc-delay);
+}
+
+.sc-cable--flow {
+  stroke: var(--live);
+  stroke-width: 2.6;
+  stroke-dasharray: 5 26;
+  animation:
+    sc-cable var(--sc-cycle) linear infinite,
+    sc-flow 1.5s linear infinite;
+  animation-delay: var(--sc-delay), 0s;
+}
+
+@keyframes sc-cable {
+  0%, 10% { opacity: 0; }
+  13% { opacity: 1; }
+  74% { opacity: 1; }
+  76%, 100% { opacity: 0; }
+}
+
+@keyframes sc-flow {
+  to { stroke-dashoffset: -31; }
+}
+
+/* ------------------------------------------------------------------- chip */
+
+.sc-chip__leader {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1;
+}
+
+.sc-chip text {
+  text-anchor: middle;
+  font-family: var(--font-family, 'Montserrat', system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.sc-chip__id { fill: rgba(255, 255, 255, 0.34); }
+
+.sc-chip__state {
+  fill: rgba(255, 255, 255, 0.78);
+  opacity: 0;
+  animation-duration: var(--sc-cycle);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-delay: var(--sc-delay);
+}
+
+.sc-chip__state--open {
+  fill: rgba(255, 255, 255, 0.42);
+  animation-name: sc-chip-open;
+}
+
+.sc-chip__state--arrive { animation-name: sc-chip-arrive; }
+
+.sc-chip__state--charge {
+  fill: var(--live);
+  opacity: 1;
+  animation-name: sc-chip-charge;
+}
+
+.sc-chip__state--ready { animation-name: sc-chip-ready; }
+
+@keyframes sc-chip-open {
+  0% { opacity: 1; }
+  2%, 90% { opacity: 0; }
+  93%, 100% { opacity: 1; }
+}
+
+@keyframes sc-chip-arrive {
+  0%, 2% { opacity: 0; }
+  4%, 10% { opacity: 1; }
+  12%, 100% { opacity: 0; }
+}
+
+@keyframes sc-chip-charge {
+  0%, 12% { opacity: 0; }
+  15%, 70% { opacity: 1; }
+  72%, 100% { opacity: 0; }
+}
+
+@keyframes sc-chip-ready {
+  0%, 72% { opacity: 0; }
+  75%, 86% { opacity: 1; }
+  89%, 100% { opacity: 0; }
+}
+
+/* ------------------------------------------------------------------ motes */
+
+.sc-motes circle {
+  fill: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  animation: sc-mote 14s ease-in-out infinite;
+}
+
+@keyframes sc-mote {
+  0% { transform: translateY(14px); opacity: 0; }
+  30% { opacity: 0.7; }
+  70% { opacity: 0.5; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+
+/* ------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .sc *,
+  .sc *::before,
+  .sc *::after {
+    animation: none !important;
+  }
+
+  .sc-cable { opacity: 1; }
+  .sc-motes circle { opacity: 0.45; }
+}
