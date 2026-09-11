@@ -12,7 +12,7 @@ plugin-backend/.env
 
 # Local/editor state
 .claude/
-CLAUDE.md
+
 .idea/
 .vscode/
 *.iml
