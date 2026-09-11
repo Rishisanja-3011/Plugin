@@ -6,7 +6,7 @@ COPY src ./src
 
 RUN mvn --batch-mode --no-transfer-progress clean verify
 
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 RUN groupadd --system --gid 10001 plugin \
     && useradd --system --uid 10001 --gid plugin --home-dir /nonexistent --shell /usr/sbin/nologin plugin
 WORKDIR /app
