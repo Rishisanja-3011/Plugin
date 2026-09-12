@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalTime;
+import java.time.LocalDateTime;
 
 @Data
 public class StationRequest {
@@ -28,4 +29,30 @@ public class StationRequest {
     private LocalTime openingTime;
     @NotNull
     private LocalTime closingTime;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double localSolarCurrentKw;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double localSolarForecastKw;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double batteryCapacityKwh;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("100.0")
+    private Double batteryStateOfChargePercent;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double gridImportLimitKw;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("100.0")
+    private Double emergencyReservePercent;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double renewableAvailableForChargingKw;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("100.0")
+    private Double stationUtilizationPercent;
+    private String renewableDataMode;
+    private LocalDateTime energyUpdatedAt;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    private Double minimumRatePerKwh;
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("100.0")
+    private Double maximumDiscountPercent;
 }

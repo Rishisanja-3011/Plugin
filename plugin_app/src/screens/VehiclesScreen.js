@@ -110,7 +110,7 @@ export default function VehiclesScreen({ params, goBack, showNotice, confirmNoti
       let nextVehicles;
       let activeVehicleId = profile?.activeVehicleId || existing.find((vehicle) => vehicle.active)?.id || null;
 
-      if (editing) {
+      if (form.id != null || form.originalRegistration) {
         nextVehicles = existing.map((vehicle) => (
           (form.id != null && vehicle.id === form.id)
           || (form.id == null && vehicle.vehicleRegistration === form.originalRegistration)

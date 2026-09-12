@@ -50,6 +50,10 @@ class ChargingOptimizationServiceTest {
             assertThat(option.getDataMode()).isEqualTo("DEMO");
         });
         assertThat(result.getDisclaimer()).contains("SIMULATED");
+        assertThat(result.getOptions()).allSatisfy(option -> {
+            assertThat(option.getObjective()).isNotBlank();
+            assertThat(option.getSourceTimestamp()).isNotNull();
+        });
     }
 
     @Test
@@ -95,6 +99,30 @@ class ChargingOptimizationServiceTest {
         assertThatThrownBy(() -> service.options(request))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("grid-capacity signals");
+    }
+
+    @Test
+    void lowersStationTariffForRenewableWindowsAndGridIncentives() {
+        ChargingOptionsRequest request = validRequest();
+        request.setStationTariff(BigDecimal.valueOf(20));
+        when(gridSignalRepository.findTop20ByGridRegionOrderByCreatedAtDesc("IN-WE")).thenReturn(List.of(
+                GridSignal.builder()
+                        .gridRegion("IN-WE")
+                        .signalType("SHIFT_TO_RENEWABLE")
+                        .requestedReductionPercent(40)
+                        .startsAt(request.getEarliestStartTime().minusMinutes(5))
+                        .endsAt(request.getLatestEndTime().plusMinutes(5))
+                        .build()
+        ));
+
+        ChargingOptions result = service.options(request);
+
+        assertThat(result.getOptions()).allSatisfy(option -> {
+            assertThat(option.getBasePricePerKwh()).isEqualByComparingTo("20.00");
+            assertThat(option.getDiscountPercent()).isEqualByComparingTo("40.00");
+            assertThat(option.getExpectedPricePerKwh()).isEqualByComparingTo("12.00");
+            assertThat(option.getGridSignalType()).isEqualTo("SHIFT_TO_RENEWABLE");
+        });
     }
 
     private static ChargingOptionsRequest validRequest() {

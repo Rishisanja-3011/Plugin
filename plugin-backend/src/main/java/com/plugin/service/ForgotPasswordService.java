@@ -63,12 +63,12 @@ public class ForgotPasswordService {
         return result;
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public Map<String, String> sendOtp(SendOtpRequest request) {
         return sendOtp(request, PURPOSE_PASSWORD_RESET);
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public Map<String, String> sendOtp(SendOtpRequest request, String purpose) {
         String method = request.getDeliveryMethod().trim().toUpperCase();
         if (!"EMAIL".equals(method)) {

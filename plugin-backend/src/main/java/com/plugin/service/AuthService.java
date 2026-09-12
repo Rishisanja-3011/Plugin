@@ -106,7 +106,6 @@ public class AuthService {
         dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
-    @Transactional
     public Map<String, String> register(RegisterRequest request) {
         String normalizedEmail = IdentityNormalizer.email(request.getEmail());
         User existingUser = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
@@ -146,7 +145,9 @@ public class AuthService {
 
         boolean delivered = sendConfirmationOtpEmail(pending.getEmail(), otp);
         if (!delivered) {
-            pendingRegistrationRepository.delete(pending);
+            // Keep the pending registration so the user can retry delivery after
+            // a temporary SMTP outage instead of being stranded on the OTP screen.
+            log.warn("Signup OTP delivery failed; pending registration retained for resend");
         }
 
         return GENERIC_REGISTRATION_RESPONSE;

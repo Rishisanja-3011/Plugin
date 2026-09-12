@@ -40,6 +40,9 @@ spring:
 
 app:
   production: "${APP_PRODUCTION:false}"
+  demo-seed:
+    enabled: "${DEMO_SEED_ENABLED:false}"
+    password: "${DEMO_SEED_PASSWORD:}"
   cors:
     allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}"
   otp:
@@ -61,6 +64,24 @@ app:
     provider: "${GRID_DATA_PROVIDER:india-energy-atlas}"
     default-region: "${GRID_DEFAULT_REGION:IN-WE}"
     cache-seconds: "${GRID_DATA_CACHE_SECONDS:900}"
+    history:
+      region: "${GRID_HISTORY_REGION:IN-WE}"
+      initial-delay-ms: "${GRID_HISTORY_INITIAL_DELAY_MS:120000}"
+      capture-delay-ms: "${GRID_HISTORY_CAPTURE_DELAY_MS:3600000}"
+    alerts:
+      region: "${RENEWABLE_ALERT_REGION:IN-WE}"
+      minimum-share-percent: "${RENEWABLE_ALERT_MINIMUM_SHARE:40}"
+      initial-delay-ms: "${RENEWABLE_ALERT_INITIAL_DELAY_MS:180000}"
+      check-delay-ms: "${RENEWABLE_ALERT_CHECK_DELAY_MS:1800000}"
+    pricing:
+      renewable-discount-factor: "${RENEWABLE_DISCOUNT_FACTOR:0.30}"
+      maximum-renewable-discount-percent: "${MAX_RENEWABLE_DISCOUNT_PERCENT:30}"
+      maximum-total-discount-percent: "${MAX_TOTAL_DISCOUNT_PERCENT:40}"
+      minimum-rate-per-kwh: "${MINIMUM_DYNAMIC_RATE_PER_KWH:1}"
+      low-utilization-threshold-percent: "${LOW_UTILIZATION_THRESHOLD_PERCENT:35}"
+      low-utilization-incentive-percent: "${LOW_UTILIZATION_INCENTIVE_PERCENT:3}"
+      congestion-threshold-percent: "${GRID_CONGESTION_THRESHOLD_PERCENT:85}"
+      congestion-adjustment-percent: "${GRID_CONGESTION_ADJUSTMENT_PERCENT:5}"
     external:
       base-url: "${GRID_DATA_BASE_URL:}"
       api-key: "${GRID_DATA_API_KEY:}"

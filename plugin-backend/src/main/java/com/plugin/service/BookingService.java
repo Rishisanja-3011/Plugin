@@ -53,6 +53,7 @@ public class BookingService {
     private final BookingTransactionRunner transactionRunner;
     private final EtaSlotAllocator etaSlotAllocator;
     private final ChargingImpactService chargingImpactService;
+    private final GridSignalRepository gridSignalRepository;
 
     @Value("${app.notifications.booking-start-lookback-minutes:180}")
     private long bookingStartNotificationLookbackMinutes;
@@ -186,7 +187,7 @@ public class BookingService {
 
         String refId = generateReferenceId();
         PricingSnapshotService.PricingSnapshot lockedPricing =
-                pricingSnapshotService.resolveFor(station, requestedPointType);
+                pricingSnapshotService.resolveFor(station, requestedPointType, startTime, endTime);
         ChargingImpactService.ChargingImpact impact = resolveChargingImpact(
                 request, station, startTime, endTime, chargingPoint);
 
@@ -219,10 +220,13 @@ public class BookingService {
                 .lastDistanceMeters(lastDistanceMeters)
                 .pointTypePreference(requestedPointType != null ? requestedPointType.name() : null)
                 .lockedRatePerUnit(lockedPricing.ratePerUnit())
+                .baseRatePerUnit(lockedPricing.baseRatePerUnit())
+                .lockedDiscountPercent(lockedPricing.discountPercent())
                 .lockedRateType(lockedPricing.rateType())
                 .chargingPreference(impact != null ? impact.preference() : null)
                 .requestedEnergyKwh(impact != null ? impact.requestedEnergyKwh() : null)
                 .expectedRenewableSharePercent(impact != null ? impact.renewableSharePercent() : null)
+                .baselineRenewableSharePercent(impact != null ? impact.baselineRenewableSharePercent() : null)
                 .expectedCarbonKg(impact != null ? impact.carbonKg() : null)
                 .estimatedCarbonSavedKg(impact != null ? impact.carbonSavedKg() : null)
                 .greenScore(impact != null ? impact.greenScore() : null)
@@ -262,9 +266,27 @@ public class BookingService {
                         ? " has a reserved charging window at " + startTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))
                         + ". Arrive by " +
                         gracePeriodEndTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")) + "."
-                        : " is confirmed for " + startTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))));
+                        : " is confirmed for " + startTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")))
+                + (impact == null ? "" : " Your green-booking price is locked at ₹" + lockedPricing.ratePerUnit()
+                + "/kWh with " + impact.renewableSharePercent() + "% expected renewable share."));
+        recordGridEventAcceptance(station, startTime, endTime, impact);
 
         return toResponse(booking);
+    }
+
+    private void recordGridEventAcceptance(Station station, LocalDateTime start, LocalDateTime end,
+                                            ChargingImpactService.ChargingImpact impact) {
+        if (impact == null) return;
+        String region = ChargingImpactService.regionFor(station);
+        gridSignalRepository.findTop20ByGridRegionOrderByCreatedAtDesc(region).stream()
+                .filter(signal -> !signal.isCancelled() && (signal.getStatus() == null || "ACTIVE".equals(signal.getStatus())))
+                .filter(signal -> signal.getStartsAt() != null && signal.getEndsAt() != null
+                        && signal.getStartsAt().isBefore(end) && signal.getEndsAt().isAfter(start))
+                .findFirst().ifPresent(signal -> {
+                    signal.setAcceptedDrivers((signal.getAcceptedDrivers() == null ? 0 : signal.getAcceptedDrivers()) + 1);
+                    signal.setUpdatedAt(LocalDateTime.now());
+                    gridSignalRepository.save(signal);
+                });
     }
 
     @Transactional
@@ -333,7 +355,8 @@ public class BookingService {
         booking.setStartTime(storedStartTime);
         booking.setEndTime(storedEndTime);
         PricingSnapshotService.PricingSnapshot lockedPricing =
-                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
+                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType(),
+                        startTime, endTime);
         booking.setLockedRatePerUnit(lockedPricing.ratePerUnit());
         booking.setLockedRateType(lockedPricing.rateType());
         booking.setStatus(BookingStatus.MODIFIED);
@@ -644,7 +667,8 @@ public class BookingService {
 
         cpRepository.touchSchedule(booking.getChargingPoint().getId());
         PricingSnapshotService.PricingSnapshot lockedPricing =
-                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType());
+                pricingSnapshotService.resolveFor(booking.getStation(), booking.getChargingPoint().getPointType(),
+                        requestedStartTime, requestedEndTime);
 
         booking.setStartTime(storedRequestedStartTime);
         booking.setEndTime(storedRequestedEndTime);
@@ -1107,10 +1131,13 @@ public class BookingService {
                 .assignedChargingPointId(b.getAssignedChargingPointId())
                 .virtualSpot(Boolean.TRUE.equals(b.getVirtualSpot()))
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
+                .baseRatePerUnit(b.getBaseRatePerUnit())
+                .lockedDiscountPercent(b.getLockedDiscountPercent())
                 .lockedRateType(b.getLockedRateType())
                 .chargingPreference(b.getChargingPreference())
                 .requestedEnergyKwh(b.getRequestedEnergyKwh())
                 .expectedRenewableSharePercent(b.getExpectedRenewableSharePercent())
+                .baselineRenewableSharePercent(b.getBaselineRenewableSharePercent())
                 .expectedCarbonKg(b.getExpectedCarbonKg())
                 .estimatedCarbonSavedKg(b.getEstimatedCarbonSavedKg())
                 .greenScore(b.getGreenScore())

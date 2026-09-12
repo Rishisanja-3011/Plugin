@@ -1,0 +1,337 @@
+{"kind":"deck","id":"pr/xj2nda","name":"Deck"}
+{"kind":"layout","layoutId":"df9afcc3-a0b8-41ff-a9e5-bce4e5963f7e","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"29d2e8a7-42d4-49d9-b5d1-10a79e69816b","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/8g7b1q","slide":1,"title":"PLUGIN","textShapes":5}
+{"kind":"shape","id":"sh/onmt0v65","slide":1,"bbox":[740,90,370,250]}
+{"kind":"shape","id":"sh/nmds7qpk","slide":1,"bbox":[750,108,10,10]}
+{"kind":"shape","id":"sh/ml4byloz","slide":1,"bbox":[795,134,336,226]}
+{"kind":"shape","id":"sh/1kba507e","slide":1,"bbox":[814,156,13,13]}
+{"kind":"shape","id":"sh/0j2twv6t","slide":1,"bbox":[850,178,302,202]}
+{"kind":"shape","id":"sh/zits3qp8","slide":1,"bbox":[878,204,16,16]}
+{"kind":"shape","id":"sh/ehkbulon","slide":1,"bbox":[905,222,268,178]}
+{"kind":"shape","id":"sh/lgfuhk7i","slide":1,"bbox":[942,252,10,10]}
+{"kind":"shape","id":"sh/kf6t8f6d","slide":1,"bbox":[960,266,234,154]}
+{"kind":"shape","id":"sh/2t476d4j","slide":1,"bbox":[1006,300,13,13]}
+{"kind":"shape","id":"sh/3ud8zil4","slide":1,"bbox":[1015,310,200,130]}
+{"kind":"shape","id":"sh/ovmp8nmp","slide":1,"bbox":[1070,348,16,16]}
+{"kind":"shape","id":"sh/pwvq1s3a","slide":1,"bbox":[1070,354,166,106]}
+{"kind":"shape","id":"sh/upk72d4n","slide":1,"bbox":[1134,396,10,10]}
+{"kind":"textbox","id":"sh/fqt8vil8","slide":1,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[72,58,190,42]}
+{"kind":"textbox","id":"sh/grmp4nmt","slide":1,"text":"Renewable-aware\nEV charging","textPreview":"Renewable-aware | EV charging","textChars":27,"textLines":2,"bbox":[72,166,680,164]}
+{"kind":"textbox","id":"sh/1svqx83e","slide":1,"text":"Shift charging demand into cleaner hours, reward flexibility, and help operators use more renewable energy.","textPreview":"Shift charging demand into cleaner hours, reward flexibility, and help operators use more renewable energy.","textChars":107,"textLines":1,"bbox":[76,356,620,92]}
+{"kind":"shape","id":"sh/ylo7ex4r","slide":1,"bbox":[76,520,424,52]}
+{"kind":"textbox","id":"sh/zmx872lc","slide":1,"text":"HackOut'26 Phase 1 Ideation","textPreview":"HackOut'26 Phase 1 Ideation","textChars":27,"textLines":1,"bbox":[100,530,375,28]}
+{"kind":"textbox","id":"sh/v6p4zu1o","slide":1,"text":"Mobile driver app + station operations + grid intelligence","textPreview":"Mobile driver app + station operations + grid intelligence","textChars":58,"textLines":1,"bbox":[76,600,610,30]}
+{"kind":"notes","id":"nt/8g7b1q","slide":1,"text":"Opening: EV charging becomes more valuable to the grid when the platform can move flexible demand into renewable-rich windows. PLUGIN adds that intelligence to a working EV charging platform."}
+{"kind":"slide","id":"sl/1ln4lj","slide":2,"title":"PLUGIN","textShapes":15}
+{"kind":"textbox","id":"sh/pc7q9wza","slide":2,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/29wry10j","slide":2,"text":"The renewable utilization gap","textPreview":"The renewable utilization gap","textChars":29,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/na5876h4","slide":2,"text":"Renewable supply and EV charging demand often peak at different times","textPreview":"Renewable supply and EV charging demand often peak at different times","textChars":69,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/07epwrid","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"textbox","id":"sh/18nq5wzy","slide":2,"text":"Renewable supply","textPreview":"Renewable supply","textChars":16,"textLines":1,"bbox":[86,206,250,30]}
+{"kind":"textbox","id":"sh/e5w7uh07","slide":2,"text":"EV charging demand","textPreview":"EV charging demand","textChars":18,"textLines":1,"bbox":[86,392,250,30]}
+{"kind":"shape","id":"sh/f6583m1s","slide":2,"bbox":[345,222,735,0]}
+{"kind":"shape","id":"sh/k3i98bix","slide":2,"bbox":[345,408,735,0]}
+{"kind":"shape","id":"sh/l4rqhgz2","slide":2,"bbox":[365,312,52,18]}
+{"kind":"shape","id":"sh/1cfahw36","slide":2,"bbox":[365,518,52,32]}
+{"kind":"textbox","id":"sh/0b69orml","slide":2,"text":"6:00","textPreview":"6:00","textChars":4,"textLines":1,"bbox":[357,570,70,24]}
+{"kind":"shape","id":"sh/zaxsfml0","slide":2,"bbox":[453,300,52,30]}
+{"kind":"shape","id":"sh/e9ormh4f","slide":2,"bbox":[453,510,52,40]}
+{"kind":"textbox","id":"sh/dofadc3u","slide":2,"text":"8:00","textPreview":"8:00","textChars":4,"textLines":1,"bbox":[445,570,70,24]}
+{"kind":"shape","id":"sh/cn69k7mp","slide":2,"bbox":[541,274,52,56]}
+{"kind":"shape","id":"sh/rmxsbml4","slide":2,"bbox":[541,506,52,44]}
+{"kind":"textbox","id":"sh/ql4rih4j","slide":2,"text":"10:00","textPreview":"10:00","textChars":5,"textLines":1,"bbox":[533,570,70,24]}
+{"kind":"shape","id":"sh/x4zapg3e","slide":2,"bbox":[629,226,52,104]}
+{"kind":"shape","id":"sh/wjqtwbmt","slide":2,"bbox":[629,496,52,54]}
+{"kind":"textbox","id":"sh/gnytsfa5","slide":2,"text":"12:00","textPreview":"12:00","textChars":5,"textLines":1,"bbox":[621,570,70,24]}
+{"kind":"shape","id":"sh/ho7ulkba","slide":2,"bbox":[717,180,52,150]}
+{"kind":"shape","id":"sh/ulgbqpsz","slide":2,"bbox":[717,482,52,68]}
+{"kind":"textbox","id":"sh/vmpcjatk","slide":2,"text":"14:00","textPreview":"14:00","textChars":5,"textLines":1,"bbox":[709,570,70,24]}
+{"kind":"shape","id":"sh/8jytofat","slide":2,"bbox":[805,204,52,126]}
+{"kind":"shape","id":"sh/tk7uhkbe","slide":2,"bbox":[805,446,52,104]}
+{"kind":"textbox","id":"sh/6hwbm5sn","slide":2,"text":"16:00","textPreview":"16:00","textChars":5,"textLines":1,"bbox":[797,570,70,24]}
+{"kind":"shape","id":"sh/7ipcfat8","slide":2,"bbox":[893,252,52,78]}
+{"kind":"shape","id":"sh/kfetkvax","slide":2,"bbox":[893,406,52,144]}
+{"kind":"textbox","id":"sh/lgnud0b2","slide":2,"text":"18:00","textPreview":"18:00","textChars":5,"textLines":1,"bbox":[885,570,70,24]}
+{"kind":"shape","id":"sh/nqlcnqd4","slide":2,"bbox":[981,296,52,34]}
+{"kind":"shape","id":"sh/2pcvulwj","slide":2,"bbox":[981,434,52,116]}
+{"kind":"textbox","id":"sh/9snup0va","slide":2,"text":"20:00","textPreview":"20:00","textChars":5,"textLines":1,"bbox":[973,570,70,24]}
+{"kind":"shape","id":"sh/oredwvep","slide":2,"bbox":[78,622,1120,48]}
+{"kind":"textbox","id":"sh/be5crad0","slide":2,"text":"Result: clean energy can be curtailed earlier while unmanaged charging adds pressure later.","textPreview":"Result: clean energy can be curtailed earlier while unmanaged charging adds pressure later.","textChars":91,"textLines":1,"bbox":[104,632,1070,28]}
+{"kind":"notes","id":"nt/1ln4lj","slide":2,"text":"This is a conceptual profile, not measured system data. The design problem is temporal mismatch: flexible charging can absorb more renewable supply when users receive a practical incentive and a feasible alternative."}
+{"kind":"slide","id":"sl/fk1me6","slide":3,"title":"PLUGIN","textShapes":20}
+{"kind":"textbox","id":"sh/4z29kbu9","slide":3,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/3yt8b6do","slide":3,"text":"The PLUGIN control loop","textPreview":"The PLUGIN control loop","textChars":23,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/ixkri1c3","slide":3,"text":"Forecast, optimize, incentivize, book, and measure","textPreview":"Forecast, optimize, incentivize, book, and measure","textChars":50,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/dovah0vq","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/cn29ovul","slide":3,"bbox":[248,330,56,0]}
+{"kind":"shape","id":"sh/rmt8fqd0","slide":3,"bbox":[66,204,205,294]}
+{"kind":"textbox","id":"sh/qlkrmlcf","slide":3,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[88,224,70,42]}
+{"kind":"textbox","id":"sh/tsrq5wvm","slide":3,"text":"Sense","textPreview":"Sense","textChars":5,"textLines":1,"bbox":[88,286,160,42]}
+{"kind":"textbox","id":"sh/8ri9cru1","slide":3,"text":"Regional renewable share, grid load, carbon and station capacity","textPreview":"Regional renewable share, grid load, carbon and station capacity","textChars":64,"textLines":1,"bbox":[88,350,160,108]}
+{"kind":"shape","id":"sh/ato7mh8r","slide":3,"bbox":[486,330,56,0]}
+{"kind":"shape","id":"sh/vux8vm9c","slide":3,"bbox":[304,204,205,294]}
+{"kind":"textbox","id":"sh/wvqporqx","slide":3,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[326,224,70,42]}
+{"kind":"textbox","id":"sh/xwzqxw7i","slide":3,"text":"Optimize","textPreview":"Optimize","textChars":8,"textLines":1,"bbox":[326,286,160,42]}
+{"kind":"textbox","id":"sh/ix87q183","slide":3,"text":"Evaluate feasible stations and 30-minute charging windows","textPreview":"Evaluate feasible stations and 30-minute charging windows","textChars":57,"textLines":1,"bbox":[326,350,160,108]}
+{"kind":"shape","id":"sh/jyh8z6po","slide":3,"bbox":[724,330,56,0]}
+{"kind":"shape","id":"sh/kzqpsbq9","slide":3,"bbox":[542,204,205,294]}
+{"kind":"textbox","id":"sh/50zq1w7e","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[564,224,70,42]}
+{"kind":"textbox","id":"sh/6187u18z","slide":3,"text":"Incentivize","textPreview":"Incentivize","textChars":11,"textLines":1,"bbox":[564,286,160,42]}
+{"kind":"textbox","id":"sh/721836pk","slide":3,"text":"Lower the rate when renewable availability improves","textPreview":"Lower the rate when renewable availability improves","textChars":51,"textLines":1,"bbox":[564,350,160,108]}
+{"kind":"shape","id":"sh/361or65s","slide":3,"bbox":[962,330,56,0]}
+{"kind":"shape","id":"sh/25s7i1o7","slide":3,"bbox":[780,204,205,294]}
+{"kind":"textbox","id":"sh/psj6tgny","slide":3,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[802,224,70,42]}
+{"kind":"textbox","id":"sh/4rapkb6d","slide":3,"text":"Commit","textPreview":"Commit","textChars":6,"textLines":1,"bbox":[802,286,160,42]}
+{"kind":"textbox","id":"sh/f21on65g","slide":3,"text":"Driver selects a recommendation and locks the quoted price","textPreview":"Driver selects a recommendation and locks the quoted price","textChars":58,"textLines":1,"bbox":[802,350,160,108]}
+{"kind":"shape","id":"sh/u187e1ob","slide":3,"bbox":[1018,204,205,294]}
+{"kind":"textbox","id":"sh/h4j6pgnm","slide":3,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1040,224,70,42]}
+{"kind":"textbox","id":"sh/g3apgb61","slide":3,"text":"Measure","textPreview":"Measure","textChars":7,"textLines":1,"bbox":[1040,286,160,42]}
+{"kind":"textbox","id":"sh/7yhojm5k","slide":3,"text":"Track renewable kWh, savings and peak demand avoided","textPreview":"Track renewable kWh, savings and peak demand avoided","textChars":52,"textLines":1,"bbox":[1040,350,160,108]}
+{"kind":"textbox","id":"sh/6x8nahoz","slide":3,"text":"The same loop coordinates the driver, station operator, and grid operator.","textPreview":"The same loop coordinates the driver, station operator, and grid operator.","textChars":74,"textLines":1,"bbox":[192,570,900,42]}
+{"kind":"notes","id":"nt/fk1me6","slide":3,"text":"The project extends the existing booking platform rather than replacing it. The renewable layer changes which station and time the system recommends, how the price responds, and what impact the platform records."}
+{"kind":"slide","id":"sl/acsqpd","slide":4,"title":"PLUGIN","textShapes":7}
+{"kind":"textbox","id":"sh/ypk7upgv","slide":4,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/lcb654f6","slide":4,"text":"Working mobile experience","textPreview":"Working mobile experience","textChars":25,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/kb2pwzy1","slide":4,"text":"The customer compares feasible charging choices before booking","textPreview":"The customer compares feasible charging choices before booking","textChars":62,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/bm9ozux4","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/al07qpgj","slide":4,"bbox":[80,186,332,438]}
+{"kind":"textbox","id":"sh/cn2pszyp","slide":4,"text":"Set energy and preference","textPreview":"Set energy and preference","textChars":25,"textLines":1,"bbox":[98,582,296,30]}
+{"kind":"shape","id":"sh/ni9ovax8","slide":4,"bbox":[480,186,332,438]}
+{"kind":"textbox","id":"sh/8fetgvy9","slide":4,"text":"Compare dynamic outcomes","textPreview":"Compare dynamic outcomes","textChars":24,"textLines":1,"bbox":[498,582,296,30]}
+{"kind":"shape","id":"sh/tgnup0fu","slide":4,"bbox":[880,186,332,438]}
+{"kind":"textbox","id":"sh/7e5cnqx4","slide":4,"text":"Choose a greener time","textPreview":"Choose a greener time","textChars":21,"textLines":1,"bbox":[898,582,296,30]}
+{"kind":"image","id":"im/k32t8by1","slide":4,"name":"","geometry":"roundRect","alt":"Set energy and preference","bbox":[92,198,308,372]}
+{"kind":"image","id":"im/76dcj6xc","slide":4,"name":"","geometry":"roundRect","alt":"Compare dynamic outcomes","bbox":[492,198,308,372]}
+{"kind":"image","id":"im/x4j6pc7e","slide":4,"name":"","geometry":"roundRect","alt":"Choose a greener time","bbox":[892,198,308,372]}
+{"kind":"notes","id":"nt/acsqpd","slide":4,"text":"Screenshots supplied from the current mobile build. The backend now returns separate Balanced, Greenest, Cheapest and Fastest windows using a 24-hour search horizon and renewable-adjusted prices."}
+{"kind":"slide","id":"sl/w5honr","slide":5,"title":"PLUGIN","textShapes":19}
+{"kind":"textbox","id":"sh/d4ry1cf2","slide":5,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/qh0f6xgr","slide":5,"text":"How the optimizer decides","textPreview":"How the optimizer decides","textChars":25,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/bi9gz2xc","slide":5,"text":"Every recommendation must pass operational constraints before ranking","textPreview":"Every recommendation must pass operational constraints before ranking","textChars":69,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/ofyx4nyl","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/pgryxsf6","slide":5,"bbox":[92,213,12,12]}
+{"kind":"textbox","id":"sh/2dgf2dgf","slide":5,"text":"Connector available","textPreview":"Connector available","textChars":19,"textLines":1,"bbox":[122,202,270,36]}
+{"kind":"shape","id":"sh/3epgvix0","slide":5,"bbox":[410,220,94,0]}
+{"kind":"shape","id":"sh/gbyx0nyp","slide":5,"bbox":[92,291,12,12]}
+{"kind":"textbox","id":"sh/1c7ytsfa","slide":5,"text":"Station open","textPreview":"Station open","textChars":12,"textLines":1,"bbox":[122,280,270,36]}
+{"kind":"shape","id":"sh/xwjyh8zi","slide":5,"bbox":[410,298,94,0]}
+{"kind":"shape","id":"sh/wvax8nix","slide":5,"bbox":[92,369,12,12]}
+{"kind":"textbox","id":"sh/bu1gfihc","slide":5,"text":"No booking overlap","textPreview":"No booking overlap","textChars":18,"textLines":1,"bbox":[122,358,270,36]}
+{"kind":"shape","id":"sh/atsf6d0r","slide":5,"bbox":[410,376,94,0]}
+{"kind":"shape","id":"sh/9sjyd8zm","slide":5,"bbox":[92,447,12,12]}
+{"kind":"textbox","id":"sh/o7ax43i1","slide":5,"text":"Energy deliverable","textPreview":"Energy deliverable","textChars":18,"textLines":1,"bbox":[122,436,270,36]}
+{"kind":"shape","id":"sh/n61gbyhg","slide":5,"bbox":[410,454,94,0]}
+{"kind":"shape","id":"sh/m58f2t0v","slide":5,"bbox":[92,525,12,12]}
+{"kind":"textbox","id":"sh/14zy9oza","slide":5,"text":"Capacity within limit","textPreview":"Capacity within limit","textChars":21,"textLines":1,"bbox":[122,514,270,36]}
+{"kind":"shape","id":"sh/03qx0jip","slide":5,"bbox":[410,532,94,0]}
+{"kind":"shape","id":"sh/s7uxw3ql","slide":5,"bbox":[510,214,250,332]}
+{"kind":"textbox","id":"sh/t83yp876","slide":5,"text":"Feasible\n30-minute\nwindows","textPreview":"Feasible | 30-minute | windows","textChars":26,"textLines":3,"bbox":[548,286,174,150]}
+{"kind":"shape","id":"sh/6lcfut8f","slide":5,"bbox":[760,222,72,0]}
+{"kind":"textbox","id":"sh/rmlgnyp0","slide":5,"text":"GREENEST","textPreview":"GREENEST","textChars":8,"textLines":1,"bbox":[850,186,220,34]}
+{"kind":"textbox","id":"sh/4juxsjqp","slide":5,"text":"Highest renewable share","textPreview":"Highest renewable share","textChars":23,"textLines":1,"bbox":[850,224,300,32]}
+{"kind":"shape","id":"sh/5k3ylo7a","slide":5,"bbox":[760,327,72,0]}
+{"kind":"textbox","id":"sh/ihsfq98j","slide":5,"text":"CHEAPEST","textPreview":"CHEAPEST","textChars":8,"textLines":1,"bbox":[850,291,220,34]}
+{"kind":"textbox","id":"sh/ji1gjep4","slide":5,"text":"Lowest final cost","textPreview":"Lowest final cost","textChars":17,"textLines":1,"bbox":[850,329,300,32]}
+{"kind":"shape","id":"sh/ofeh4nqt","slide":5,"bbox":[760,432,72,0]}
+{"kind":"textbox","id":"sh/pgnyxs7e","slide":5,"text":"FASTEST","textPreview":"FASTEST","textChars":7,"textLines":1,"bbox":[850,396,220,34]}
+{"kind":"textbox","id":"sh/za90nm9g","slide":5,"text":"Earliest feasible start","textPreview":"Earliest feasible start","textChars":23,"textLines":1,"bbox":[850,434,300,32]}
+{"kind":"shape","id":"sh/y9gjuhsv","slide":5,"bbox":[760,537,72,0]}
+{"kind":"textbox","id":"sh/lcripcrm","slide":5,"text":"BALANCED","textPreview":"BALANCED","textChars":8,"textLines":1,"bbox":[850,501,220,34]}
+{"kind":"textbox","id":"sh/kbi1wra1","slide":5,"text":"Best weighted trade-off","textPreview":"Best weighted trade-off","textChars":23,"textLines":1,"bbox":[850,539,300,32]}
+{"kind":"textbox","id":"sh/7y9krm9s","slide":5,"text":"Actual station and grid data determine whether objectives share the same best window.","textPreview":"Actual station and grid data determine whether objectives share the same best window.","textChars":85,"textLines":1,"bbox":[98,630,1080,34]}
+{"kind":"notes","id":"nt/w5honr","slide":5,"text":"The optimizer is deterministic and explainable. It ranks feasible candidates by renewable share, final price, start time, carbon intensity, and grid load. It does not force artificial differences when the source data lacks meaningful variation."}
+{"kind":"slide","id":"sl/vtu84h","slide":6,"title":"PLUGIN","textShapes":35}
+{"kind":"textbox","id":"sh/fmdgjm58","slide":6,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/07mxcr6d","slide":6,"text":"Verified optimization scenario","textPreview":"Verified optimization scenario","textChars":30,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/18vylwny","slide":6,"text":"Surat station, 35 kWh request, ₹50 base tariff, 24-hour flexibility","textPreview":"Surat station, 35 kWh request, ₹50 base tariff, 24-hour flexibility","textChars":67,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/qh4f6xob","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"textbox","id":"sh/ridwf25w","slide":6,"text":"Strategy","textPreview":"Strategy","textChars":8,"textLines":1,"bbox":[74,205,190,28]}
+{"kind":"textbox","id":"sh/sjmx876h","slide":6,"text":"Renewable share","textPreview":"Renewable share","textChars":15,"textLines":1,"bbox":[280,205,210,28]}
+{"kind":"textbox","id":"sh/dkvehcn2","slide":6,"text":"Rate / kWh","textPreview":"Rate / kWh","textChars":10,"textLines":1,"bbox":[530,205,160,28]}
+{"kind":"textbox","id":"sh/idkf2xof","slide":6,"text":"Discount","textPreview":"Discount","textChars":8,"textLines":1,"bbox":[720,205,140,28]}
+{"kind":"textbox","id":"sh/3etwb250","slide":6,"text":"Start","textPreview":"Start","textChars":5,"textLines":1,"bbox":[940,205,120,28]}
+{"kind":"shape","id":"sh/be58ni1s","slide":6,"bbox":[72,236,1110,0]}
+{"kind":"textbox","id":"sh/adwred07","slide":6,"text":"FASTEST","textPreview":"FASTEST","textChars":7,"textLines":1,"bbox":[74,248,190,34]}
+{"kind":"textbox","id":"sh/xgnqpsjy","slide":6,"text":"12.72%","textPreview":"12.72%","textChars":6,"textLines":1,"bbox":[280,248,180,34]}
+{"kind":"shape","id":"sh/cfe9gnid","slide":6,"bbox":[398,255,27.98,14]}
+{"kind":"textbox","id":"sh/zipsr21o","slide":6,"text":"₹48.09","textPreview":"₹48.09","textChars":6,"textLines":1,"bbox":[530,248,160,34]}
+{"kind":"textbox","id":"sh/yhwrix03","slide":6,"text":"3.82%","textPreview":"3.82%","textChars":5,"textLines":1,"bbox":[720,248,140,34]}
+{"kind":"textbox","id":"sh/lk7atcju","slide":6,"text":"00:00","textPreview":"00:00","textChars":5,"textLines":1,"bbox":[940,248,120,34]}
+{"kind":"shape","id":"sh/kjy9k7i9","slide":6,"bbox":[72,315,1110,0]}
+{"kind":"textbox","id":"sh/fml8fy1k","slide":6,"text":"CHEAPEST","textPreview":"CHEAPEST","textChars":8,"textLines":1,"bbox":[74,327,190,34]}
+{"kind":"textbox","id":"sh/elcr6tkz","slide":6,"text":"35.69%","textPreview":"35.69%","textChars":6,"textLines":1,"bbox":[280,327,180,34]}
+{"kind":"shape","id":"sh/i1kbe1kn","slide":6,"bbox":[398,334,78.52,14]}
+{"kind":"textbox","id":"sh/32tcn6l8","slide":6,"text":"₹44.65","textPreview":"₹44.65","textChars":6,"textLines":1,"bbox":[530,327,160,34]}
+{"kind":"textbox","id":"sh/432tgb2t","slide":6,"text":"10.71%","textPreview":"10.71%","textChars":6,"textLines":1,"bbox":[720,327,140,34]}
+{"kind":"textbox","id":"sh/54bupg3y","slide":6,"text":"10:00","textPreview":"10:00","textChars":5,"textLines":1,"bbox":[940,327,120,34]}
+{"kind":"shape","id":"sh/ud0ba1kb","slide":6,"bbox":[72,394,1110,0]}
+{"kind":"textbox","id":"sh/ve9cj6lw","slide":6,"text":"BALANCED","textPreview":"BALANCED","textChars":8,"textLines":1,"bbox":[74,406,190,34]}
+{"kind":"textbox","id":"sh/gzitcb2h","slide":6,"text":"38.01%","textPreview":"38.01%","textChars":6,"textLines":1,"bbox":[280,406,180,34]}
+{"kind":"shape","id":"sh/h0rulw32","slide":6,"bbox":[398,413,83.62,14]}
+{"kind":"textbox","id":"sh/69gb6hkf","slide":6,"text":"₹44.30","textPreview":"₹44.30","textChars":6,"textLines":1,"bbox":[530,406,160,34]}
+{"kind":"textbox","id":"sh/7a9cfml0","slide":6,"text":"11.40%","textPreview":"11.40%","textChars":6,"textLines":1,"bbox":[720,406,140,34]}
+{"kind":"textbox","id":"sh/p4felkni","slide":6,"text":"11:00","textPreview":"11:00","textChars":5,"textLines":1,"bbox":[940,406,120,34]}
+{"kind":"shape","id":"sh/o36xszmx","slide":6,"bbox":[72,473,1110,0]}
+{"kind":"textbox","id":"sh/n2xwju5c","slide":6,"text":"GREENEST","textPreview":"GREENEST","textChars":8,"textLines":1,"bbox":[74,485,190,34]}
+{"kind":"textbox","id":"sh/21ofqp4r","slide":6,"text":"38.97%","textPreview":"38.97%","textChars":6,"textLines":1,"bbox":[280,485,180,34]}
+{"kind":"shape","id":"sh/10fehkn6","slide":6,"bbox":[398,492,85.73,14]}
+{"kind":"textbox","id":"sh/0zmxofm1","slide":6,"text":"₹44.16","textPreview":"₹44.16","textChars":6,"textLines":1,"bbox":[530,485,160,34]}
+{"kind":"textbox","id":"sh/fydwfa5g","slide":6,"text":"11.69%","textPreview":"11.69%","textChars":6,"textLines":1,"bbox":[720,485,140,34]}
+{"kind":"textbox","id":"sh/ex4fm54v","slide":6,"text":"12:00","textPreview":"12:00","textChars":5,"textLines":1,"bbox":[940,485,120,34]}
+{"kind":"textbox","id":"sh/dwved0na","slide":6,"text":"26.25 pp","textPreview":"26.25 pp","textChars":8,"textLines":1,"bbox":[112,584,350,54]}
+{"kind":"textbox","id":"sh/svmxkfmp","slide":6,"text":"renewable-share gain: fastest to greenest","textPreview":"renewable-share gain: fastest to greenest","textChars":41,"textLines":1,"bbox":[112,640,350,44]}
+{"kind":"textbox","id":"sh/sze5kjml","slide":6,"text":"₹3.93/kWh","textPreview":"₹3.93/kWh","textChars":9,"textLines":1,"bbox":[486,584,340,54]}
+{"kind":"textbox","id":"sh/t0n6t4n6","slide":6,"text":"rate reduction: fastest to greenest","textPreview":"rate reduction: fastest to greenest","textChars":35,"textLines":1,"bbox":[486,640,340,44]}
+{"kind":"textbox","id":"sh/6xwni94v","slide":6,"text":"₹137.55","textPreview":"₹137.55","textChars":7,"textLines":1,"bbox":[852,584,320,54]}
+{"kind":"textbox","id":"sh/ry5ore5g","slide":6,"text":"estimated saving on 35 kWh","textPreview":"estimated saving on 35 kWh","textChars":26,"textLines":1,"bbox":[852,640,320,44]}
+{"kind":"notes","id":"nt/vtu84h","slide":6,"text":"Evidence captured from the running local API on 12 September 2026. Data mode: FORECAST. Source label: India Energy Atlas regional aggregate fuel mix. This scenario demonstrates the current algorithm; it does not guarantee the same savings for every station or day."}
+{"kind":"slide","id":"sl/gc4qca","slide":7,"title":"PLUGIN","textShapes":19}
+{"kind":"textbox","id":"sh/54ralsrq","slide":7,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/i10bqx8f","slide":7,"text":"Transparent renewable pricing","textPreview":"Transparent renewable pricing","textChars":29,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/j29sj290","slide":7,"text":"Drivers see why the rate changed before they confirm","textPreview":"Drivers see why the rate changed before they confirm","textChars":52,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/s7itw7qh","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"textbox","id":"sh/t8bupc72","slide":7,"text":"BASE TARIFF","textPreview":"BASE TARIFF","textChars":11,"textLines":1,"bbox":[86,238,210,30]}
+{"kind":"textbox","id":"sh/650bux8b","slide":7,"text":"₹50.00","textPreview":"₹50.00","textChars":6,"textLines":1,"bbox":[86,280,220,64]}
+{"kind":"textbox","id":"sh/769cn29w","slide":7,"text":"×","textPreview":"×","textChars":1,"textLines":1,"bbox":[320,286,50,50]}
+{"kind":"textbox","id":"sh/8bytknqd","slide":7,"text":"RENEWABLE FACTOR","textPreview":"RENEWABLE FACTOR","textChars":16,"textLines":1,"bbox":[388,238,250,30]}
+{"kind":"textbox","id":"sh/9c7ad8ri","slide":7,"text":"0.8831","textPreview":"0.8831","textChars":6,"textLines":1,"bbox":[388,280,220,64]}
+{"kind":"textbox","id":"sh/9cfyl8f6","slide":7,"text":"=","textPreview":"=","textChars":1,"textLines":1,"bbox":[648,286,50,50]}
+{"kind":"textbox","id":"sh/8b6hs3yl","slide":7,"text":"LOCKED RATE","textPreview":"LOCKED RATE","textChars":11,"textLines":1,"bbox":[720,238,240,30]}
+{"kind":"textbox","id":"sh/7axgjix0","slide":7,"text":"₹44.16","textPreview":"₹44.16","textChars":6,"textLines":1,"bbox":[720,280,260,64]}
+{"kind":"shape","id":"sh/m9ozqdgf","slide":7,"bbox":[84,378,1020,0]}
+{"kind":"shape","id":"sh/h0fypsf2","slide":7,"bbox":[92,429,11,11]}
+{"kind":"textbox","id":"sh/wf6hwnyh","slide":7,"text":"More renewable energy","textPreview":"More renewable energy","textChars":21,"textLines":1,"bbox":[122,420,330,32]}
+{"kind":"textbox","id":"sh/vexgnixw","slide":7,"text":"larger discount","textPreview":"larger discount","textChars":15,"textLines":1,"bbox":[490,420,550,32]}
+{"kind":"shape","id":"sh/udozudgr","slide":7,"bbox":[92,493,11,11]}
+{"kind":"textbox","id":"sh/54zytsfe","slide":7,"text":"Grid stress or capacity risk","textPreview":"Grid stress or capacity risk","textChars":28,"textLines":1,"bbox":[122,484,330,32]}
+{"kind":"textbox","id":"sh/43qh07et","slide":7,"text":"smaller incentive or defer option","textPreview":"smaller incentive or defer option","textChars":33,"textLines":1,"bbox":[490,484,550,32]}
+{"kind":"shape","id":"sh/oji9cvq1","slide":7,"bbox":[92,557,11,11]}
+{"kind":"textbox","id":"sh/pkral0rm","slide":7,"text":"Booking confirmation","textPreview":"Booking confirmation","textChars":20,"textLines":1,"bbox":[122,548,330,32]}
+{"kind":"textbox","id":"sh/2xgra58v","slide":7,"text":"price and source snapshot locked","textPreview":"price and source snapshot locked","textChars":32,"textLines":1,"bbox":[490,548,550,32]}
+{"kind":"shape","id":"sh/3i9sjq9g","slide":7,"bbox":[84,630,1030,40]}
+{"kind":"textbox","id":"sh/cnitgfqd","slide":7,"text":"Policy stays configurable, bounded, auditable, and visible to the driver.","textPreview":"Policy stays configurable, bounded, auditable, and visible to the driver.","textChars":73,"textLines":1,"bbox":[110,638,980,24]}
+{"kind":"notes","id":"nt/gc4qca","slide":7,"text":"The current build applies a continuous renewable-share discount with safety caps. A production policy should also incorporate grid congestion, station utilization, regulator-approved limits, and operator incentives."}
+{"kind":"slide","id":"sl/7kb6cp","slide":8,"title":"PLUGIN","textShapes":17}
+{"kind":"textbox","id":"sh/hof2hovq","slide":8,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/ul436twf","slide":8,"text":"Three coordinated decisions","textPreview":"Three coordinated decisions","textChars":27,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/vmxkfyd0","slide":8,"text":"Each role acts on the same renewable and capacity outlook","textPreview":"Each role acts on the same renewable and capacity outlook","textChars":57,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/8jml4je9","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/tkv2dovu","slide":8,"bbox":[70,194,360,390]}
+{"kind":"textbox","id":"sh/6x4329w3","slide":8,"text":"DRIVER","textPreview":"DRIVER","textChars":6,"textLines":1,"bbox":[94,220,312,30]}
+{"kind":"textbox","id":"sh/7ydkbedo","slide":8,"text":"Shares flexibility","textPreview":"Shares flexibility","textChars":18,"textLines":1,"bbox":[94,270,310,54]}
+{"kind":"shape","id":"sh/sfqlg3ud","slide":8,"bbox":[94,340,290,0]}
+{"kind":"textbox","id":"sh/dgzmp8vy","slide":8,"text":"Chooses energy need, ready-by time and preference","textPreview":"Chooses energy need, ready-by time and preference","textChars":49,"textLines":1,"bbox":[94,365,305,82]}
+{"kind":"textbox","id":"sh/lkra9g7q","slide":8,"text":"Receives a cheaper, cleaner feasible slot","textPreview":"Receives a cheaper, cleaner feasible slot","textChars":41,"textLines":1,"bbox":[94,476,305,74]}
+{"kind":"shape","id":"sh/0ji90bq5","slide":8,"bbox":[472,194,360,390]}
+{"kind":"textbox","id":"sh/zi9s7qpk","slide":8,"text":"STATION OPERATOR","textPreview":"STATION OPERATOR","textChars":16,"textLines":1,"bbox":[496,220,312,30]}
+{"kind":"textbox","id":"sh/yh0ryl8z","slide":8,"text":"Manages local capacity","textPreview":"Manages local capacity","textChars":22,"textLines":1,"bbox":[496,270,310,54]}
+{"kind":"shape","id":"sh/dg7a5g7e","slide":8,"bbox":[496,340,290,0]}
+{"kind":"textbox","id":"sh/cfy9wbqt","slide":8,"text":"Publishes charger status, tariff, solar and storage availability","textPreview":"Publishes charger status, tariff, solar and storage availability","textChars":64,"textLines":1,"bbox":[496,365,305,82]}
+{"kind":"textbox","id":"sh/beps36p8","slide":8,"text":"Uses renewable supply without overloading the site","textPreview":"Uses renewable supply without overloading the site","textChars":50,"textLines":1,"bbox":[496,476,305,74]}
+{"kind":"shape","id":"sh/qtgru183","slide":8,"bbox":[874,194,360,390]}
+{"kind":"textbox","id":"sh/hcbah07i","slide":8,"text":"GRID OPERATOR","textPreview":"GRID OPERATOR","textChars":13,"textLines":1,"bbox":[898,220,312,30]}
+{"kind":"textbox","id":"sh/wb2t8f6d","slide":8,"text":"Shapes regional demand","textPreview":"Shapes regional demand","textChars":22,"textLines":1,"bbox":[898,270,310,54]}
+{"kind":"shape","id":"sh/g7ul03il","slide":8,"bbox":[898,340,290,0]}
+{"kind":"textbox","id":"sh/1s3mt8j6","slide":8,"text":"Publishes limits, congestion windows and defer incentives","textPreview":"Publishes limits, congestion windows and defer incentives","textChars":57,"textLines":1,"bbox":[898,365,305,82]}
+{"kind":"textbox","id":"sh/e5s3yd0f","slide":8,"text":"Moves aggregated charging away from grid stress","textPreview":"Moves aggregated charging away from grid stress","textChars":47,"textLines":1,"bbox":[898,476,305,74]}
+{"kind":"textbox","id":"sh/f6lkry10","slide":8,"text":"Shared outcome: more EV energy served when renewable supply is available.","textPreview":"Shared outcome: more EV energy served when renewable supply is available.","textChars":73,"textLines":1,"bbox":[126,628,1020,34]}
+{"kind":"notes","id":"nt/7kb6cp","slide":8,"text":"The mobile app remains customer focused. Station operators and administrators use the web portal. For the hackathon, the administrator represents the grid-management persona; a dedicated production grid role remains a planned authorization enhancement."}
+{"kind":"slide","id":"sl/h2orwr","slide":9,"title":"PLUGIN","textShapes":18}
+{"kind":"textbox","id":"sh/gjmxgvmh","slide":9,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/vidgnq5w","slide":9,"text":"Implementation architecture","textPreview":"Implementation architecture","textChars":27,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/uh4fel4r","slide":9,"text":"A renewable intelligence layer extends the existing EV platform","textPreview":"A renewable intelligence layer extends the existing EV platform","textChars":63,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/tgvylgn6","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/8v2xcbml","slide":9,"bbox":[82,226,236,286]}
+{"kind":"textbox","id":"sh/7utgj650","slide":9,"text":"EXPERIENCE","textPreview":"EXPERIENCE","textChars":10,"textLines":1,"bbox":[104,250,192,28]}
+{"kind":"textbox","id":"sh/6tkfa14f","slide":9,"text":"Expo mobile app","textPreview":"Expo mobile app","textChars":15,"textLines":1,"bbox":[104,318,192,42]}
+{"kind":"textbox","id":"sh/dcfyxkna","slide":9,"text":"React web portal","textPreview":"React web portal","textChars":16,"textLines":1,"bbox":[104,390,192,42]}
+{"kind":"shape","id":"sh/sr6hofmp","slide":9,"bbox":[318,370,48,0]}
+{"kind":"shape","id":"sh/21wnyxcz","slide":9,"bbox":[366,226,236,286]}
+{"kind":"textbox","id":"sh/3254r2dk","slide":9,"text":"SECURE API","textPreview":"SECURE API","textChars":10,"textLines":1,"bbox":[388,250,192,28]}
+{"kind":"textbox","id":"sh/o3e50nu5","slide":9,"text":"JWT + role access","textPreview":"JWT + role access","textChars":17,"textLines":1,"bbox":[388,318,192,42]}
+{"kind":"textbox","id":"sh/pon6tsvq","slide":9,"text":"Validated REST contracts","textPreview":"Validated REST contracts","textChars":24,"textLines":1,"bbox":[388,390,192,42]}
+{"kind":"shape","id":"sh/exwnudc3","slide":9,"bbox":[602,370,48,0]}
+{"kind":"shape","id":"sh/fy54nido","slide":9,"bbox":[650,226,236,286]}
+{"kind":"textbox","id":"sh/gze5wnu9","slide":9,"text":"INTELLIGENCE","textPreview":"INTELLIGENCE","textChars":12,"textLines":1,"bbox":[672,250,192,28]}
+{"kind":"textbox","id":"sh/10nmpsvu","slide":9,"text":"Forecast + cache","textPreview":"Forecast + cache","textChars":16,"textLines":1,"bbox":[672,318,192,42]}
+{"kind":"textbox","id":"sh/ytgn6hc7","slide":9,"text":"Optimizer + pricing","textPreview":"Optimizer + pricing","textChars":19,"textLines":1,"bbox":[672,390,192,42]}
+{"kind":"shape","id":"sh/zupozmts","slide":9,"bbox":[886,370,48,0]}
+{"kind":"shape","id":"sh/b2hsbap8","slide":9,"bbox":[934,226,236,286]}
+{"kind":"textbox","id":"sh/a18b25on","slide":9,"text":"SYSTEM OF RECORD","textPreview":"SYSTEM OF RECORD","textChars":16,"textLines":1,"bbox":[956,250,192,28]}
+{"kind":"textbox","id":"sh/xozudk7y","slide":9,"text":"MongoDB Atlas","textPreview":"MongoDB Atlas","textChars":13,"textLines":1,"bbox":[956,318,192,42]}
+{"kind":"textbox","id":"sh/wnqt4f6t","slide":9,"text":"Audit + booking snapshots","textPreview":"Audit + booking snapshots","textChars":25,"textLines":1,"bbox":[956,390,192,42]}
+{"kind":"textbox","id":"sh/jqhcfup4","slide":9,"text":"India Energy Atlas regional fuel-mix profile","textPreview":"India Energy Atlas regional fuel-mix profile","textChars":44,"textLines":1,"bbox":[650,548,520,32]}
+{"kind":"shape","id":"sh/yp8b6poj","slide":9,"bbox":[790,512,0,30]}
+{"kind":"textbox","id":"sh/lsjuhk7a","slide":9,"text":"Timeouts, numeric validation, caching and explicit FORECAST labels protect trust and API quota.","textPreview":"Timeouts, numeric validation, caching and explicit FORECAST labels protect trust and API quota.","textChars":95,"textLines":1,"bbox":[104,626,1060,38]}
+{"kind":"notes","id":"nt/h2orwr","slide":9,"text":"Current stack: Expo/React Native, React/Vite, Java 17 with Spring Boot and Spring Security, and MongoDB Atlas. Renewable provider credentials remain server-side. External data includes timeouts, numeric validation and caching."}
+{"kind":"slide","id":"sl/sufft0","slide":10,"title":"PLUGIN","textShapes":23}
+{"kind":"textbox","id":"sh/u14fe5g7","slide":10,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/hofy90zi","slide":10,"text":"Impact that judges can verify","textPreview":"Impact that judges can verify","textChars":29,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/w3mxgfyx","slide":10,"text":"Every accepted recommendation should produce an auditable before-and-after record","textPreview":"Every accepted recommendation should produce an auditable before-and-after record","textChars":81,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/7ydw3qhg","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"textbox","id":"sh/mx4falgv","slide":10,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[82,192,54,42]}
+{"kind":"textbox","id":"sh/90vy50zm","slide":10,"text":"Renewable kWh utilized","textPreview":"Renewable kWh utilized","textChars":22,"textLines":1,"bbox":[152,192,430,36]}
+{"kind":"textbox","id":"sh/8zmxcvy1","slide":10,"text":"Energy delivered × renewable share","textPreview":"Energy delivered × renewable share","textChars":34,"textLines":1,"bbox":[152,234,430,40]}
+{"kind":"shape","id":"sh/ruxgfuxk","slide":10,"bbox":[82,292,500,0]}
+{"kind":"textbox","id":"sh/qtofmpgz","slide":10,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[666,192,54,42]}
+{"kind":"textbox","id":"sh/c3upw36x","slide":10,"text":"Demand shifted","textPreview":"Demand shifted","textChars":14,"textLines":1,"bbox":[736,192,430,36]}
+{"kind":"textbox","id":"sh/x4nqponi","slide":10,"text":"Optimized load moved from the original window","textPreview":"Optimized load moved from the original window","textChars":45,"textLines":1,"bbox":[736,234,430,40]}
+{"kind":"shape","id":"sh/a1c7uto7","slide":10,"bbox":[666,292,500,0]}
+{"kind":"textbox","id":"sh/b2l8ny5s","slide":10,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[82,324,54,42]}
+{"kind":"textbox","id":"sh/ozupsj61","slide":10,"text":"Peak avoided","textPreview":"Peak avoided","textChars":12,"textLines":1,"bbox":[152,324,430,36]}
+{"kind":"textbox","id":"sh/p03qlonm","slide":10,"text":"Charging load removed from constrained hours","textPreview":"Charging load removed from constrained hours","textChars":44,"textLines":1,"bbox":[152,366,430,40]}
+{"kind":"shape","id":"sh/2dc7q9ov","slide":10,"bbox":[82,424,500,0]}
+{"kind":"textbox","id":"sh/neloje5g","slide":10,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[666,324,54,42]}
+{"kind":"textbox","id":"sh/0bapoz65","slide":10,"text":"Driver savings","textPreview":"Driver savings","textChars":14,"textLines":1,"bbox":[736,324,430,36]}
+{"kind":"textbox","id":"sh/1cj6h4na","slide":10,"text":"Baseline cost minus locked optimized cost","textPreview":"Baseline cost minus locked optimized cost","textChars":41,"textLines":1,"bbox":[736,366,430,40]}
+{"kind":"shape","id":"sh/hwbe5gb2","slide":10,"bbox":[666,424,500,0]}
+{"kind":"textbox","id":"sh/wvidwbuh","slide":10,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[82,456,54,42]}
+{"kind":"textbox","id":"sh/vu9w36tw","slide":10,"text":"Carbon avoided","textPreview":"Carbon avoided","textChars":14,"textLines":1,"bbox":[152,456,430,36]}
+{"kind":"textbox","id":"sh/ut0vu1cb","slide":10,"text":"Baseline emissions minus optimized estimate","textPreview":"Baseline emissions minus optimized estimate","textChars":43,"textLines":1,"bbox":[152,498,430,40]}
+{"kind":"shape","id":"sh/9sre1wbq","slide":10,"bbox":[82,556,500,0]}
+{"kind":"textbox","id":"sh/8ridsrul","slide":10,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[666,456,54,42]}
+{"kind":"textbox","id":"sh/7q9wzmt0","slide":10,"text":"Acceptance rate","textPreview":"Acceptance rate","textChars":15,"textLines":1,"bbox":[736,456,430,36]}
+{"kind":"textbox","id":"sh/mp0vqhcf","slide":10,"text":"Accepted green recommendations / offers","textPreview":"Accepted green recommendations / offers","textChars":39,"textLines":1,"bbox":[736,498,430,40]}
+{"kind":"shape","id":"sh/doved0ba","slide":10,"bbox":[666,556,500,0]}
+{"kind":"shape","id":"sh/snmx4vup","slide":10,"bbox":[124,610,1032,54]}
+{"kind":"textbox","id":"sh/atwbyxs7","slide":10,"text":"Success means cleaner charging actually happened, not only that a recommendation appeared.","textPreview":"Success means cleaner charging actually happened, not only that a recommendation appeared.","textChars":90,"textLines":1,"bbox":[150,620,980,30]}
+{"kind":"notes","id":"nt/sufft0","slide":10,"text":"These are proposed product KPIs. The current build calculates expected renewable share, price, total cost, carbon and estimated carbon saved. Production measurement requires session-level energy telemetry and a verified accounting method."}
+{"kind":"slide","id":"sl/57fe9x","slide":11,"title":"PLUGIN","textShapes":17}
+{"kind":"textbox","id":"sh/2h87uto7","slide":11,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[62,32,130,28]}
+{"kind":"textbox","id":"sh/pkjq587i","slide":11,"text":"Path from MVP to grid-scale orchestration","textPreview":"Path from MVP to grid-scale orchestration","textChars":41,"textLines":1,"bbox":[62,78,1050,58]}
+{"kind":"textbox","id":"sh/ojqpw36d","slide":11,"text":"Development follows measurable control-loop maturity","textPreview":"Development follows measurable control-loop maturity","textChars":52,"textLines":1,"bbox":[64,138,1020,34]}
+{"kind":"textbox","id":"sh/fuh8zepg","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1172,37,44,24]}
+{"kind":"shape","id":"sh/et87q9ov","slide":11,"bbox":[62,196,272,382]}
+{"kind":"textbox","id":"sh/1gzq1o7m","slide":11,"text":"NOW","textPreview":"NOW","textChars":3,"textLines":1,"bbox":[84,218,140,28]}
+{"kind":"textbox","id":"sh/gfqpsj61","slide":11,"text":"Explainable scheduling","textPreview":"Explainable scheduling","textChars":22,"textLines":1,"bbox":[84,274,225,68]}
+{"kind":"textbox","id":"sh/rqxovepk","slide":11,"text":"Four strategies\nDynamic tariff\nPrice lock\nRole dashboards","textPreview":"Four strategies | Dynamic tariff | Price lock | Role dashboards","textChars":57,"textLines":4,"bbox":[84,370,225,150]}
+{"kind":"shape","id":"sh/6po7m9oz","slide":11,"bbox":[364,196,272,382]}
+{"kind":"textbox","id":"sh/0j6t8re5","slide":11,"text":"NEXT","textPreview":"NEXT","textChars":4,"textLines":1,"bbox":[386,218,140,28]}
+{"kind":"textbox","id":"sh/lkfa1wfq","slide":11,"text":"Automatic flexibility","textPreview":"Automatic flexibility","textChars":21,"textLines":1,"bbox":[386,274,225,68]}
+{"kind":"textbox","id":"sh/yhob6hwz","slide":11,"text":"Ready-by charging\nGreen commitment\nAction notifications\nImpact ledger","textPreview":"Ready-by charging | Green commitment | Action notifications | Impact ledger","textChars":69,"textLines":4,"bbox":[386,370,225,150]}
+{"kind":"shape","id":"sh/zixszmxk","slide":11,"bbox":[666,196,272,382]}
+{"kind":"textbox","id":"sh/cf6t47et","slide":11,"text":"THEN","textPreview":"THEN","textChars":4,"textLines":1,"bbox":[688,218,140,28]}
+{"kind":"textbox","id":"sh/dgfaxcfe","slide":11,"text":"Station energy control","textPreview":"Station energy control","textChars":22,"textLines":1,"bbox":[688,274,225,68]}
+{"kind":"textbox","id":"sh/qd4r2xwn","slide":11,"text":"Local solar forecast\nBattery state\nImport limits\nSurplus capture","textPreview":"Local solar forecast | Battery state | Import limits | Surplus capture","textChars":64,"textLines":4,"bbox":[688,370,225,150]}
+{"kind":"shape","id":"sh/bedsv2x8","slide":11,"bbox":[968,196,272,382]}
+{"kind":"textbox","id":"sh/wbqt0bed","slide":11,"text":"SCALE","textPreview":"SCALE","textChars":5,"textLines":1,"bbox":[990,218,140,28]}
+{"kind":"textbox","id":"sh/hcza9gvi","slide":11,"text":"Grid programs","textPreview":"Grid programs","textChars":13,"textLines":1,"bbox":[990,274,225,68]}
+{"kind":"textbox","id":"sh/5svatwn2","slide":11,"text":"Demand-response events\nVerified response\nRegional aggregation\nOperator settlement","textPreview":"Demand-response events | Verified response | Regional aggregation | Operator settlement","textChars":81,"textLines":4,"bbox":[990,370,225,150]}
+{"kind":"textbox","id":"sh/4rmtkb6h","slide":11,"text":"Each stage keeps the recommendation explainable and adds stronger proof of renewable utilization.","textPreview":"Each stage keeps the recommendation explainable and adds stronger proof of renewable utilization.","textChars":97,"textLines":1,"bbox":[104,628,1080,34]}
+{"kind":"notes","id":"nt/57fe9x","slide":11,"text":"Roadmap features are clearly separated from the implemented MVP. Physical charger control, utility settlement, certified carbon accounting and station battery orchestration are not claimed as completed today."}
+{"kind":"slide","id":"sl/s76u0r","slide":12,"title":"PLUGIN","textShapes":11}
+{"kind":"textbox","id":"sh/xkf6tcbm","slide":12,"text":"PLUGIN","textPreview":"PLUGIN","textChars":6,"textLines":1,"bbox":[70,50,170,34]}
+{"kind":"textbox","id":"sh/ah4nyhsv","slide":12,"text":"A practical path to\nrenewable-first charging","textPreview":"A practical path to | renewable-first charging","textChars":44,"textLines":2,"bbox":[70,150,780,128]}
+{"kind":"textbox","id":"sh/vidor2tg","slide":12,"text":"A driver sees a better time and price. A station uses cleaner supply. The grid receives flexible demand when it can support it.","textPreview":"A driver sees a better time and price. A station uses cleaner supply. The grid receives flexible demand when it can support it.","textChars":127,"textLines":1,"bbox":[74,314,650,104]}
+{"kind":"shape","id":"sh/8fm5w7a5","slide":12,"bbox":[780,132,392,388]}
+{"kind":"textbox","id":"sh/9gv65cbq","slide":12,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[824,178,300,54]}
+{"kind":"textbox","id":"sh/mt4nuxsz","slide":12,"text":"explainable charging strategies","textPreview":"explainable charging strategies","textChars":31,"textLines":1,"bbox":[824,234,300,44]}
+{"kind":"textbox","id":"sh/nudo32tk","slide":12,"text":"24 h","textPreview":"24 h","textChars":4,"textLines":1,"bbox":[824,292,300,54]}
+{"kind":"textbox","id":"sh/0r25snut","slide":12,"text":"optimization horizon","textPreview":"optimization horizon","textChars":20,"textLines":1,"bbox":[824,348,300,44]}
+{"kind":"textbox","id":"sh/lsb61sbe","slide":12,"text":"146","textPreview":"146","textChars":3,"textLines":1,"bbox":[824,406,300,54]}
+{"kind":"textbox","id":"sh/5wnm9cfu","slide":12,"text":"backend tests passing","textPreview":"backend tests passing","textChars":21,"textLines":1,"bbox":[824,462,300,44]}
+{"kind":"shape","id":"sh/4vel07e9","slide":12,"bbox":[74,536,620,62]}
+{"kind":"textbox","id":"sh/ju5472xo","slide":12,"text":"Tomorrow’s demo proves the full loop from forecast to measured impact","textPreview":"Tomorrow’s demo proves the full loop from forecast to measured impact","textChars":69,"textLines":1,"bbox":[96,550,576,34]}
+{"kind":"textbox","id":"sh/i9w3yxw3","slide":12,"text":"HackOut'26 PLUGIN renewable optimization","textPreview":"HackOut'26 PLUGIN renewable optimization","textChars":40,"textLines":1,"bbox":[74,638,560,28]}
+{"kind":"notes","id":"nt/s76u0r","slide":12,"text":"Close with the verified product loop. The existing EV platform supplies identity, stations, bookings, sessions and billing. The renewable layer decides when and where charging creates more value."}

@@ -543,6 +543,13 @@ export const api = {
     current: (region = 'IN-WE') => request(`/energy/current?region=${encodeURIComponent(region)}`),
     forecast: (region = 'IN-WE', hours = 24) => request(`/energy/forecast?region=${encodeURIComponent(region)}&hours=${hours}`),
     options: (data) => request('/optimization/charging-options', { method: 'POST', body: data }),
+    stationRecommendations: (latitude, longitude) => {
+      const query = latitude != null && longitude != null
+        ? `?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}` : '';
+      return request(`/optimization/station-recommendations${query}`);
+    },
+    myImpact: () => request('/optimization/my-impact'),
+    flexiblePlan: (data) => request('/optimization/flexible-plan', { method: 'POST', body: data }),
   },
   notifications: {
     all: (page = 0, size = 30) => request(`/notifications?page=${page}&size=${size}`),

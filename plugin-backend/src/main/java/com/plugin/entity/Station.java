@@ -46,6 +46,21 @@ public class Station {
 
     private Boolean active;
 
+    // Optional station-energy telemetry. Null means the operator has not supplied
+    // the value; clients must never present it as a measured zero.
+    private Double localSolarCurrentKw;
+    private Double localSolarForecastKw;
+    private Double batteryCapacityKwh;
+    private Double batteryStateOfChargePercent;
+    private Double gridImportLimitKw;
+    private Double emergencyReservePercent;
+    private Double renewableAvailableForChargingKw;
+    private Double stationUtilizationPercent;
+    private String renewableDataMode;
+    private LocalDateTime energyUpdatedAt;
+    private Double minimumRatePerKwh;
+    private Double maximumDiscountPercent;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

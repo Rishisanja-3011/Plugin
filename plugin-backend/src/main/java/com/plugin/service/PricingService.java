@@ -28,12 +28,13 @@ public class PricingService {
     private final AuditService auditService;
     private final StationOperatorAccessService stationOperatorAccessService;
     private final EntityReferenceResolver referenceResolver;
+    private final DynamicPricingService dynamicPricingService;
 
     public List<PricingResponse> getByStation(Long stationId) {
         stationRepository.findByIdAndActiveTrue(stationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Station not found"));
         return pricingRepository.findByStationId(stationId).stream()
-                .map(this::toResponse).collect(Collectors.toList());
+                .map(this::toPublicResponse).collect(Collectors.toList());
     }
 
     public List<PricingResponse> getByStation(Long stationId, String actorEmail) {
@@ -99,6 +100,33 @@ public class PricingService {
                 .pricingModel(p.getPricingModel().name())
                 .ratePerUnit(p.getRatePerUnit())
                 .description(p.getDescription())
+                .build();
+    }
+
+    private PricingResponse toPublicResponse(Pricing pricing) {
+        pricing = referenceResolver.hydrate(pricing);
+        Station station = pricing.getStation();
+        DynamicPricingService.DynamicQuote quote = dynamicPricingService.quote(
+                station, pricing.getRatePerUnit(), java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusHours(1));
+        return PricingResponse.builder()
+                .id(pricing.getId())
+                .stationId(station != null ? station.getId() : pricing.getStationId())
+                .stationName(station != null ? station.getName() : null)
+                .pointType(pricing.getPointType().name())
+                .pricingModel(pricing.getPricingModel().name())
+                .ratePerUnit(quote.effectiveRatePerUnit())
+                .baseRatePerUnit(quote.baseRatePerUnit())
+                .discountPercent(quote.discountPercent())
+                .renewableSharePercent(quote.renewableSharePercent())
+                .renewableDiscountPercent(quote.renewableDiscountPercent())
+                .gridIncentivePercent(quote.gridIncentivePercent())
+                .utilizationAdjustmentPercent(quote.utilizationAdjustmentPercent())
+                .congestionAdjustmentPercent(quote.congestionAdjustmentPercent())
+                .gridSignalType(quote.gridSignalType())
+                .validAt(quote.validAt())
+                .dynamicPricing(quote.discountPercent().signum() > 0)
+                .pricingFormula("base × (1 - renewable/grid incentive - utilization incentive + congestion adjustment), protected by station and platform caps")
+                .description(pricing.getDescription())
                 .build();
     }
 }

@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceIdentitySecurityTest {
@@ -88,6 +89,7 @@ class AuthServiceIdentitySecurityTest {
         verify(pendingRegistrationRepository).findByEmailIgnoreCase("person@example.test");
         ArgumentCaptor<PendingRegistration> captor = ArgumentCaptor.forClass(PendingRegistration.class);
         verify(pendingRegistrationRepository).save(captor.capture());
+        verify(pendingRegistrationRepository, never()).delete(any(PendingRegistration.class));
         assertThat(captor.getValue().getEmail()).isEqualTo("person@example.test");
     }
 

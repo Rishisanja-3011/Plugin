@@ -12,5 +12,6 @@ public interface NotificationRepository extends MongoRepository<Notification, St
     Page<Notification> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     @Query(value = "{ 'userId': ?0, 'isRead': { $in: [false, 0, null] } }", count = true)
     long countByUserIdAndIsReadFalse(Long userId);
+    boolean existsByUserIdAndTitleAndCreatedAtAfter(Long userId, String title, java.time.LocalDateTime createdAt);
     void deleteByUserId(Long userId);
 }

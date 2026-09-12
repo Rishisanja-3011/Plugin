@@ -34,6 +34,18 @@ public class GridOperatorController {
     private final StationRepository stationRepository;
     private final ChargingPointRepository chargingPointRepository;
     private final com.plugin.service.AuditService auditService;
+    private final com.plugin.service.RenewableImpactService renewableImpactService;
+    private final com.plugin.service.ForecastHistoryService forecastHistoryService;
+
+    @GetMapping("/impact")
+    public ResponseEntity<com.plugin.dto.response.RenewableImpactResponse> impact() {
+        return ResponseEntity.ok(renewableImpactService.global());
+    }
+
+    @GetMapping("/forecast-accuracy")
+    public ResponseEntity<Map<String, Object>> forecastAccuracy(@RequestParam(defaultValue = "IN-WE") String region) {
+        return ResponseEntity.ok(forecastHistoryService.report(region));
+    }
 
     @GetMapping("/dashboard")
     public ResponseEntity<Map<String, Object>> dashboard(@RequestParam(defaultValue = "IN-WE") String region,
@@ -74,6 +86,8 @@ public class GridOperatorController {
         GridSignal signal = gridSignalRepository.findById(id)
                 .orElseThrow(() -> new com.plugin.exception.ResourceNotFoundException("Grid signal not found"));
         signal.setCancelled(true);
+        signal.setStatus("CANCELLED");
+        signal.setUpdatedAt(LocalDateTime.now());
         GridSignal saved = gridSignalRepository.save(signal);
         auditService.log("CANCEL_GRID_SIGNAL", "GRID_REGION", id, principal.getName(), signal.getGridRegion());
         return ResponseEntity.ok(saved);
@@ -105,14 +119,41 @@ public class GridOperatorController {
         GridSignal saved = gridSignalRepository.save(GridSignal.builder()
                 .gridRegion(request.gridRegion() == null ? "IN-WE" : request.gridRegion().trim().toUpperCase())
                 .signalType(type).requestedReductionPercent(reduction)
+                .status("ACTIVE").capacityLimitKw(request.capacityLimitKw())
+                .incentivePercent(request.incentivePercent())
+                .expectedReductionKw(request.expectedReductionKw())
+                .acceptedDrivers(0).deferredDrivers(0).declinedDrivers(0)
                 .startsAt(request.startsAt()).endsAt(request.endsAt()).message(request.message())
                 .actorEmail(principal.getName()).build());
         auditService.log("PUBLISH_GRID_SIGNAL", "GRID_REGION", saved.getId(), principal.getName(), type);
         return ResponseEntity.ok(saved);
     }
 
+    @PostMapping("/signals/{id}/close")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<GridSignal> close(@org.springframework.web.bind.annotation.PathVariable Long id,
+                                             @RequestBody CloseSignalRequest request, Principal principal) {
+        GridSignal signal = gridSignalRepository.findById(id)
+                .orElseThrow(() -> new com.plugin.exception.ResourceNotFoundException("Grid signal not found"));
+        if (signal.isCancelled()) throw new com.plugin.exception.BadRequestException("A cancelled event cannot be closed");
+        if (request.achievedReductionKw() != null && request.achievedReductionKw().signum() < 0) {
+            throw new com.plugin.exception.BadRequestException("Achieved reduction cannot be negative");
+        }
+        signal.setStatus("CLOSED");
+        signal.setAchievedReductionKw(request.achievedReductionKw());
+        signal.setClosedAt(LocalDateTime.now());
+        signal.setUpdatedAt(LocalDateTime.now());
+        GridSignal saved = gridSignalRepository.save(signal);
+        auditService.log("CLOSE_GRID_SIGNAL", "GRID_REGION", id, principal.getName(),
+                signal.getGridRegion() + " achieved=" + request.achievedReductionKw() + "kW");
+        return ResponseEntity.ok(saved);
+    }
+
     public record GridSignalRequest(String gridRegion, String signalType, Integer requestedReductionPercent,
-                                    LocalDateTime startsAt, LocalDateTime endsAt, String message) {}
+                                    LocalDateTime startsAt, LocalDateTime endsAt, String message,
+                                    BigDecimal capacityLimitKw, Integer incentivePercent,
+                                    BigDecimal expectedReductionKw) {}
+    public record CloseSignalRequest(BigDecimal achievedReductionKw) {}
 
     private BigDecimal ratedPower(ChargingPoint point) {
         return BigDecimal.valueOf(Math.max(0, point.getMaxPowerKw() == null ? 0 : point.getMaxPowerKw()));

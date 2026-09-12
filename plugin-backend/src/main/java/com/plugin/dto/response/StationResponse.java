@@ -25,4 +25,16 @@ public class StationResponse {
     private LocalDateTime createdAt;
     private long totalPoints;
     private long availablePoints;
+    private Double localSolarCurrentKw;
+    private Double localSolarForecastKw;
+    private Double batteryCapacityKwh;
+    private Double batteryStateOfChargePercent;
+    private Double gridImportLimitKw;
+    private Double emergencyReservePercent;
+    private Double renewableAvailableForChargingKw;
+    private Double stationUtilizationPercent;
+    private String renewableDataMode;
+    private LocalDateTime energyUpdatedAt;
+    private Double minimumRatePerKwh;
+    private Double maximumDiscountPercent;
 }

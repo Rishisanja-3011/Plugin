@@ -49,6 +49,10 @@ const emptyForm = {
   contactPhone: '', contactEmail: '',
   latitude: '', longitude: '',
   openingTime: '06:00', closingTime: '23:00',
+  localSolarCurrentKw: '', localSolarForecastKw: '', batteryCapacityKwh: '',
+  batteryStateOfChargePercent: '', gridImportLimitKw: '', emergencyReservePercent: '20',
+  renewableAvailableForChargingKw: '', stationUtilizationPercent: '', renewableDataMode: 'MEASURED',
+  minimumRatePerKwh: '', maximumDiscountPercent: '40',
 };
 
 export default function Stations() {
@@ -131,6 +135,17 @@ export default function Stations() {
       longitude: s.longitude || '',
       openingTime: s.openingTime || '06:00',
       closingTime: s.closingTime || '23:00',
+      localSolarCurrentKw: s.localSolarCurrentKw ?? '',
+      localSolarForecastKw: s.localSolarForecastKw ?? '',
+      batteryCapacityKwh: s.batteryCapacityKwh ?? '',
+      batteryStateOfChargePercent: s.batteryStateOfChargePercent ?? '',
+      gridImportLimitKw: s.gridImportLimitKw ?? '',
+      emergencyReservePercent: s.emergencyReservePercent ?? '20',
+      renewableAvailableForChargingKw: s.renewableAvailableForChargingKw ?? '',
+      stationUtilizationPercent: s.stationUtilizationPercent ?? '',
+      renewableDataMode: s.renewableDataMode || 'MEASURED',
+      minimumRatePerKwh: s.minimumRatePerKwh ?? '',
+      maximumDiscountPercent: s.maximumDiscountPercent ?? '40',
     });
     setShowModal(true);
   };
@@ -150,6 +165,12 @@ export default function Stations() {
       longitude: form.longitude ? Number(form.longitude) : null,
       openingTime: form.openingTime,
       closingTime: form.closingTime,
+      ...Object.fromEntries(['localSolarCurrentKw', 'localSolarForecastKw', 'batteryCapacityKwh',
+        'batteryStateOfChargePercent', 'gridImportLimitKw', 'emergencyReservePercent',
+        'renewableAvailableForChargingKw', 'stationUtilizationPercent', 'minimumRatePerKwh',
+        'maximumDiscountPercent'].map((key) => [key, form[key] === '' ? null : Number(form[key])])),
+      renewableDataMode: form.renewableDataMode,
+      energyUpdatedAt: new Date().toISOString().slice(0, 19),
     };
     try {
       if (editing) {
@@ -340,6 +361,15 @@ export default function Stations() {
                         <label className="form-label">Closing Time *</label>
                         <input className="form-input" type="time" value={form.closingTime} onChange={(e) => setForm({ ...form, closingTime: e.target.value })} required />
                       </div>
+                      <div className="form-group form-group--full"><h3>Renewable energy and storage</h3><p className="form-help">Leave unknown telemetry blank. Values marked MEASURED must come from the station; use SIMULATED for hackathon planning data.</p></div>
+                      {[['localSolarCurrentKw', 'Current solar generation (kW)'], ['localSolarForecastKw', 'Forecast solar generation (kW)'],
+                        ['batteryCapacityKwh', 'Battery capacity (kWh)'], ['batteryStateOfChargePercent', 'Battery state of charge (%)'],
+                        ['gridImportLimitKw', 'Grid import limit (kW)'], ['emergencyReservePercent', 'Emergency reserve (%)'],
+                        ['renewableAvailableForChargingKw', 'Renewable available for EV charging (kW)'], ['stationUtilizationPercent', 'Current station utilization (%)'],
+                        ['minimumRatePerKwh', 'Minimum protected rate (₹/kWh)'], ['maximumDiscountPercent', 'Maximum discount (%)']].map(([key, label]) => (
+                        <div className="form-group" key={key}><label className="form-label">{label}</label><input className="form-input" type="number" min="0" max={key.includes('Percent') ? '100' : undefined} step="0.01" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></div>
+                      ))}
+                      <div className="form-group"><label className="form-label">Energy data classification</label><select className="form-input" value={form.renewableDataMode} onChange={(e) => setForm({ ...form, renewableDataMode: e.target.value })}><option value="MEASURED">Measured</option><option value="FORECAST">Forecast</option><option value="SIMULATED">Simulated</option></select></div>
                     </div>
                     <div className="modal__actions">
                       <button type="button" className="btn btn--ghost" onClick={() => setShowModal(false)}>Cancel</button>

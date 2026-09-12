@@ -70,6 +70,7 @@ public class OperatorEnergyController {
                 .filter(signal -> signal.getStartsAt() == null || signal.getStartsAt().isBefore(now.plusHours(24)))
                 .min(Comparator.comparing(signal -> signal.getStartsAt() == null ? now : signal.getStartsAt()))
                 .orElse(null);
+        BatteryPlan battery = batteryPlan(station, chargingLoad, surplus);
         return ResponseEntity.ok(OperatorDashboard.builder()
                 .gridRegion(current.getGridRegion()).current(current)
                 .nextRenewableSurplusStart(surplus.getTimestamp()).nextRenewableSurplusPercent(surplus.getRenewableSharePercent())
@@ -77,6 +78,12 @@ public class OperatorEnergyController {
                 .configuredStationCapacityKw(stationCapacityKw).availableCapacityKw(physicalAvailable)
                 .currentChargingLoadKw(chargingLoad)
                 .renewableUtilizationPercent(current.getRenewableSharePercent())
+                .localSolarCurrentKw(n(station.getLocalSolarCurrentKw()))
+                .localSolarForecastKw(n(station.getLocalSolarForecastKw()))
+                .batteryCapacityKwh(n(station.getBatteryCapacityKwh()))
+                .batteryStateOfChargePercent(n(station.getBatteryStateOfChargePercent()))
+                .batteryDispatchPowerKw(battery.powerKw()).batteryAction(battery.action())
+                .batteryActionReason(battery.reason()).stationEnergyDataMode(station.getRenewableDataMode())
                 .recommendation("Offer a green discount near " + surplus.getTimestamp().toLocalTime() + " and protect capacity near " + peak.getTimestamp().toLocalTime() + ".")
                 .activeGridSignal(toSummary(applicableSignal))
                 .dataMode(current.getDataMode()).forecast(forecast).demandForecast(demand).build());
@@ -134,4 +141,27 @@ public class OperatorEnergyController {
                 .message(signal.getMessage())
                 .build();
     }
+
+    private static BatteryPlan batteryPlan(Station station, BigDecimal load, GridPoint surplus) {
+        double capacity = d(station.getBatteryCapacityKwh());
+        double soc = d(station.getBatteryStateOfChargePercent());
+        double reserve = station.getEmergencyReservePercent() == null ? 20 : station.getEmergencyReservePercent();
+        double solar = Math.max(d(station.getLocalSolarCurrentKw()), d(station.getLocalSolarForecastKw()));
+        double importLimit = d(station.getGridImportLimitKw());
+        if (capacity <= 0) return new BatteryPlan("NOT_CONFIGURED", BigDecimal.ZERO, "Add battery capacity and state of charge to enable orchestration.");
+        if (solar > load.doubleValue() && soc < 95) {
+            return new BatteryPlan("CHARGE_FROM_SOLAR", value(Math.min(solar - load.doubleValue(), capacity * (95 - soc) / 100)),
+                    "Store local solar surplus instead of curtailing or exporting it.");
+        }
+        if (importLimit > 0 && load.doubleValue() > importLimit && soc > reserve) {
+            return new BatteryPlan("DISCHARGE_TO_EV_LOAD", value(Math.min(load.doubleValue() - importLimit, capacity * (soc - reserve) / 100)),
+                    "Reduce grid import while preserving the configured emergency reserve.");
+        }
+        return new BatteryPlan("HOLD_RESERVE", BigDecimal.ZERO, "Hold stored energy; no material solar surplus or import-limit breach is forecast.");
+    }
+
+    private static double d(Double value) { return value == null ? 0 : value; }
+    private static BigDecimal n(Double value) { return value == null ? null : value(value); }
+    private static BigDecimal value(double value) { return BigDecimal.valueOf(value).setScale(2, java.math.RoundingMode.HALF_UP); }
+    private record BatteryPlan(String action, BigDecimal powerKw, String reason) {}
 }

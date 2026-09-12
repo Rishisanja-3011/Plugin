@@ -19,21 +19,32 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PricingSnapshotService {
 
-    public record PricingSnapshot(BigDecimal ratePerUnit, String rateType, boolean usedFallback) {}
+    public record PricingSnapshot(BigDecimal ratePerUnit, BigDecimal baseRatePerUnit,
+                                  BigDecimal discountPercent, String rateType, boolean usedFallback) {}
 
     private final PricingRepository pricingRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final DynamicPricingService dynamicPricingService;
 
     @Value("${app.billing.default-rate-per-kwh:15}")
     private BigDecimal defaultRatePerKwh;
 
     public PricingSnapshot resolveFor(Station station, PointType pointType) {
+        return resolveFor(station, pointType, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusHours(1));
+    }
+
+    public PricingSnapshot resolveFor(Station station, PointType pointType,
+                                      java.time.LocalDateTime start, java.time.LocalDateTime end) {
         Pricing pricing = pricingRepository.findByStationIdAndPointType(station.getId(), pointType).orElse(null);
         if (pricing != null) {
-            return new PricingSnapshot(pricing.getRatePerUnit(), PricingModel.PER_KWH.name(), false);
+            var quote = dynamicPricingService.quote(station, pricing.getRatePerUnit(), start, end);
+            return new PricingSnapshot(quote.effectiveRatePerUnit(), quote.baseRatePerUnit(),
+                    quote.discountPercent(), PricingModel.PER_KWH.name(), false);
         }
-        return new PricingSnapshot(defaultRatePerKwh, PricingModel.PER_KWH.name(), true);
+        var quote = dynamicPricingService.quote(station, defaultRatePerKwh, start, end);
+        return new PricingSnapshot(quote.effectiveRatePerUnit(), quote.baseRatePerUnit(),
+                quote.discountPercent(), PricingModel.PER_KWH.name(), true);
     }
 
     public void notifyAdminsMissingPricing(Station station, PointType pointType, String context) {

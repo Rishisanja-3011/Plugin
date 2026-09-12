@@ -30,6 +30,13 @@ public class NotificationService {
         notificationRepository.save(notif);
     }
 
+    public void sendIfNew(Long userId, String title, String message, java.time.Duration minimumInterval) {
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minus(minimumInterval);
+        if (!notificationRepository.existsByUserIdAndTitleAndCreatedAtAfter(userId, title, cutoff)) {
+            send(userId, title, message);
+        }
+    }
+
     public Page<NotificationResponse> getMyNotifications(Long userId, Pageable pageable) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
                 .map(this::toResponse);

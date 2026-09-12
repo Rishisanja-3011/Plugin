@@ -92,12 +92,15 @@ public class Booking {
     private String pointTypePreference;
 
     private BigDecimal lockedRatePerUnit;
+    private BigDecimal baseRatePerUnit;
+    private BigDecimal lockedDiscountPercent;
 
     private String lockedRateType;
 
     private String chargingPreference;
     private BigDecimal requestedEnergyKwh;
     private BigDecimal expectedRenewableSharePercent;
+    private BigDecimal baselineRenewableSharePercent;
     private BigDecimal expectedCarbonKg;
     private BigDecimal estimatedCarbonSavedKg;
     private Integer greenScore;

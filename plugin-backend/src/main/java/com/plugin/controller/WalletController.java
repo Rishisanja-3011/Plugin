@@ -69,7 +69,16 @@ public class WalletController {
     public ResponseEntity<WalletResponse> verifyTopUp(
             @Valid @RequestBody WalletPaymentVerificationRequest request,
             Authentication auth) {
-        return ResponseEntity.ok(walletService.verifyTopUp(auth.getName(), request));
+        RuntimeException lastFailure = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                return ResponseEntity.ok(walletService.verifyTopUp(auth.getName(), request));
+            } catch (org.springframework.dao.ConcurrencyFailureException
+                     | org.springframework.transaction.TransactionSystemException ex) {
+                lastFailure = ex;
+            }
+        }
+        throw lastFailure;
     }
 
     @PostMapping("/mandate/order")

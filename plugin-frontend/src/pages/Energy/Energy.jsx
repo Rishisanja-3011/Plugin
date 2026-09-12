@@ -43,6 +43,7 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
   const [error, setError] = useState('');
   const [decisionMessage, setDecisionMessage] = useState('');
   const [decisionSaving, setDecisionSaving] = useState(false);
+  const [decisionAction, setDecisionAction] = useState('');
   const [signalSaving, setSignalSaving] = useState(false);
   const [form, setForm] = useState(() => {
     const start = new Date(Date.now() + 60 * 60 * 1000);
@@ -124,6 +125,17 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
   }, [region, isAdmin, selectedStationId, user?.role]);
 
   const chart = useMemo(() => forecast.slice(0, 12), [forecast]);
+  const displayedOptions = useMemo(() => {
+    const grouped = new Map();
+    (options?.options || []).forEach((option) => {
+      const key = [option.startTime, option.endTime, option.expectedPricePerKwh,
+        option.expectedRenewableSharePercent, option.expectedTotalCost].join('|');
+      const existing = grouped.get(key);
+      if (existing) existing.strategies.push(option.scheduleType);
+      else grouped.set(key, { option, strategies: [option.scheduleType] });
+    });
+    return [...grouped.values()];
+  }, [options]);
 
   const optimize = async (event) => {
     event.preventDefault();
@@ -153,6 +165,8 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
     if (!selectedStationId || !operator) return;
     try {
       setDecisionSaving(true);
+      setDecisionAction(action);
+      setDecisionMessage('');
       await energyApi.saveOperatorDecision({
         stationId: Number(selectedStationId), gridRegion: region, action,
         recommendation: operator.recommendation,
@@ -163,6 +177,7 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
       setDecisionMessage(requestError?.response?.data?.message || 'Could not save the operator decision.');
     } finally {
       setDecisionSaving(false);
+      setDecisionAction('');
     }
   };
 
@@ -211,7 +226,7 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
           <>
             <div className="energy__mode-row">
               <span className="energy__mode">{current.dataMode} · {current.quality}</span>
-              <span>Source: {current.source}</span>
+              <span>Source: {current.source} · observed {current.sourceTimestamp ? new Date(current.sourceTimestamp).toLocaleString('en-IN') : 'timestamp unavailable'}</span>
             </div>
             {current.methodology && <p className="energy__disclaimer">{current.methodology}</p>}
             <section className="energy__metrics" aria-label="Current grid outlook">
@@ -248,7 +263,11 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
                        <div><span>Total connector capacity</span><strong>{number(operator.configuredStationCapacityKw, 1)} kW</strong></div>
             <div><span>Next renewable surplus</span><strong>{formatTime(operator.nextRenewableSurplusStart)}</strong></div>
             <div><span>Peak-risk window</span><strong>{formatTime(operator.nextPeakRiskStart)}</strong></div>
+            <div><span>Local solar now / forecast</span><strong>{number(operator.localSolarCurrentKw, 1)} / {number(operator.localSolarForecastKw, 1)} kW</strong></div>
+            <div><span>Station battery</span><strong>{number(operator.batteryStateOfChargePercent, 0)}% of {number(operator.batteryCapacityKwh, 1)} kWh</strong></div>
+            <div><span>Battery dispatch</span><strong>{operator.batteryAction?.replace(/_/g, ' ') || 'Not configured'}</strong></div>
           </div>
+          {operator.batteryActionReason && <p className="energy__recommendation"><strong>{operator.stationEnergyDataMode || 'UNCLASSIFIED'}:</strong> {operator.batteryActionReason} {number(operator.batteryDispatchPowerKw, 1)} kW planned.</p>}
           {operator.activeGridSignal && <div className="energy__grid-signal" role="status">
             <strong>{operator.activeGridSignal.signalType.replace(/_/g, ' ')}</strong>
             <span>{operator.activeGridSignal.requestedReductionPercent || 0}% requested · {formatTime(operator.activeGridSignal.startsAt)}–{formatTime(operator.activeGridSignal.endsAt)}</span>
@@ -256,10 +275,11 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
           </div>}
           <p className="energy__recommendation">{operator.recommendation}</p>
           <div className="energy__decision-actions">
-            <button className="btn btn--accent" disabled={decisionSaving} onClick={() => saveDecision('ACCEPTED')}>Accept recommendation</button>
-            <button className="btn btn--outline" disabled={decisionSaving} onClick={() => saveDecision('DEFERRED')}>Defer</button>
-            <button className="btn btn--outline" disabled={decisionSaving} onClick={() => saveDecision('REJECTED')}>Reject</button>
+            <button type="button" className="btn btn--accent" disabled={decisionSaving} onClick={() => saveDecision('ACCEPTED')}>{decisionAction === 'ACCEPTED' ? 'Saving…' : 'Accept recommendation'}</button>
+            <button type="button" className="btn btn--outline" disabled={decisionSaving} onClick={() => saveDecision('DEFERRED')}>{decisionAction === 'DEFERRED' ? 'Saving…' : 'Defer'}</button>
+            <button type="button" className="btn btn--outline" disabled={decisionSaving} onClick={() => saveDecision('REJECTED')}>{decisionAction === 'REJECTED' ? 'Saving…' : 'Reject'}</button>
           </div>
+          {decisionMessage && <div className="energy__notice energy__notice--inline" role="status">{decisionMessage}</div>}
         </section>}
 
         {user?.role === 'ADMIN' && gridDashboard && <section className="energy__panel">
@@ -275,7 +295,7 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
           </button>
         </section>}
 
-        {decisionMessage && <div className="energy__notice" role="status">{decisionMessage}</div>}
+        {decisionMessage && !operator && <div className="energy__notice" role="status">{decisionMessage}</div>}
 
         {isCustomer ? <section className="energy__panel">
           <div className="energy__section-heading"><div><span>Smart schedule</span><h2>Find your best charging time</h2></div><p>Your requested preference appears first.</p></div>
@@ -305,10 +325,18 @@ export default function Energy({ selectedRegion, onRegionChange } = {}) {
 
         {options?.options?.length > 0 && <section className="energy__results">
           <div className="energy__section-heading"><div><span>Recommendation</span><h2>Your charging options</h2></div></div>
-          <div className="energy__option-grid">{options.options.map((option, index) => <article className={`energy__option ${index === 0 ? 'energy__option--best' : ''}`} key={option.scheduleType}>
-            <div className="energy__option-title"><span>{option.scheduleType}</span><strong>{option.greenScore}/100 green score</strong></div>
+          <div className={`energy__provenance ${options.cached || options.simulated ? 'energy__provenance--warning' : ''}`}>
+            <strong>{options.confidencePercent}% confidence · {options.dataMode}</strong>
+            <span>{options.source} · {options.quality} · source {options.sourceTimestamp ? new Date(options.sourceTimestamp).toLocaleString('en-IN') : 'timestamp unavailable'}</span>
+            {options.fallbackReason && <span>{options.fallbackReason}</span>}
+          </div>
+          <div className="energy__option-grid">{displayedOptions.map(({ option, strategies }, index) => <article className={`energy__option ${index === 0 ? 'energy__option--best' : ''}`} key={`${option.startTime}-${strategies.join('-')}`}>
+            <div className="energy__option-title"><span>{strategies.join(' · ')}</span><strong>{option.greenScore}/100 green score</strong></div>
+            {strategies.length > 1 && <p className="energy__shared-win">This window genuinely wins {strategies.length} objectives; no artificial alternative was substituted.</p>}
             <h3>{formatTime(option.startTime)} – {formatTime(option.endTime)}</h3>
             <div className="energy__option-stats"><span>{number(option.expectedRenewableSharePercent)}% renewable</span><span>₹{number(option.expectedTotalCost, 2)}</span><span>{number(option.expectedCarbonKg, 2)} kg CO₂</span></div>
+            <div className="energy__option-stats"><span>{option.confidencePercent}% confidence</span><span>{Math.round(Number(option.forecastHorizonMinutes || 0) / 60)}h horizon</span><span>{option.cached ? 'Cached' : option.simulated ? 'Simulated' : 'Provider data'}</span></div>
+            <div className="energy__comparison"><strong>Normal → PLUGIN</strong><span>Renewable {number(option.baselineRenewableSharePercent)}% → {number(option.expectedRenewableSharePercent)}%</span><span>Rate ₹{number(option.baselinePricePerKwh, 2)} → ₹{number(option.expectedPricePerKwh, 2)}/kWh</span><span>Save ₹{number(option.estimatedMoneySaved, 2)} · shift {number(option.renewableEnergyShiftedKwh, 2)} renewable kWh · avoid {number(option.estimatedCarbonSavedKg, 2)} kg CO₂</span></div>
             {option.gridSignalType && <div className="energy__option-signal">Grid request: {option.gridSignalType.replace(/_/g, ' ')} · {option.requestedReductionPercent || 0}%</div>}
             <p>{option.explanation}</p>
           </article>)}</div>

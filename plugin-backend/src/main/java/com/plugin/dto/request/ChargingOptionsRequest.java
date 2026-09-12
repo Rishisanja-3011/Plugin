@@ -44,4 +44,23 @@ public class ChargingOptionsRequest {
     private BigDecimal stationAvailableCapacityKw;
 
     private ChargingPreference preference = ChargingPreference.BALANCED;
+
+    @DecimalMin("0") @DecimalMax("100")
+    private BigDecimal minimumRenewableSharePercent;
+    @DecimalMin("0")
+    private BigDecimal maximumPricePerKwh;
+    @DecimalMin("0") @DecimalMax("100")
+    private BigDecimal batterySocPercent;
+    @DecimalMin("0") @DecimalMax("100")
+    private BigDecimal targetSocPercent;
+    @Positive
+    private Integer maximumWaitMinutes;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal stationLocalRenewableKw;
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal stationBatteryDischargeKw;
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal gridImportLimitKw;
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal stationUtilizationPercent;
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal minimumRatePerKwh;
+    @com.fasterxml.jackson.annotation.JsonIgnore private BigDecimal maximumDiscountPercent;
+    @com.fasterxml.jackson.annotation.JsonIgnore private String stationEnergyDataMode;
 }

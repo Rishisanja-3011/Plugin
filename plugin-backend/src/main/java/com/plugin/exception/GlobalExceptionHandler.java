@@ -123,9 +123,13 @@ public class GlobalExceptionHandler {
             org.springframework.dao.DataIntegrityViolationException.class,
             org.springframework.transaction.TransactionSystemException.class})
     public ResponseEntity<ApiError> handleConcurrentChange(Exception ex) {
+        String referenceId = UUID.randomUUID().toString();
+        log.warn("Concurrent or persistence conflict. referenceId={}, type={}, cause={}",
+                referenceId, ex.getClass().getName(),
+                ex.getCause() == null ? "none" : ex.getCause().getClass().getName());
         return ResponseEntity.status(HttpStatus.CONFLICT).header(HttpHeaders.RETRY_AFTER, "1")
                 .body(ApiError.builder().status(409)
                         .message("Availability changed while processing your request. Refresh and try again.")
-                        .timestamp(LocalDateTime.now()).build());
+                        .referenceId(referenceId).timestamp(LocalDateTime.now()).build());
     }
 }

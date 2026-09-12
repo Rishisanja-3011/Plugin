@@ -184,7 +184,9 @@ export default function StationDetailsScreen({ params, navigate, goBack, showNot
     : price?.ratePerUnit != null ? `${money(price.ratePerUnit)} / kWh` : 'Shown before charging';
   const priceHint = !selectedPoint
     ? 'Choose a connector to see matching pricing.'
-    : price?.description || 'Parking fees extra if configured by station';
+    : price?.dynamicPricing
+      ? `${Math.round(Number(price.discountPercent))}% renewable discount from ${money(price.baseRatePerUnit)} / kWh`
+      : price?.description || 'Parking fees extra if configured by station';
 
   return (
     <Screen scroll contentStyle={styles.content}>

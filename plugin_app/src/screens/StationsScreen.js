@@ -68,7 +68,7 @@ const FilterChip = ({ label, icon, active, onPress }) => (
   </Pressable>
 );
 
-const StationListItem = ({ station, index, favorite, energy, onPress }) => {
+const StationListItem = ({ station, index, favorite, energy, recommended, onPress }) => {
   const status = stationStatus(station);
   const available = Number(station?.availablePoints || 0);
   const total = Number(station?.totalPoints || 0);
@@ -92,6 +92,7 @@ const StationListItem = ({ station, index, favorite, energy, onPress }) => {
               <Text style={styles.stationName} numberOfLines={1}>{brandText(station?.name, 'Plugin Station')}</Text>
               {favorite ? <Ionicons name="heart" size={13} color={colors.danger} /> : null}
             </View>
+            {recommended ? <Text style={styles.recommendedText}>★ GREENER REGIONAL PICK</Text> : null}
             <Text style={styles.stationLocation} numberOfLines={1}>{stationLocation(station)}</Text>
           </View>
 
@@ -131,7 +132,7 @@ const StationListItem = ({ station, index, favorite, energy, onPress }) => {
   );
 };
 
-export default function StationsScreen({ navigate }) {
+export default function StationsScreen({ navigate, showNotice }) {
   const [stations, setStations] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [query, setQuery] = useState('');
@@ -140,6 +141,7 @@ export default function StationsScreen({ navigate }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [energy, setEnergy] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
   const resultMotion = useRef(new Animated.Value(1)).current;
 
   const load = useCallback(async (refresh = false, q = query, silent = false) => {
@@ -154,6 +156,9 @@ export default function StationsScreen({ navigate }) {
         : await api.stations.all(0, 50);
       const list = pageItems(response);
       setStations(list);
+      api.energy.stationRecommendations().then((ranked) => {
+        setRecommendations(Array.isArray(ranked) ? ranked : []);
+      }).catch(() => setRecommendations([]));
       const regions = [...new Set(list.map(gridRegionForStation))];
       Promise.all(regions.map(async region => {
         try { return [region, await api.energy.current(region)]; }
@@ -201,14 +206,16 @@ export default function StationsScreen({ navigate }) {
   useAutoRefresh(() => load(false, query, true), { enabled: !loading });
 
   const visibleStations = useMemo(() => {
+    const rank = new Map(recommendations.map((item, index) => [String(item.stationId), index]));
     return stations.filter((station) => {
       if (filter === 'AVAILABLE') return Number(station.availablePoints || 0) > 0;
       if (filter === 'FAVORITES') return isFavoriteStation(favoriteIds, station.id);
       if (filter === 'DC') return String(station.name || '').toUpperCase().includes('DC');
       if (filter === 'AC') return !String(station.name || '').toUpperCase().includes('DC');
       return true;
-    });
-  }, [favoriteIds, filter, stations]);
+    }).sort((left, right) => (rank.get(String(left.id)) ?? Number.MAX_SAFE_INTEGER)
+      - (rank.get(String(right.id)) ?? Number.MAX_SAFE_INTEGER));
+  }, [favoriteIds, filter, recommendations, stations]);
 
   const resultsTitle = filter === 'FAVORITES'
     ? 'Favorite stations'
@@ -289,6 +296,7 @@ export default function StationsScreen({ navigate }) {
               index={index}
               favorite={isFavoriteStation(favoriteIds, station.id)}
               energy={energy?.[gridRegionForStation(station)]}
+              recommended={String(recommendations[0]?.stationId) === String(station.id)}
               onPress={() => navigate('stationDetails', { stationId: station.id })}
             />
           ))
@@ -448,6 +456,13 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0,
     lineHeight: 20,
+  },
+  recommendedText: {
+    marginTop: 3,
+    color: colors.success,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
   stationLocation: {
     color: colors.textMuted,

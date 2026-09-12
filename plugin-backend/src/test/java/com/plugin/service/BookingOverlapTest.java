@@ -81,9 +81,11 @@ class BookingOverlapTest {
                     }
                     return vehicle;
                 });
-        lenient().when(pricingSnapshotService.resolveFor(any(), any()))
+        lenient().when(pricingSnapshotService.resolveFor(any(), any(), any(), any()))
                 .thenReturn(new PricingSnapshotService.PricingSnapshot(
                         BigDecimal.valueOf(18),
+                        BigDecimal.valueOf(20),
+                        BigDecimal.TEN,
                         PricingModel.PER_KWH.name(),
                         false
                 ));

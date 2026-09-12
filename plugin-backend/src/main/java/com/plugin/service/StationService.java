@@ -120,6 +120,18 @@ public class StationService {
                 .longitude(request.getLongitude())
                 .openingTime(request.getOpeningTime())
                 .closingTime(request.getClosingTime())
+                .localSolarCurrentKw(request.getLocalSolarCurrentKw())
+                .localSolarForecastKw(request.getLocalSolarForecastKw())
+                .batteryCapacityKwh(request.getBatteryCapacityKwh())
+                .batteryStateOfChargePercent(request.getBatteryStateOfChargePercent())
+                .gridImportLimitKw(request.getGridImportLimitKw())
+                .emergencyReservePercent(request.getEmergencyReservePercent())
+                .renewableAvailableForChargingKw(request.getRenewableAvailableForChargingKw())
+                .stationUtilizationPercent(request.getStationUtilizationPercent())
+                .renewableDataMode(request.getRenewableDataMode())
+                .energyUpdatedAt(request.getEnergyUpdatedAt())
+                .minimumRatePerKwh(request.getMinimumRatePerKwh())
+                .maximumDiscountPercent(request.getMaximumDiscountPercent())
                 .active(true)
                 .build();
         station = stationRepository.save(station);
@@ -142,6 +154,20 @@ public class StationService {
         station.setLongitude(request.getLongitude());
         station.setOpeningTime(request.getOpeningTime());
         station.setClosingTime(request.getClosingTime());
+        // Legacy station forms do not submit energy telemetry. Preserve the last
+        // operator reading unless a newer value is explicitly supplied.
+        if (request.getLocalSolarCurrentKw() != null) station.setLocalSolarCurrentKw(request.getLocalSolarCurrentKw());
+        if (request.getLocalSolarForecastKw() != null) station.setLocalSolarForecastKw(request.getLocalSolarForecastKw());
+        if (request.getBatteryCapacityKwh() != null) station.setBatteryCapacityKwh(request.getBatteryCapacityKwh());
+        if (request.getBatteryStateOfChargePercent() != null) station.setBatteryStateOfChargePercent(request.getBatteryStateOfChargePercent());
+        if (request.getGridImportLimitKw() != null) station.setGridImportLimitKw(request.getGridImportLimitKw());
+        if (request.getEmergencyReservePercent() != null) station.setEmergencyReservePercent(request.getEmergencyReservePercent());
+        if (request.getRenewableAvailableForChargingKw() != null) station.setRenewableAvailableForChargingKw(request.getRenewableAvailableForChargingKw());
+        if (request.getStationUtilizationPercent() != null) station.setStationUtilizationPercent(request.getStationUtilizationPercent());
+        if (request.getRenewableDataMode() != null) station.setRenewableDataMode(request.getRenewableDataMode());
+        if (request.getEnergyUpdatedAt() != null) station.setEnergyUpdatedAt(request.getEnergyUpdatedAt());
+        if (request.getMinimumRatePerKwh() != null) station.setMinimumRatePerKwh(request.getMinimumRatePerKwh());
+        if (request.getMaximumDiscountPercent() != null) station.setMaximumDiscountPercent(request.getMaximumDiscountPercent());
         station = stationRepository.save(station);
         auditService.log("UPDATE_STATION", "STATION", station.getId(), performedBy,
                 "Updated station: " + station.getName());
@@ -259,6 +285,18 @@ public class StationService {
                 .createdAt(station.getCreatedAt())
                 .totalPoints(total)
                 .availablePoints(available)
+                .localSolarCurrentKw(station.getLocalSolarCurrentKw())
+                .localSolarForecastKw(station.getLocalSolarForecastKw())
+                .batteryCapacityKwh(station.getBatteryCapacityKwh())
+                .batteryStateOfChargePercent(station.getBatteryStateOfChargePercent())
+                .gridImportLimitKw(station.getGridImportLimitKw())
+                .emergencyReservePercent(station.getEmergencyReservePercent())
+                .renewableAvailableForChargingKw(station.getRenewableAvailableForChargingKw())
+                .stationUtilizationPercent(station.getStationUtilizationPercent())
+                .renewableDataMode(station.getRenewableDataMode())
+                .energyUpdatedAt(station.getEnergyUpdatedAt())
+                .minimumRatePerKwh(station.getMinimumRatePerKwh())
+                .maximumDiscountPercent(station.getMaximumDiscountPercent())
                 .build();
     }
 }
