@@ -16,7 +16,13 @@ public class StationRequest {
     private String pincode;
     private String contactPhone;
     private String contactEmail;
+    @NotNull
+    @jakarta.validation.constraints.DecimalMin("-90.0")
+    @jakarta.validation.constraints.DecimalMax("90.0")
     private Double latitude;
+    @NotNull
+    @jakarta.validation.constraints.DecimalMin("-180.0")
+    @jakarta.validation.constraints.DecimalMax("180.0")
     private Double longitude;
     @NotNull
     private LocalTime openingTime;

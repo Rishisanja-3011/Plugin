@@ -18,6 +18,7 @@ const Transaction = ({ bill, onPress }) => (
     <View style={styles.copy}>
       <Text style={styles.title}>{brandText(bill.stationName, 'Plugin Charging')}</Text>
       <Text style={styles.date}>{dateTime(bill.paidAt || bill.createdAt)}</Text>
+      {bill.greenScore != null ? <Text style={styles.green}>{bill.greenScore}/100 green · {Math.round(Number(bill.renewableSharePercent || 0))}% renewable</Text> : null}
     </View>
     <View style={styles.amountWrap}>
       <Text style={styles.amount}>{money(bill.totalAmount)}</Text>
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 5,
   },
+  green: { color: colors.success, fontSize: 10, marginTop: 4, fontWeight: '800' },
   amountWrap: {
     alignItems: 'flex-end',
     gap: 5,

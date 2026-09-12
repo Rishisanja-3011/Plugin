@@ -150,9 +150,9 @@ export default function StationDetails() {
     ? `${station.openingTime} - ${station.closingTime}`
     : station.operatingHours ?? station.operating_hours ?? station.hours ?? '-';
   const contact = station.contactPhone ?? station.contact ?? station.phone ?? station.contactNumber ?? '-';
-  const coordinates = station.latitude != null && station.longitude != null
+  const coordinates = station.latitude != null && station.longitude != null && Math.abs(Number(station.latitude)) <= 90 && Math.abs(Number(station.longitude)) <= 180
     ? `${station.latitude}, ${station.longitude}`
-    : station.coordinates ?? null;
+    : null;
   const bookablePoints = chargingPoints.filter((point) => !isPointBlockedForBooking(point?.status));
 
   const hasSavedVehicle = Boolean(

@@ -34,6 +34,7 @@ plugin_app/*_screen*.png
 plugin_app/.expo/
 plugin_app/node_modules/
 plugin_app/.env
+plugin_app/output-*/
 plugin_app/android/.gradle/
 plugin_app/android/.gradle-user-home/
 plugin_app/android/.kotlin/
@@ -42,6 +43,11 @@ plugin_app/android/build/
 plugin_app/android/app/build/
 plugin_app/android/app/.cxx/
 
+# Local build/document tooling caches
+output/
+tmp/
+
 # OS
 .DS_Store
 Thumbs.db
+plugin-backend/.local-runtime/

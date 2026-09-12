@@ -139,6 +139,12 @@ export default function BookingDetailsScreen({ params, navigate, goBack, showNot
           </>
         ) : null}
         <Detail label="Price" value={booking.lockedRatePerUnit ? `${money(booking.lockedRatePerUnit)} / kWh` : 'At session end'} />
+        {booking.greenScore != null ? <>
+          <Detail label="Charging plan" value={`${booking.chargingPreference || 'BALANCED'} · ${booking.greenScore}/100 green`} />
+          <Detail label="Renewable forecast" value={`${Math.round(Number(booking.expectedRenewableSharePercent))}% · ${booking.energyDataMode || 'FORECAST'}`} />
+          <Detail label="Expected carbon" value={`${Number(booking.expectedCarbonKg || 0).toFixed(2)} kg CO₂`} />
+          <Detail label="Estimated CO₂ saved" value={`${Number(booking.estimatedCarbonSavedKg || 0).toFixed(2)} kg`} />
+        </> : null}
         <Detail label="End Time" value={dateTime(booking.endTime)} last />
       </Card>
       {isActive ? (

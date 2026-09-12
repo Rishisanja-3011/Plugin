@@ -9,7 +9,7 @@ import AuthShell from '../auth/AuthShell';
 import EyeIcon from '../auth/EyeIcon';
 
 const PHONE_PREFIX = '+91 ';
-const STRONG_PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+import { isStrongPassword, PASSWORD_HINT } from '../../utils/passwordPolicy';
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -34,7 +34,7 @@ export default function Register() {
     if (!email.trim()) next.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = 'Enter a valid email';
     if (!password) next.password = 'Password is required';
-    else if (!STRONG_PASSWORD_RULE.test(password)) next.password = 'Use 8+ chars with uppercase, lowercase, and number';
+    else if (!isStrongPassword(password)) next.password = PASSWORD_HINT;
     if (!confirmPassword) next.confirmPassword = 'Confirm password is required';
     else if (confirmPassword !== password) next.confirmPassword = 'Passwords do not match';
     const phoneDigits = phone.replace(/\D/g, '');
@@ -55,7 +55,7 @@ export default function Register() {
       toast.success(data?.message || 'OTP sent to your email. Please confirm your account.');
       setErrors({});
       setOtp('');
-      setResendCooldown(40);
+      setResendCooldown(60);
       setStep(2);
     } catch (err) {
       const raw = err.response?.data?.message || err.message || 'Registration failed';
@@ -79,7 +79,7 @@ export default function Register() {
       const data = await googleLogin(credential);
       toast.success('Account ready. Welcome to PLUGIN.');
       const role = data.role || data.user?.role;
-      navigate(role === 'ADMIN' || role === 'STATION_OPERATOR' ? '/admin/dashboard' : '/customer/dashboard', { replace: true });
+      navigate(role === 'GRID_OPERATOR' ? '/grid/dashboard' : role === 'ADMIN' || role === 'STATION_OPERATOR' ? '/admin/energy' : '/customer/dashboard', { replace: true });
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Google sign-up failed');
     } finally {
@@ -120,7 +120,7 @@ export default function Register() {
     try {
       const res = await authApi.resendRegistrationOtp(email);
       toast.success(res.data?.message || 'OTP resent to your email.');
-      setResendCooldown(40);
+      setResendCooldown(60);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to resend OTP';
       toast.error(msg);
@@ -210,7 +210,7 @@ export default function Register() {
               </div>
               {errors.password
                 ? <span className="auth-error">{errors.password}</span>
-                : <span className="auth-hint">8+ characters with an uppercase, a lowercase and a number.</span>}
+                : <span className="auth-hint">{PASSWORD_HINT}</span>}
             </div>
 
             <div className="auth-field">

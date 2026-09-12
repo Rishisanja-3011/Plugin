@@ -31,8 +31,12 @@ export default function Login() {
 
   const routeAfterAuth = useCallback((data) => {
     const role = data.role || data.user?.role;
+    if (role === 'GRID_OPERATOR') {
+      navigate('/grid/dashboard', { replace: true });
+      return;
+    }
     if (role === 'ADMIN' || role === 'STATION_OPERATOR') {
-      navigate('/admin/dashboard', { replace: true });
+      navigate('/admin/energy', { replace: true });
       return;
     }
     navigate('/customer/dashboard', { replace: true });
@@ -85,11 +89,11 @@ export default function Login() {
 
   return (
     <AuthShell
-      eyebrow="Network live"
-      headline={<>Every connector,<br />accounted for.</>}
-      note="Sign in to see which bays are genuinely free, hold a charging window before you drive, and settle every session to the kilowatt-hour."
+      eyebrow="Cleaner charging for India"
+      headline={<>Better charging.<br />A greener grid.</>}
+      note="Drivers plan cleaner journeys. Station operators manage chargers and capacity. Grid operators coordinate demand with renewable availability."
       title="Sign in"
-      subtitle="Welcome back. Enter your credentials to continue."
+      subtitle="Driver, station operator, grid operator or administrator — your account opens the right workspace."
     >
       <motion.form
         className="auth-form"

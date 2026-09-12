@@ -52,6 +52,7 @@ const isPublicPath = (path, method = 'GET') => {
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/charging-points/station/')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/pricing/station/')) return true;
   if (normalizedMethod === 'GET' && normalizedPath.startsWith('/station-manager/reference-data')) return true;
+  if (normalizedMethod === 'GET' && normalizedPath.startsWith('/energy/')) return true;
   if (normalizedMethod === 'POST' && normalizedPath === '/station-manager/access/setup') return true;
   return false;
 };

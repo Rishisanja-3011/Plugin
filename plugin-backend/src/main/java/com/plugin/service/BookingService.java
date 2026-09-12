@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +52,7 @@ public class BookingService {
     private final EtaService etaService;
     private final BookingTransactionRunner transactionRunner;
     private final EtaSlotAllocator etaSlotAllocator;
+    private final ChargingImpactService chargingImpactService;
 
     @Value("${app.notifications.booking-start-lookback-minutes:180}")
     private long bookingStartNotificationLookbackMinutes;
@@ -185,6 +187,8 @@ public class BookingService {
         String refId = generateReferenceId();
         PricingSnapshotService.PricingSnapshot lockedPricing =
                 pricingSnapshotService.resolveFor(station, requestedPointType);
+        ChargingImpactService.ChargingImpact impact = resolveChargingImpact(
+                request, station, startTime, endTime, chargingPoint);
 
         Booking booking = Booking.builder()
                 .referenceId(refId)
@@ -216,6 +220,16 @@ public class BookingService {
                 .pointTypePreference(requestedPointType != null ? requestedPointType.name() : null)
                 .lockedRatePerUnit(lockedPricing.ratePerUnit())
                 .lockedRateType(lockedPricing.rateType())
+                .chargingPreference(impact != null ? impact.preference() : null)
+                .requestedEnergyKwh(impact != null ? impact.requestedEnergyKwh() : null)
+                .expectedRenewableSharePercent(impact != null ? impact.renewableSharePercent() : null)
+                .expectedCarbonKg(impact != null ? impact.carbonKg() : null)
+                .estimatedCarbonSavedKg(impact != null ? impact.carbonSavedKg() : null)
+                .greenScore(impact != null ? impact.greenScore() : null)
+                .energyDataMode(impact != null ? impact.dataMode() : null)
+                .energySource(impact != null ? impact.source() : null)
+                .energyQuality(impact != null ? impact.quality() : null)
+                .energyCapturedAt(impact != null ? impact.capturedAt() : null)
                 .status(BookingStatus.CONFIRMED)
                 .startNotificationSent(false)
                 .build();
@@ -1033,7 +1047,8 @@ public class BookingService {
     private String requestFingerprint(BookingRequest request) {
         String value = java.util.Arrays.asList(request.getStationId(), request.getChargingPointId(),
                 request.getPointTypePreference(), request.getStartTime(), request.getDurationMinutes(),
-                request.getDynamicEta(), request.getOriginLatitude(), request.getOriginLongitude()).toString();
+                request.getDynamicEta(), request.getOriginLatitude(), request.getOriginLongitude(),
+                request.getChargingPreference(), request.getRequestedEnergyKwh()).toString();
         try {
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -1062,6 +1077,7 @@ public class BookingService {
                 .customerName(customer != null ? customer.getFullName() : null)
                 .stationId(station != null ? station.getId() : b.getStationId())
                 .stationName(station != null ? station.getName() : null)
+                .gridRegion(ChargingImpactService.regionFor(station))
                 .chargingPointId(chargingPoint != null ? chargingPoint.getId() : b.getChargingPointId())
                 .chargingPointIdentifier(chargingPoint != null ? chargingPoint.getIdentifier() : null)
                 .pointType(chargingPoint != null && chargingPoint.getPointType() != null ? chargingPoint.getPointType().name() : b.getPointTypePreference())
@@ -1092,6 +1108,16 @@ public class BookingService {
                 .virtualSpot(Boolean.TRUE.equals(b.getVirtualSpot()))
                 .lockedRatePerUnit(b.getLockedRatePerUnit())
                 .lockedRateType(b.getLockedRateType())
+                .chargingPreference(b.getChargingPreference())
+                .requestedEnergyKwh(b.getRequestedEnergyKwh())
+                .expectedRenewableSharePercent(b.getExpectedRenewableSharePercent())
+                .expectedCarbonKg(b.getExpectedCarbonKg())
+                .estimatedCarbonSavedKg(b.getEstimatedCarbonSavedKg())
+                .greenScore(b.getGreenScore())
+                .energyDataMode(b.getEnergyDataMode())
+                .energySource(b.getEnergySource())
+                .energyQuality(b.getEnergyQuality())
+                .energyCapturedAt(b.getEnergyCapturedAt())
                 .status(b.getStatus() != null ? b.getStatus().name() : null)
                 .cancellationReason(b.getCancellationReason())
                 .rescheduleRequestStatus((b.getRescheduleRequestStatus() != null ? b.getRescheduleRequestStatus() : RescheduleRequestStatus.NONE).name())
@@ -1104,6 +1130,30 @@ public class BookingService {
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .build();
+    }
+
+    private ChargingImpactService.ChargingImpact resolveChargingImpact(BookingRequest request, Station station,
+                                                                        LocalDateTime start, LocalDateTime end,
+                                                                        ChargingPoint point) {
+        if (request.getRequestedEnergyKwh() == null || request.getChargingPreference() == null
+                || request.getChargingPreference().isBlank() || chargingImpactService == null) {
+            return null;
+        }
+        BigDecimal maximumEnergy = BigDecimal.valueOf(point != null && point.getMaxPowerKw() != null
+                        ? point.getMaxPowerKw() : 1)
+                .multiply(BigDecimal.valueOf(request.getDurationMinutes()))
+                .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(0.92));
+        if (request.getRequestedEnergyKwh().compareTo(maximumEnergy.add(BigDecimal.valueOf(0.01))) > 0) {
+            throw new BadRequestException("Requested energy exceeds what this connector can deliver in the booking window");
+        }
+        try {
+            return chargingImpactService.snapshot(station, start, end, request.getRequestedEnergyKwh(),
+                    request.getChargingPreference().trim().toUpperCase());
+        } catch (RuntimeException unavailable) {
+            log.warn("Could not attach renewable snapshot to booking at station {}", station.getId());
+            return null;
+        }
     }
 
     private UserVehicle resolveResponseVehicle(Booking booking) {

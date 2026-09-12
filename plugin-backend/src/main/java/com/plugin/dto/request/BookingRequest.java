@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Data
 public class BookingRequest {
@@ -23,4 +24,8 @@ public class BookingRequest {
     @jakarta.validation.constraints.Size(max = 80)
     @jakarta.validation.constraints.Pattern(regexp = "[A-Za-z0-9_-]+")
     private String requestKey;
+    private String chargingPreference;
+    @jakarta.validation.constraints.DecimalMin("0.5")
+    @jakarta.validation.constraints.DecimalMax("250")
+    private BigDecimal requestedEnergyKwh;
 }

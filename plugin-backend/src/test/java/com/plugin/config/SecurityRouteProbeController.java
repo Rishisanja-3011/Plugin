@@ -41,4 +41,22 @@ public class SecurityRouteProbeController {
 
     @RequestMapping(path = "/api/admin/station-manager-applications", method = RequestMethod.GET)
     ResponseEntity<Void> adminApplications() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/energy/current", method = {RequestMethod.GET, RequestMethod.POST})
+    ResponseEntity<Void> energy() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/optimization/charging-options", method = RequestMethod.POST)
+    ResponseEntity<Void> optimization() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/operator/energy/dashboard", method = RequestMethod.GET)
+    ResponseEntity<Void> operatorEnergy() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/operator/energy/decisions", method = {RequestMethod.GET, RequestMethod.POST})
+    ResponseEntity<Void> operatorEnergyDecisions() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/grid/dashboard", method = RequestMethod.GET)
+    ResponseEntity<Void> gridDashboard() { return ResponseEntity.ok().build(); }
+
+    @RequestMapping(path = "/api/grid/signals", method = {RequestMethod.GET, RequestMethod.POST})
+    ResponseEntity<Void> gridSignals() { return ResponseEntity.ok().build(); }
 }

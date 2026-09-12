@@ -34,6 +34,10 @@ react {
     // works correctly with Expo projects.
     cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
+    // The Expo export command otherwise starts one Metro worker per CPU core.
+    // Keep local/release APK bundling reliable on memory-constrained developer
+    // machines; this only affects build speed, not the generated application.
+    extraPackagerArgs = ["--max-workers", "1"]
 
     // Debug uses Metro and __DEV__ so LAN-only origins and development payment helpers
     // cannot be confused with a production bundle. Release always embeds its JS bundle.

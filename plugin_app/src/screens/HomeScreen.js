@@ -327,6 +327,7 @@ export default function HomeScreen({ user, navigate, switchTab }) {
       <View style={styles.topBar}>
         <Image source={require('../../assets/brand-logo.png')} style={styles.topLogo} resizeMode="cover" />
         <View style={styles.topActions}>
+          <TopAction icon="leaf-outline" onPress={() => navigate('energy')} />
           <TopAction icon="notifications-outline" unread={state.unread} onPress={() => navigate('notifications')} />
           <View style={styles.topActionDivider} />
           <Pressable onPress={() => switchTab('profile')} style={({ pressed }) => [styles.avatarButton, pressed && styles.pressedSmall]}>

@@ -1,6 +1,6 @@
-# PLUGIN - EV Charging Station Management System
+# PLUGIN - EV Charging Network Renewable-Optimization Platform
 
-PLUGIN is a full-stack EV charging management application with customer booking, station management, charging sessions, billing, notifications, and admin analytics.
+PLUGIN is a full-stack EV charging platform with customer booking, station management, charging sessions, billing, notifications, admin analytics, regional renewable forecasts, explainable smart-charging recommendations, and operator/grid planning views.
 
 The project has been migrated from MySQL/JPA to MongoDB Atlas. The backend now uses Spring Data MongoDB documents, repositories, and Atlas connection settings.
 
@@ -8,8 +8,9 @@ The project has been migrated from MySQL/JPA to MongoDB Atlas. The backend now u
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 18, Vite, React Router, Framer Motion, Axios |
-| Backend | Java 17, Spring Boot 3.2, Spring Security, Spring Data MongoDB |
+| Driver mobile app | Expo / React Native, Android native project, Axios |
+| Web portals | React 18, Vite, React Router, Framer Motion, Axios |
+| Backend | Java 17, Spring Boot 3.5, Spring Security, Spring Data MongoDB |
 | Database | MongoDB Atlas, or local MongoDB for development |
 | Auth | JWT with BCrypt password hashing |
 | Styling | Custom responsive CSS |
@@ -37,7 +38,7 @@ MongoDB changes included in this project:
 
 ## Configuration
 
-The backend reads runtime settings from environment variables:
+The backend reads runtime settings from environment variables. For local development it also imports `plugin-backend/.env` as a properties file; that file is intentionally ignored by Git.
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
@@ -56,8 +57,15 @@ The backend reads runtime settings from environment variables:
 | `MAIL_USERNAME` | SMTP account used for OTP emails | `plugin.available@gmail.com` |
 | `MAIL_PASSWORD` | SMTP/app password for OTP emails | Gmail app password or SMTP password |
 | `MAIL_FROM` | Sender address for OTP emails | Same as `MAIL_USERNAME` |
+| `GRID_DATA_PROVIDER` | Energy adapter: `india-energy-atlas`, `external`, or explicit offline `demo` | `india-energy-atlas` |
+| `GRID_DEFAULT_REGION` | Default India grid region | `IN-WE` |
+| `GRID_DATA_CACHE_SECONDS` | Minimum time to reuse one provider result and protect quota | `900` |
+| `GRID_DATA_BASE_URL` | India Energy Atlas API base URL or normalized external adapter URL | India Energy Atlas developer API |
+| `GRID_DATA_API_KEY` | Server-only external provider credential | Never expose to clients |
+| `GRID_DATA_CONNECT_TIMEOUT_MS` | External provider connection timeout | `3000` |
+| `GRID_DATA_READ_TIMEOUT_MS` | External provider response timeout | `5000` |
 
-`JWT_SECRET`, `OTP_PEPPER`, and `RATE_LIMIT_PEPPER` must be independent random values. The application fails to start when any one is missing or shorter than 32 bytes. For local development, you can also create `plugin-backend/application-local.yml`. This file is ignored by Git.
+`JWT_SECRET`, `OTP_PEPPER`, and `RATE_LIMIT_PEPPER` must be independent random values. The application fails to start when any one is missing or shorter than 32 bytes. The included local `.env` now contains the supplied backend configuration plus the server-only renewable adapter settings; it stays on this machine and must not be committed. `plugin-backend/application-local.yml` remains supported for local YAML overrides and is also ignored by Git.
 
 ```yaml
 spring:
@@ -178,6 +186,8 @@ The application does not create demo users on startup. Use the users already sto
 | `passwordResetOtps` | Password reset OTP records |
 | `pendingRegistrations` | Pending signup verification records |
 | `database_sequences` | Numeric ID counters for migrated API compatibility |
+| `energyRecommendationDecisions` | Audited station-operator accept/defer/reject decisions |
+| `gridSignals` | Admin/grid-persona demand-response signals |
 
 ## API Overview
 
@@ -204,6 +214,22 @@ The application does not create demo users on startup. Use the users already sto
 | `GET` | `/api/stations/{id}` | Station details |
 | `GET` | `/api/stations/{id}/charging-points` | Station charging points |
 | `GET` | `/api/stations/{id}/pricing` | Station pricing |
+
+### Renewable Energy Intelligence
+
+| Access | Method | Endpoint | Description |
+| --- | --- | --- | --- |
+| Public | `GET` | `/api/energy/current?region=IN-WE` | Current normalized regional energy point |
+| Public | `GET` | `/api/energy/forecast?region=IN-WE&hours=24` | Renewable, load, price and carbon outlook |
+| Customer | `POST` | `/api/optimization/charging-options` | Compare greenest, cheapest, fastest and balanced windows |
+| Operator/Admin | `GET` | `/api/operator/energy/dashboard` | Station capacity, EV demand, surplus and peak outlook |
+| Operator/Admin | `POST` | `/api/operator/energy/decisions` | Persist an audited recommendation decision |
+| Admin | `GET` | `/api/grid/dashboard` | Grid-operator persona view for the hackathon |
+| Admin | `POST` | `/api/grid/signals` | Publish an audited demand-response signal |
+
+The default production-facing provider is India Energy Atlas. The backend converts hourly state fuel-mix records into five India grid-region aggregates and labels the rolled 24-hour profile as `FORECAST`, never as utility dispatch telemetry. Results are cached for 15 minutes. If refresh fails, the last successful result is returned as `STALE`; if no cached result exists, the energy endpoint fails clearly instead of silently substituting demo data. The deterministic provider remains available only when `GRID_DATA_PROVIDER=demo` is explicitly selected for offline development.
+
+See [Renewable optimization architecture and demo guide](docs/RENEWABLE-OPTIMIZATION.md).
 
 ### Customer
 

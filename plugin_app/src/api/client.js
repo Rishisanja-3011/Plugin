@@ -11,7 +11,7 @@ const ACTIVE_SESSION_TOKEN_KEY = 'plugin_active_session_token';
 export const NETWORK_ERROR_CODE = 'PLUGIN_NETWORK_UNREACHABLE';
 const DEFAULT_PORT = process.env.EXPO_PUBLIC_API_PORT || '8091';
 const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || 10000);
-const OTP_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_OTP_TIMEOUT_MS || 15000);
+const OTP_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_OTP_TIMEOUT_MS || 45000);
 const PAYMENT_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_PAYMENT_TIMEOUT_MS || 20000);
 const MIN_ATTEMPT_TIMEOUT_MS = 250;
 const SAFE_RETRY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -161,10 +161,14 @@ const isPublicRequest = (path, method = 'GET') => {
   if (normalizedMethod === 'GET' && path.startsWith('/stations')) return true;
   if (normalizedMethod === 'GET' && path.startsWith('/charging-points/station/')) return true;
   if (normalizedMethod === 'GET' && path.startsWith('/pricing/station/')) return true;
+  if (normalizedMethod === 'GET' && path.startsWith('/energy/')) return true;
   return false;
 };
 
 const parseErrorMessage = async (response) => {
+  if (response.status >= 500) {
+    return 'The server could not complete this request. Please try again shortly. If an OTP email arrives, use that code before requesting another.';
+  }
   const text = await response.text();
   if (!text) return `Request failed (${response.status})`;
   try {
@@ -181,9 +185,9 @@ const parseErrorMessage = async (response) => {
       const first = Object.values(json.errors).find(Boolean);
       if (first) return String(first);
     }
-    return text;
+    return `Request failed (${response.status}). Please try again.`;
   } catch {
-    return text;
+    return `Request failed (${response.status}). Please try again.`;
   }
 };
 
@@ -414,7 +418,7 @@ export const api = {
     register: (data) => request('/auth/register', { method: 'POST', body: data, timeoutMs: OTP_REQUEST_TIMEOUT_MS }),
     confirmOtp: (email, otp) => request('/auth/confirm-otp', { method: 'POST', body: { email, otp } }),
     resendOtp: (email) => request('/auth/resend-otp', { method: 'POST', body: { email }, timeoutMs: OTP_REQUEST_TIMEOUT_MS }),
-    forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email } }),
+    forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email }, timeoutMs: OTP_REQUEST_TIMEOUT_MS }),
     sendForgotOtp: (email) => request('/auth/forgot-password/send-otp', {
       method: 'POST',
       body: { email, deliveryMethod: 'EMAIL' },
@@ -427,7 +431,7 @@ export const api = {
     get: () => request('/profile'),
     update: (data) => request('/profile', { method: 'PUT', body: data }),
     deleteVehicle: (id) => request(`/profile/vehicles/${id}`, { method: 'DELETE' }),
-    sendChangePasswordOtp: (currentPassword) => request('/profile/change-password/send-otp', { method: 'POST', body: { currentPassword } }),
+    sendChangePasswordOtp: (currentPassword) => request('/profile/change-password/send-otp', { method: 'POST', body: { currentPassword }, timeoutMs: OTP_REQUEST_TIMEOUT_MS }),
     verifyChangePasswordOtp: (otp) => request('/profile/change-password/verify-otp', { method: 'POST', body: { otp } }),
     changePassword: (data) => request('/profile/change-password', { method: 'POST', body: data }),
     sendForgotChangePasswordOtp: () => request('/profile/change-password/forgot/send-otp', {
@@ -436,7 +440,7 @@ export const api = {
       timeoutMs: OTP_REQUEST_TIMEOUT_MS,
     }),
     forgotChangePassword: (data) => request('/profile/change-password/forgot', { method: 'POST', body: data }),
-    sendDeleteAccountOtp: (password) => request('/profile/delete/send-otp', { method: 'POST', body: { password } }),
+    sendDeleteAccountOtp: (password) => request('/profile/delete/send-otp', { method: 'POST', body: { password }, timeoutMs: OTP_REQUEST_TIMEOUT_MS }),
     verifyDeleteAccountOtp: (otp) => request('/profile/delete/verify-otp', { method: 'POST', body: { otp } }),
     deleteAccount: (data) => request('/profile/delete', { method: 'POST', body: data }),
     sendForgotDeleteAccountOtp: () => request('/profile/delete/forgot/send-otp', {
@@ -534,6 +538,11 @@ export const api = {
         timeoutMs: PAYMENT_REQUEST_TIMEOUT_MS,
       }),
     } : {}),
+  },
+  energy: {
+    current: (region = 'IN-WE') => request(`/energy/current?region=${encodeURIComponent(region)}`),
+    forecast: (region = 'IN-WE', hours = 24) => request(`/energy/forecast?region=${encodeURIComponent(region)}&hours=${hours}`),
+    options: (data) => request('/optimization/charging-options', { method: 'POST', body: data }),
   },
   notifications: {
     all: (page = 0, size = 30) => request(`/notifications?page=${page}&size=${size}`),

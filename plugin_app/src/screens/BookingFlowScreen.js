@@ -15,11 +15,13 @@ import useAutoRefresh from '../hooks/useAutoRefresh';
 import { colors, radius } from '../theme/theme';
 import { brandText, dateInputValue, dateTime, money, pageItems, parseLocalDateTime, toLocalDateTime } from '../utils/format';
 import { scheduleBookingStartNotification } from '../utils/systemNotifications';
+import { energyModeLabel, gridRegionForStation } from '../utils/energy';
 
 const steps = ['Charger', 'Schedule', 'Review', 'Done'];
 const blockedStatuses = new Set(['OUT_OF_SERVICE', 'UNAVAILABLE']);
 const samePointId = (point, id) => id != null && String(point?.id) === String(id);
 const QUICK_DURATION_OPTIONS = [15, 30, 45, 60];
+const GREEN_PREFERENCES = ['BALANCED', 'GREENEST', 'CHEAPEST', 'FASTEST'];
 
 const to24HourTime = (value, period) => {
   const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
@@ -340,6 +342,11 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dynamicEta, setDynamicEta] = useState(true);
+  const [requiredEnergyKwh, setRequiredEnergyKwh] = useState('10');
+  const [greenPreference, setGreenPreference] = useState('BALANCED');
+  const [greenOptions, setGreenOptions] = useState(null);
+  const [selectedGreenOption, setSelectedGreenOption] = useState(null);
+  const [optimizing, setOptimizing] = useState(false);
   const bookingAttempt = useRef(null);
   const submittingRef = useRef(false);
   const [error, setError] = useState('');
@@ -426,6 +433,8 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
     if (event.type === 'dismissed' || !selectedDate) return;
     const nextDate = dateInputValue(selectedDate);
     setDate(nextDate);
+    setGreenOptions(null);
+    setSelectedGreenOption(null);
     const selected = parseLocalDateTime(nextDate, startTime);
     if (!selected || selected <= new Date()) {
       setDateTimeParts(defaultTimeForDate(nextDate), setTime, setPeriod);
@@ -434,12 +443,76 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
 
   const handleTimeTextChange = (value) => {
     setTime(cleanTimeDraft(value));
+    setGreenOptions(null);
+    setSelectedGreenOption(null);
   };
 
   const handleTimeTextBlur = () => {};
 
   const setDurationValue = (value) => {
     setDuration(String(clampDurationMinutes(value)));
+    setGreenOptions(null);
+    setSelectedGreenOption(null);
+  };
+
+  const findGreenOptions = async () => {
+    const energy = Number(requiredEnergyKwh);
+    const chargerPower = Number(selectedPoint?.maxPowerKw || 0);
+    const availableCapacity = availablePoints.reduce(
+      (total, point) => total + Math.max(0, Number(point.maxPowerKw || 0)), 0
+    );
+    if (!selectedPoint || chargerPower < 1) {
+      showNotice('Charger power unavailable', 'Choose a connector with a configured power rating.', { tone: 'warning' });
+      return;
+    }
+    if (!Number.isFinite(energy) || energy < 0.5 || energy > chargerPower * 0.92) {
+      showNotice(
+        'Check energy needed',
+        `For this ${chargerPower} kW connector, choose 0.5–${(chargerPower * 0.92).toFixed(1)} kWh so the existing one-hour booking limit is respected.`,
+        { tone: 'warning' }
+      );
+      return;
+    }
+    const earliest = selectedStartDateTime && selectedStartDateTime > new Date()
+      ? selectedStartDateTime
+      : defaultStartDateTime();
+    const latest = new Date(earliest.getTime() + 12 * 60 * 60 * 1000);
+    try {
+      setOptimizing(true);
+      const response = await api.energy.options({
+        stationId: Number(stationId),
+        gridRegion: gridRegionForStation(station),
+        requiredEnergyKwh: energy,
+        earliestStartTime: toLocalDateTime(earliest),
+        latestEndTime: toLocalDateTime(latest),
+        chargerPowerKw: chargerPower,
+        stationAvailableCapacityKw: Math.max(chargerPower, availableCapacity),
+        preference: greenPreference,
+      });
+      setGreenOptions(response);
+      setSelectedGreenOption(null);
+    } catch (requestError) {
+      setGreenOptions(null);
+      showNotice('Grid recommendation unavailable', requestError.message, { tone: 'warning' });
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const acceptGreenOption = (option) => {
+    const start = new Date(option.startTime);
+    const end = new Date(option.endTime);
+    const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+    setDate(dateInputValue(start));
+    setDateTimeParts(start, setTime, setPeriod);
+    setDuration(String(clampDurationMinutes(minutes)));
+    setDynamicEta(false);
+    setSelectedGreenOption(option);
+    showNotice(
+      'Green window selected',
+      `${option.scheduleType} option selected with a ${Math.round(Number(option.expectedRenewableSharePercent))}% renewable forecast.`,
+      { tone: 'success' }
+    );
   };
 
   const scheduleError = () => {
@@ -494,6 +567,10 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
           ...(dynamicEta ? { originLatitude: origin.latitude, originLongitude: origin.longitude }
             : { chargingPointId: selectedPoint.id, startTime: toLocalDateTime(selectedStartDateTime) }),
           durationMinutes: clampDurationMinutes(durationMinutes),
+          ...(selectedGreenOption ? {
+            chargingPreference: selectedGreenOption.scheduleType,
+            requestedEnergyKwh: Number(requiredEnergyKwh),
+          } : {}),
           requestKey: `mobile_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         } };
       }
@@ -601,10 +678,61 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
             period={period}
             onTimeTextChange={handleTimeTextChange}
             onTimeBlur={handleTimeTextBlur}
-            onPeriodChange={setPeriod}
+            onPeriodChange={(value) => {
+              setPeriod(value);
+              setGreenOptions(null);
+              setSelectedGreenOption(null);
+            }}
           />
           </>}
           <DurationSelector value={duration} onChange={setDurationValue} />
+          {!dynamicEta ? (
+            <View style={styles.greenPlanner}>
+              <View style={styles.greenPlannerTitleRow}>
+                <Ionicons name="leaf" size={19} color={colors.success} />
+                <Text style={styles.greenPlannerTitle}>Renewable-aware recommendation</Text>
+              </View>
+              <Text style={styles.greenPlannerHint}>Compare real station capacity and the India grid outlook before booking.</Text>
+              <Text style={styles.fieldLabel}>Energy needed (kWh)</Text>
+              <TextInput
+                value={requiredEnergyKwh}
+                onChangeText={(value) => { setRequiredEnergyKwh(value); setGreenOptions(null); setSelectedGreenOption(null); }}
+                keyboardType="decimal-pad"
+                style={styles.energyInput}
+                placeholder="10"
+                placeholderTextColor={colors.textMuted}
+              />
+              <View style={styles.preferenceRow}>
+                {GREEN_PREFERENCES.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => { setGreenPreference(item); setGreenOptions(null); setSelectedGreenOption(null); }}
+                    style={[styles.preference, greenPreference === item && styles.preferenceActive]}
+                  >
+                    <Text style={[styles.preferenceText, greenPreference === item && styles.preferenceTextActive]}>
+                      {item[0] + item.slice(1).toLowerCase()}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Button title="Find greener times" icon="leaf-outline" variant="outline" loading={optimizing} onPress={findGreenOptions} />
+              {greenOptions?.options?.map((option) => {
+                const active = selectedGreenOption?.scheduleType === option.scheduleType;
+                return (
+                  <Pressable key={option.scheduleType} onPress={() => acceptGreenOption(option)} style={[styles.greenOption, active && styles.greenOptionActive]}>
+                    <View style={styles.greenOptionTop}>
+                      <Text style={styles.greenOptionType}>{option.scheduleType}</Text>
+                      <Text style={styles.greenScore}>{option.greenScore}/100</Text>
+                    </View>
+                    <Text style={styles.greenOptionTime}>{dateTime(option.startTime)} – {formatTimeLabel(new Date(option.endTime))}</Text>
+                    <Text style={styles.greenOptionMeta}>{Math.round(Number(option.expectedRenewableSharePercent))}% renewable · {money(option.expectedTotalCost)} · {energyModeLabel(option.dataMode)}</Text>
+                    {option.gridSignalType ? <Text style={styles.greenOptionMeta}>Grid request: {option.gridSignalType.replace(/_/g, ' ').toLowerCase()}{option.requestedReductionPercent ? ` · ${option.requestedReductionPercent}% reduction` : ''}</Text> : null}
+                  </Pressable>
+                );
+              })}
+              {greenOptions?.disclaimer ? <Text style={styles.greenDisclaimer}>{greenOptions.disclaimer}</Text> : null}
+            </View>
+          ) : null}
           <View style={styles.actions}>
             <Button title="Back" variant="outline" onPress={startsWithConnector ? goBack : () => setStep(1)} style={styles.actionHalf} />
             <Button title="Review" onPress={nextFromSchedule} style={styles.actionHalf} />
@@ -621,6 +749,12 @@ export default function BookingFlowScreen({ params, navigate, goBack, showNotice
           <SummaryRow label="Start" value={dynamicEta ? 'Earliest available window after arrival' : dateTime(selectedStartDateTime)} />
           <SummaryRow label="Duration" value={`${clampDurationMinutes(durationMinutes)} min`} />
           <SummaryRow label="Rate" value={matchedPricing?.ratePerUnit != null ? `${money(matchedPricing.ratePerUnit)} / ${matchedPricing.rateType || 'kWh'}` : 'Not configured'} />
+          {selectedGreenOption ? <>
+            <SummaryRow label="Plan" value={`${selectedGreenOption.scheduleType} · ${selectedGreenOption.greenScore}/100 green`} />
+            <SummaryRow label="Renewable forecast" value={`${Math.round(Number(selectedGreenOption.expectedRenewableSharePercent))}% · ${energyModeLabel(selectedGreenOption.dataMode)}`} />
+            <SummaryRow label="Estimated carbon" value={`${Number(selectedGreenOption.expectedCarbonKg).toFixed(2)} kg CO₂`} />
+            {selectedGreenOption.gridSignalType ? <SummaryRow label="Grid request" value={`${selectedGreenOption.gridSignalType.replace(/_/g, ' ')}${selectedGreenOption.requestedReductionPercent ? ` · ${selectedGreenOption.requestedReductionPercent}%` : ''}`} /> : null}
+          </> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.actions}>
             <Button title="Back" variant="outline" onPress={() => setStep(2)} style={styles.actionHalf} />
@@ -694,6 +828,31 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 14,
   },
+  greenPlanner: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: '#CFE7D5',
+    backgroundColor: '#F5FBF6',
+  },
+  greenPlannerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greenPlannerTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '900' },
+  greenPlannerHint: { marginTop: 6, marginBottom: 12, color: colors.textSecondary, fontSize: 11, lineHeight: 16 },
+  energyInput: { minHeight: 48, marginBottom: 12, paddingHorizontal: 13, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.white, fontWeight: '700' },
+  preferenceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 },
+  preference: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: radius.full, backgroundColor: colors.bgSecondary },
+  preferenceActive: { backgroundColor: colors.success },
+  preferenceText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
+  preferenceTextActive: { color: colors.white },
+  greenOption: { marginTop: 10, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.white },
+  greenOptionActive: { borderWidth: 2, borderColor: colors.success },
+  greenOptionTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  greenOptionType: { color: colors.success, fontSize: 10, fontWeight: '900' },
+  greenScore: { color: colors.success, fontSize: 10, fontWeight: '900' },
+  greenOptionTime: { marginTop: 6, color: colors.textPrimary, fontSize: 12, fontWeight: '900' },
+  greenOptionMeta: { marginTop: 5, color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
+  greenDisclaimer: { marginTop: 10, color: colors.textMuted, fontSize: 9, lineHeight: 14 },
   schedulePreview: {
     minHeight: 70,
     flexDirection: 'row',

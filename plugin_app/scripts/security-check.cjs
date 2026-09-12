@@ -64,7 +64,11 @@ check(!authScreen.includes('.apps.googleusercontent.com'), 'Authentication sourc
 const mainActivityManifest = mainManifest.slice(mainManifest.indexOf('<activity'));
 check(!mainActivityManifest.includes('android.intent.action.VIEW') && !appJson.includes('"scheme"'), 'Unused incoming custom-scheme deep links must not be exported.');
 check(client.includes('response.status === 401') && !client.includes('response.status === 401 || response.status === 403'), 'A 403 authorization denial must not clear mobile auth.');
-check(client.includes("EXPO_PUBLIC_API_TIMEOUT_MS || 10000") && client.includes("EXPO_PUBLIC_OTP_TIMEOUT_MS || 15000") && client.includes("EXPO_PUBLIC_PAYMENT_TIMEOUT_MS || 20000"), 'Mobile request timeouts must allow realistic no-retry operations to finish.');
+check(client.includes("EXPO_PUBLIC_API_TIMEOUT_MS || 10000") && client.includes("EXPO_PUBLIC_OTP_TIMEOUT_MS || 45000") && client.includes("EXPO_PUBLIC_PAYMENT_TIMEOUT_MS || 20000"), 'Mobile request timeouts must allow realistic no-retry operations to finish.');
+for (const endpoint of ['/auth/forgot-password', '/profile/delete/send-otp', '/profile/change-password/send-otp']) {
+  const endpointLine = client.split('\n').find(line => line.includes(`request('${endpoint}',`));
+  check(endpointLine?.includes('timeoutMs: OTP_REQUEST_TIMEOUT_MS'), `${endpoint} must use the email-delivery timeout.`);
+}
 const directVersions = { ...packageJson.dependencies, ...packageJson.devDependencies };
 check(Object.values(directVersions).every((version) => /^\d+\.\d+\.\d+$/.test(version)), 'All direct mobile dependencies must use exact versions.');
 for (const [dependency, expectedRange] of Object.entries(expoCompatibility)) {

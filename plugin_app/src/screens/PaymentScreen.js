@@ -260,6 +260,12 @@ export default function PaymentScreen({ params, navigate, goBack, showNotice, re
               <Field label="Energy" value={focusedBill.energyKwh != null ? `${Number(focusedBill.energyKwh).toFixed(2)} kWh` : '-'} />
               <Field label="Duration" value={focusedBill.durationSeconds ? `${Math.floor(Number(focusedBill.durationSeconds) / 60)} min ${Number(focusedBill.durationSeconds) % 60} sec` : `${focusedBill.durationMinutes || 0} min`} />
               <Field label="Rate" value={focusedBill.rateApplied != null ? `${money(focusedBill.rateApplied)} / ${focusedBill.rateType || 'kWh'}` : '-'} />
+              {focusedBill.greenScore != null ? <>
+                <Field label="Green score" value={`${focusedBill.greenScore}/100 · ${focusedBill.energyDataMode || 'FORECAST'}`} />
+                <Field label="Renewable share" value={`${Math.round(Number(focusedBill.renewableSharePercent || 0))}%`} />
+                <Field label="Carbon impact" value={`${Number(focusedBill.carbonKg || 0).toFixed(2)} kg CO₂`} />
+                <Field label="Estimated CO₂ saved" value={`${Number(focusedBill.carbonSavedKg || 0).toFixed(2)} kg`} />
+              </> : null}
               {!focusedPaid && focusedWalletDebited > 0 ? (
                 <Field label="Already debited" value={money(focusedWalletDebited)} />
               ) : null}

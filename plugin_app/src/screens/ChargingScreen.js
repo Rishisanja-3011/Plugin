@@ -32,6 +32,7 @@ export default function ChargingScreen({ params, navigate, goBack, showNotice, r
   const [remainingSeconds, setRemainingSeconds] = useState(Number(params?.session?.remainingSeconds || 0));
   const [deadlineMs, setDeadlineMs] = useState(null);
   const [completionRetry, setCompletionRetry] = useState(0);
+  const [liveEnergy, setLiveEnergy] = useState(null);
   const completionSyncRef = useRef(false);
   const pulse = useRef(new Animated.Value(0)).current;
   const bolt = useRef(new Animated.Value(0)).current;
@@ -101,6 +102,18 @@ export default function ChargingScreen({ params, navigate, goBack, showNotice, r
   }, [params?.session]);
 
   useAutoRefresh(() => loadActive(true), { enabled: !loading && !actionLoading });
+
+  const loadLiveEnergy = useCallback(async () => {
+    if (!session?.id) return;
+    try {
+      setLiveEnergy(await api.energy.current(session.gridRegion || 'IN-WE'));
+    } catch {
+      setLiveEnergy(null);
+    }
+  }, [session?.gridRegion, session?.id]);
+
+  useEffect(() => { loadLiveEnergy(); }, [loadLiveEnergy]);
+  useAutoRefresh(loadLiveEnergy, { enabled: Boolean(session?.id) && !offlineState });
 
   useEffect(() => {
     completionSyncRef.current = false;
@@ -317,6 +330,24 @@ export default function ChargingScreen({ params, navigate, goBack, showNotice, r
             <Text style={styles.endTimeText}>Booked slot ends at {endTimeLabel(session.scheduledEndTime)}</Text>
           </View>
         ) : null}
+        <View style={styles.greenCard}>
+          <View style={styles.greenTop}>
+            <Ionicons name="leaf" size={18} color={colors.success} />
+            <Text style={styles.greenTitle}>Charging greenness</Text>
+            <Text style={styles.greenMode}>{liveEnergy?.dataMode || session.energyDataMode || 'UNAVAILABLE'}</Text>
+          </View>
+          <Text style={styles.greenValue}>
+            {liveEnergy?.renewableSharePercent != null
+              ? `${Math.round(Number(liveEnergy.renewableSharePercent))}% renewable now`
+              : session.expectedRenewableSharePercent != null
+                ? `${Math.round(Number(session.expectedRenewableSharePercent))}% renewable forecast`
+                : 'Grid signal unavailable'}
+          </Text>
+          <Text style={styles.greenMeta}>
+            {session.greenScore != null ? `${session.greenScore}/100 planned green score` : 'Normal charging continues safely'}
+            {session.estimatedCarbonSavedKg != null ? ` · ${Number(session.estimatedCarbonSavedKg).toFixed(2)} kg CO₂ estimated saved` : ''}
+          </Text>
+        </View>
         {error && remainingSeconds > 0 ? <Text style={styles.error}>{error}</Text> : null}
 
         <Button
@@ -485,6 +516,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  greenCard: { width: '100%', marginTop: 16, padding: 15, borderRadius: radius.lg, backgroundColor: '#F0F8F2', borderWidth: 1, borderColor: '#CFE7D5' },
+  greenTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  greenTitle: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: '900' },
+  greenMode: { color: colors.success, fontSize: 9, fontWeight: '900' },
+  greenValue: { marginTop: 9, color: colors.success, fontSize: 20, fontWeight: '900' },
+  greenMeta: { marginTop: 5, color: colors.textSecondary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   stopButton: {
     width: '100%',
     marginTop: 30,

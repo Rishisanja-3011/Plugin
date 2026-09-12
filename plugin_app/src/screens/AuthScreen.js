@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { api, storeAuth } from '../api/client';
 import { colors, radius } from '../theme/theme';
+import { isStrongPassword, PASSWORD_HINT } from '../utils/passwordPolicy';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID
   || Constants.expoConfig?.extra?.googleClientId
@@ -97,6 +98,10 @@ export default function AuthScreen({ onAuthed, showNotice }) {
   };
 
   const submitRegister = async () => {
+    if (!isStrongPassword(form.password)) {
+      setError(PASSWORD_HINT);
+      return;
+    }
     if (!form.fullName.trim() || !form.email.trim() || !form.password) {
       setError('Name, email, and password are required.');
       return;
@@ -186,6 +191,10 @@ export default function AuthScreen({ onAuthed, showNotice }) {
   };
 
   const submitResetPassword = async () => {
+    if (!isStrongPassword(form.password)) {
+      setError(PASSWORD_HINT);
+      return;
+    }
     if (!form.password || !form.confirmPassword) {
       setError('Enter and confirm your new password.');
       return;

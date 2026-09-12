@@ -43,6 +43,9 @@ $architectureProperty = $deviceArchitectures -join ','
 
 $env:NODE_ENV = 'production'
 $env:EXPO_PUBLIC_ALLOW_DEV_NETWORKING = 'true'
+if ([string]::IsNullOrWhiteSpace($env:NODE_OPTIONS)) {
+  $env:NODE_OPTIONS = '--max-old-space-size=4096'
+}
 # Keep native dependency paths below Windows' legacy 260-character limit while
 # reusing the developer's existing Gradle distribution and dependency cache.
 $env:GRADLE_USER_HOME = Join-Path $env:USERPROFILE '.gradle'
@@ -63,15 +66,34 @@ if (Test-Path -LiteralPath $localNativeCache) {
 
 Push-Location $androidDir
 try {
-  & .\gradlew.bat :app:installLocal "-PreactNativeArchitectures=$architectureProperty"
+  & .\gradlew.bat `
+    '--no-daemon' `
+    '--max-workers=1' `
+    '-Dorg.gradle.parallel=false' `
+    '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m' `
+    ':app:assembleLocal' `
+    '-x' ':app:lintVitalAnalyzeLocal' `
+    '-x' ':app:lintVitalReportLocal' `
+    "-PreactNativeArchitectures=$architectureProperty"
   if ($LASTEXITCODE -ne 0) {
-    throw "Gradle installLocal failed with exit code $LASTEXITCODE."
+    throw "Gradle assembleLocal failed with exit code $LASTEXITCODE."
   }
 } finally {
   Pop-Location
 }
 
+$localApk = Get-ChildItem (Join-Path $androidDir 'app\build\outputs\apk\local') -Filter '*.apk' -File `
+  | Sort-Object LastWriteTime -Descending `
+  | Select-Object -First 1
+if (-not $localApk) {
+  throw 'The local APK build completed but no APK output was found.'
+}
+
 foreach ($serial in $deviceSerials) {
+  adb -s $serial install -r $localApk.FullName
+  if ($LASTEXITCODE -ne 0) {
+    throw "APK installation failed for Android device $serial with exit code $LASTEXITCODE."
+  }
   adb -s $serial shell am force-stop com.plugin.mobile | Out-Null
   adb -s $serial shell am start -n com.plugin.mobile/.MainActivity | Out-Null
 }

@@ -1,5 +1,8 @@
 const ADMIN_LINKS = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
+  { to: '/grid/dashboard', icon: '\u26A1', label: 'Grid operations' },
+  { to: '/admin/grid-operators', icon: '\u{1F465}', label: 'Grid operators' },
+  { to: '/admin/energy', icon: '\u{1F33F}', label: 'Grid Energy' },
   { to: '/admin/station-manager-applications', icon: '\u{1F4DD}', label: 'Station KYC' },
   { to: '/admin/station-managers', icon: '\u{1F465}', label: 'Station Managers' },
   { to: '/admin/stations', icon: '\u{1F3E2}', label: 'Stations' },
@@ -15,6 +18,7 @@ const ADMIN_LINKS = [
 
 const STATION_MANAGER_LINKS = [
   { to: '/admin/dashboard', icon: '\u{1F4CA}', label: 'Dashboard' },
+  { to: '/admin/energy', icon: '\u{1F33F}', label: 'Grid Energy' },
   { to: '/admin/re-kyc', icon: '\u{1F4DD}', label: 'Re-KYC' },
   { to: '/admin/stations', icon: '\u{1F3E2}', label: 'My Station' },
   { to: '/admin/charging-points', icon: '\u{1F50C}', label: 'Charging Points' },

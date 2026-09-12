@@ -86,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/stations/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/charging-points/station/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/pricing/station/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/energy/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/stations/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/station-manager/reference-data").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/station-manager/access/setup").permitAll()
@@ -95,6 +96,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/stations/**").denyAll()
                         .requestMatchers("/api/charging-points/station/**").denyAll()
                         .requestMatchers("/api/pricing/station/**").denyAll()
+                        .requestMatchers("/api/energy/**").denyAll()
                         .requestMatchers("/stations/**").denyAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/station-manager/status/**")
@@ -107,11 +109,12 @@ public class SecurityConfig {
                         .hasAnyRole("CUSTOMER", "STATION_OPERATOR")
 
                         .requestMatchers("/api/bookings/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/optimization/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/sessions/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/bills/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/wallet/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/profile/**")
-                        .hasAnyRole("CUSTOMER", "ADMIN", "STATION_OPERATOR")
+                        .hasAnyRole("CUSTOMER", "ADMIN", "STATION_OPERATOR", "GRID_OPERATOR")
 
                         .requestMatchers("/api/admin/dashboard").hasAnyRole("ADMIN", "STATION_OPERATOR")
                         .requestMatchers("/api/admin/stations/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
@@ -119,6 +122,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/pricing/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
                         .requestMatchers("/api/admin/station-manager-applications/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        .requestMatchers("/api/operator/energy/**").hasAnyRole("ADMIN", "STATION_OPERATOR")
+                        .requestMatchers("/api/grid/**").hasAnyRole("ADMIN", "GRID_OPERATOR")
 
                         .requestMatchers("/api/notifications/**").authenticated()
                         .anyRequest().authenticated()

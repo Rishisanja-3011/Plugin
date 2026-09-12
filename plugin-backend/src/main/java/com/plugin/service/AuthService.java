@@ -303,7 +303,7 @@ public class AuthService {
         } else if (Boolean.FALSE.equals(user.getActive())) {
             throw new BadRequestException("Your account is deleted. Contact admin.");
         } else {
-            boolean privileged = user.getRole() == Role.ADMIN || user.getRole() == Role.STATION_OPERATOR;
+            boolean privileged = user.getRole() != Role.CUSTOMER;
             if (privileged && (user.getGoogleSubject() == null
                     || !sameGoogleSubject(user.getGoogleSubject(), googleSubject))) {
                 throw new BadRequestException("Google sign-in is not linked to this privileged account");

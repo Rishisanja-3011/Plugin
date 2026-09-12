@@ -8,6 +8,8 @@ spring:
     import:
       - "optional:file:./application-local.yml"
       - "optional:file:./plugin-backend/application-local.yml"
+      - "optional:file:./.env[.properties]"
+      - "optional:file:./plugin-backend/.env[.properties]"
   servlet:
     multipart:
       max-file-size: "${MULTIPART_MAX_FILE_SIZE:10MB}"
@@ -55,6 +57,15 @@ app:
   billing:
     default-rate-per-kwh: "${DEFAULT_RATE_PER_KWH:15}"
     efficiency-factor: "${CHARGING_EFFICIENCY_FACTOR:0.92}"
+  energy:
+    provider: "${GRID_DATA_PROVIDER:india-energy-atlas}"
+    default-region: "${GRID_DEFAULT_REGION:IN-WE}"
+    cache-seconds: "${GRID_DATA_CACHE_SECONDS:900}"
+    external:
+      base-url: "${GRID_DATA_BASE_URL:}"
+      api-key: "${GRID_DATA_API_KEY:}"
+      connect-timeout-ms: "${GRID_DATA_CONNECT_TIMEOUT_MS:3000}"
+      read-timeout-ms: "${GRID_DATA_READ_TIMEOUT_MS:5000}"
   support:
     email: "${SUPPORT_EMAIL:plugin.onservice@gmail.com}"
   website:

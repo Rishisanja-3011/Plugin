@@ -50,7 +50,7 @@ export default function Navbar() {
   const mobileAccountMenuRef = useRef(null);
   const blockLogout = isCustomer && (hasUnpaid || hasActiveSession);
   const panelLabel = user?.role === 'STATION_OPERATOR' ? 'Manager Panel' : 'Admin Panel';
-  const settingsPath = isAdmin ? '/admin/dashboard' : '/customer/profile';
+  const settingsPath = user?.role === 'GRID_OPERATOR' ? '/grid/dashboard' : isAdmin ? '/admin/dashboard' : '/customer/profile';
   const isLanding = location.pathname === '/';
 
   useEffect(() => {
@@ -150,10 +150,12 @@ export default function Navbar() {
 
         <div className={`navbar__links ${mobileOpen ? 'navbar__links--open' : ''}`}>
           {!isAdmin && (
-            <Link to="/search" className={`navbar__link ${isActive('/search') ? 'navbar__link--active' : ''}`}
+            <><Link to="/search" className={`navbar__link ${isActive('/search') ? 'navbar__link--active' : ''}`}
                   onClick={() => setMobileOpen(false)}>
               Stations
             </Link>
+            <Link to="/energy" className={`navbar__link ${isActive('/energy') ? 'navbar__link--active' : ''}`}
+                  onClick={() => setMobileOpen(false)}>Green Energy</Link></>
           )}
 
           {isCustomer && (
@@ -167,9 +169,13 @@ export default function Navbar() {
             </>
           )}
 
+          {(user?.role === 'GRID_OPERATOR' || user?.role === 'ADMIN') && <Link to="/grid/dashboard" className="navbar__link">Grid operations</Link>}
+
           {isAdmin && (
-            <Link to="/admin/dashboard" className={`navbar__link ${isActive('/admin') ? 'navbar__link--active' : ''}`}
-                  onClick={() => setMobileOpen(false)}>{panelLabel}</Link>
+            <><Link to="/admin/energy" className={`navbar__link ${isActive('/admin/energy') ? 'navbar__link--active' : ''}`}
+                    onClick={() => setMobileOpen(false)}>Grid Energy</Link>
+              <Link to="/admin/dashboard" className={`navbar__link ${isActive('/admin') && !isActive('/admin/energy') ? 'navbar__link--active' : ''}`}
+                    onClick={() => setMobileOpen(false)}>{panelLabel}</Link></>
           )}
 
           <div className="navbar__actions">

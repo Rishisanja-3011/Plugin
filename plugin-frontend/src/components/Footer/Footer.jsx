@@ -74,7 +74,7 @@ export default function Footer({ compact = false, userSide = true, adminSide = f
             <div>
               <h3 className="footer-user__title">Company</h3>
               <ul className="footer-user__links">
-                <li><Link to="/" onClick={handleFooterNavigate}>About</Link></li>
+                <li><Link to="/about" onClick={handleFooterNavigate}>About</Link></li>
                 <li><Link to="/register" onClick={handleFooterNavigate}>Join Us</Link></li>
               </ul>
             </div>
@@ -140,8 +140,8 @@ export default function Footer({ compact = false, userSide = true, adminSide = f
             <h3 className="footer__section-title">Company</h3>
             <ul className="footer__company-links">
               <li><Link to="/search" onClick={handleFooterNavigate}>Stations</Link></li>
-              <li><Link to="/" onClick={handleFooterNavigate}>About</Link></li>
-              <li><Link to="/" onClick={handleFooterNavigate}>Contact</Link></li>
+              <li><Link to="/about" onClick={handleFooterNavigate}>About</Link></li>
+              <li><Link to="/about" onClick={handleFooterNavigate}>Contact</Link></li>
             </ul>
           </div>
         </div>

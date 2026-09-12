@@ -15,6 +15,9 @@ import StationDetails from './pages/StationDetails/StationDetails';
 import StationManagerApply from './pages/StationManagerApply/StationManagerApply';
 import StationManagerApplyIntro from './pages/StationManagerApplyIntro/StationManagerApplyIntro';
 import StationManagerAccessSetup from './pages/StationManagerAccessSetup/StationManagerAccessSetup';
+import Energy from './pages/Energy/Energy';
+import GridWorkspace from './pages/Energy/GridWorkspace';
+import GridAccounts from './pages/Energy/GridAccounts';
 
 // Customer pages
 import CustomerDashboard from './pages/customer/Dashboard/Dashboard';
@@ -43,7 +46,7 @@ export default function App() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
   // the landing page ships its own dark navbar + footer
-  const isLanding = location.pathname === '/';
+  const isLanding = location.pathname === '/' || location.pathname === '/about';
   // login and register are full-bleed: their own brand mark, no chrome
   const isAuth = location.pathname === '/login' || location.pathname === '/register';
 
@@ -73,11 +76,15 @@ export default function App() {
         <Routes location={location}>
           {/* Public */}
           <Route path="/" element={<Landing />} />
+          <Route path="/about" element={<Landing />} />
+          <Route path="/grid/dashboard" element={<ProtectedRoute roles={['ADMIN', 'GRID_OPERATOR']}><GridWorkspace /></ProtectedRoute>} />
+          <Route path="/admin/grid-operators" element={<ProtectedRoute role="ADMIN"><GridAccounts /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/search" element={<Search />} />
           <Route path="/stations/:id" element={<StationDetails />} />
+          <Route path="/energy" element={<Energy />} />
           <Route path="/station-manager/apply" element={<StationManagerApplyIntro />} />
           <Route path="/station-manager/setup-access" element={<StationManagerAccessSetup />} />
           <Route path="/station-manager/apply/form" element={<ProtectedRoute roles={['CUSTOMER']}><StationManagerApply /></ProtectedRoute>} />
@@ -92,6 +99,7 @@ export default function App() {
 
           {/* Admin */}
           <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/energy" element={<ProtectedRoute roles={['ADMIN', 'STATION_OPERATOR']}><Energy /></ProtectedRoute>} />
           <Route path="/admin/re-kyc" element={<ProtectedRoute roles={['STATION_OPERATOR']}><StationManagerApply /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />
           <Route path="/admin/station-manager-applications/:id" element={<ProtectedRoute roles={['ADMIN']}><AdminStationManagerApplications /></ProtectedRoute>} />

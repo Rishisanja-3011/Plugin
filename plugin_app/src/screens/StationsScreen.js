@@ -9,6 +9,7 @@ import useAutoRefresh from '../hooks/useAutoRefresh';
 import { colors, radius, shadows } from '../theme/theme';
 import { getFavoriteStationIds, isFavoriteStation } from '../utils/favoriteStations';
 import { brandText, pageItems } from '../utils/format';
+import { gridRegionForStation } from '../utils/energy';
 
 const filterOptions = [
   { id: 'ALL', label: 'All', icon: 'apps-outline' },
@@ -67,7 +68,7 @@ const FilterChip = ({ label, icon, active, onPress }) => (
   </Pressable>
 );
 
-const StationListItem = ({ station, index, favorite, onPress }) => {
+const StationListItem = ({ station, index, favorite, energy, onPress }) => {
   const status = stationStatus(station);
   const available = Number(station?.availablePoints || 0);
   const total = Number(station?.totalPoints || 0);
@@ -113,7 +114,14 @@ const StationListItem = ({ station, index, favorite, onPress }) => {
         </View>
 
         <View style={styles.stationFooter}>
-          <Text style={styles.openText}>Open station</Text>
+          <View>
+            <Text style={styles.openText}>Open station</Text>
+            <Text style={styles.greenText}>
+              {energy?.renewableSharePercent != null
+                ? `${Math.round(Number(energy.renewableSharePercent))}% renewable · ${energy.dataMode || 'FORECAST'}`
+                : 'Grid signal unavailable'}
+            </Text>
+          </View>
           <View style={styles.openAction}>
             <Ionicons name="arrow-forward" size={15} color={colors.white} />
           </View>
@@ -131,6 +139,7 @@ export default function StationsScreen({ navigate }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [energy, setEnergy] = useState(null);
   const resultMotion = useRef(new Animated.Value(1)).current;
 
   const load = useCallback(async (refresh = false, q = query, silent = false) => {
@@ -143,7 +152,13 @@ export default function StationsScreen({ navigate }) {
       const response = q.trim()
         ? await api.stations.search(q.trim(), 0, 50)
         : await api.stations.all(0, 50);
-      setStations(pageItems(response));
+      const list = pageItems(response);
+      setStations(list);
+      const regions = [...new Set(list.map(gridRegionForStation))];
+      Promise.all(regions.map(async region => {
+        try { return [region, await api.energy.current(region)]; }
+        catch { return [region, null]; }
+      })).then(entries => setEnergy(Object.fromEntries(entries)));
     } catch (requestError) {
       if (!silent) {
         setError(requestError.message);
@@ -273,6 +288,7 @@ export default function StationsScreen({ navigate }) {
               station={station}
               index={index}
               favorite={isFavoriteStation(favoriteIds, station.id)}
+              energy={energy?.[gridRegionForStation(station)]}
               onPress={() => navigate('stationDetails', { stationId: station.id })}
             />
           ))
@@ -520,6 +536,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0,
   },
+  greenText: { color: colors.success, fontSize: 9, fontWeight: '800', marginTop: 2 },
   openAction: {
     width: 30,
     height: 30,

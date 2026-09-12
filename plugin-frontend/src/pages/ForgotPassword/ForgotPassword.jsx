@@ -9,7 +9,7 @@ import './SplitLayout.css';
 import './ForgotPassword.css';
 
 const STEPS = ['Email', 'Delivery', 'Verify OTP', 'New Password'];
-const STRONG_PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+import { isStrongPassword, PASSWORD_HINT } from '../../utils/passwordPolicy';
 
 const parseJwt = (token) => {
   try {
@@ -122,7 +122,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     const next = {};
     if (!newPassword) next.newPassword = 'Password is required';
-    else if (!STRONG_PASSWORD_RULE.test(newPassword)) next.newPassword = 'Use 8+ chars with uppercase, lowercase, and number';
+    else if (!isStrongPassword(newPassword)) next.newPassword = PASSWORD_HINT;
     if (!confirmPassword) next.confirmPassword = 'Please confirm your password';
     else if (newPassword !== confirmPassword) next.confirmPassword = 'Passwords do not match';
     setErrors(next);
@@ -393,7 +393,7 @@ export default function ForgotPassword() {
                       id="fp-new-pw"
                       type="password"
                       className="login__input"
-                      placeholder="Use 8+ chars, Aa1 format"
+                      placeholder={PASSWORD_HINT}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       autoComplete="new-password"

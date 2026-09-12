@@ -51,6 +51,14 @@ public class Bill {
 
     private BigDecimal totalAmount;
 
+    private String chargingPreference;
+    private BigDecimal renewableSharePercent;
+    private BigDecimal carbonKg;
+    private BigDecimal carbonSavedKg;
+    private Integer greenScore;
+    private String energyDataMode;
+    private String energySource;
+
     private PaymentStatus paymentStatus;
 
     private String razorpayOrderId;

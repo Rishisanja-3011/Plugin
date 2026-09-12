@@ -13,6 +13,7 @@ public class BookingResponse {
     private String customerName;
     private Long stationId;
     private String stationName;
+    private String gridRegion;
     private Long chargingPointId;
     private String chargingPointIdentifier;
     private String pointType;
@@ -42,6 +43,16 @@ public class BookingResponse {
     private Boolean virtualSpot;
     private BigDecimal lockedRatePerUnit;
     private String lockedRateType;
+    private String chargingPreference;
+    private BigDecimal requestedEnergyKwh;
+    private BigDecimal expectedRenewableSharePercent;
+    private BigDecimal expectedCarbonKg;
+    private BigDecimal estimatedCarbonSavedKg;
+    private Integer greenScore;
+    private String energyDataMode;
+    private String energySource;
+    private String energyQuality;
+    private LocalDateTime energyCapturedAt;
     private String status;
     private String cancellationReason;
     private String rescheduleRequestStatus;

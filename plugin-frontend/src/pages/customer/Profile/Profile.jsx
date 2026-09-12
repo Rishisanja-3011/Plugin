@@ -7,6 +7,7 @@ import IconGlyph from '../../../components/IconGlyph/IconGlyph';
 import { useAuth } from '../../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './Profile.css';
+import { isStrongPassword, PASSWORD_HINT } from '../../../utils/passwordPolicy';
 
 const MAX_VEHICLES = 3;
 const SETTINGS_SECTIONS = {
@@ -674,8 +675,8 @@ export default function Profile() {
       toast.error('Current and new password are required');
       return;
     }
-    if (passwordForm.newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters');
+    if (!isStrongPassword(passwordForm.newPassword)) {
+      toast.error(PASSWORD_HINT);
       return;
     }
     if (passwordForm.currentPassword === passwordForm.newPassword) {

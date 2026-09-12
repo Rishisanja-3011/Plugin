@@ -22,6 +22,13 @@ public class BillResponse {
     private BigDecimal totalAmount;
     private BigDecimal walletDebitedAmount;
     private BigDecimal walletAmountDue;
+    private String chargingPreference;
+    private BigDecimal renewableSharePercent;
+    private BigDecimal carbonKg;
+    private BigDecimal carbonSavedKg;
+    private Integer greenScore;
+    private String energyDataMode;
+    private String energySource;
     private String paymentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime paidAt;

@@ -8,6 +8,7 @@ import Button from '../components/Button';
 import TopIconButton from '../components/TopIconButton';
 import { api } from '../api/client';
 import { colors, radius } from '../theme/theme';
+import { isStrongPassword, PASSWORD_HINT } from '../utils/passwordPolicy';
 
 const initialForm = {
   currentPassword: '',
@@ -132,8 +133,8 @@ export default function ChangePasswordScreen({ user, params, goBack, showNotice 
       setError('Enter and confirm your new password.');
       return;
     }
-    if (form.newPassword.length < 8) {
-      setError('New password must be at least 8 characters.');
+    if (!isStrongPassword(form.newPassword)) {
+      setError(PASSWORD_HINT);
       return;
     }
     if (form.newPassword !== form.confirmPassword) {

@@ -26,6 +26,7 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
 import DeleteAccountScreen from './src/screens/DeleteAccountScreen';
+import EnergyScreen from './src/screens/EnergyScreen';
 import useAutoRefresh from './src/hooks/useAutoRefresh';
 import { pageItems } from './src/utils/format';
 import {
@@ -291,6 +292,7 @@ export default function App() {
     if (activeScreen === 'settings') content = <SettingsScreen {...sharedProps} params={params} />;
     if (activeScreen === 'changePassword') content = <ChangePasswordScreen {...sharedProps} params={params} />;
     if (activeScreen === 'deleteAccount') content = <DeleteAccountScreen {...sharedProps} params={params} />;
+    if (activeScreen === 'energy') content = <EnergyScreen {...sharedProps} />;
     if (!content) content = <HomeScreen {...sharedProps} />;
 
     appBody = (

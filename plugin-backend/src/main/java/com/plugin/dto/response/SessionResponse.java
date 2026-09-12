@@ -18,6 +18,7 @@ public class SessionResponse {
     private Long customerId;
     private String customerName;
     private String stationName;
+    private String gridRegion;
     private Long vehicleId;
     private String vehicleNickname;
     private String vehicleMake;
@@ -31,6 +32,13 @@ public class SessionResponse {
     private Long remainingSeconds;
     private Long scheduledDurationSeconds;
     private BigDecimal energyDeliveredKwh;
+    private String chargingPreference;
+    private BigDecimal expectedRenewableSharePercent;
+    private BigDecimal expectedCarbonKg;
+    private BigDecimal estimatedCarbonSavedKg;
+    private Integer greenScore;
+    private String energyDataMode;
+    private String energySource;
     private BigDecimal estimateRate;
     private String estimateRateType;
     private BigDecimal estimatedAmount;

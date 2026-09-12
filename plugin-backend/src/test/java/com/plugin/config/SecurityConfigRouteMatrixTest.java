@@ -49,6 +49,7 @@ class SecurityConfigRouteMatrixTest {
         configureIdentity("customer", 1L, Role.CUSTOMER);
         configureIdentity("operator", 2L, Role.STATION_OPERATOR);
         configureIdentity("admin", 3L, Role.ADMIN);
+        configureIdentity("grid", 4L, Role.GRID_OPERATOR);
     }
 
     @Test
@@ -96,12 +97,42 @@ class SecurityConfigRouteMatrixTest {
 
     @Test
     void keepsProfileAndNotificationsAuthenticated() throws Exception {
-        for (String roleToken : new String[]{"customer", "operator", "admin"}) {
+        for (String roleToken : new String[]{"customer", "operator", "admin", "grid"}) {
             assertAllowed(get("/api/profile"), roleToken);
             assertAllowed(get("/api/notifications"), roleToken);
         }
         mockMvc.perform(get("/api/profile")).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/notifications")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void enforcesRenewableEnergyRoleBoundaries() throws Exception {
+        mockMvc.perform(get("/api/energy/current")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/energy/current")).andExpect(status().isForbidden());
+
+        assertAllowed(post("/api/optimization/charging-options"), "customer");
+        assertForbidden(post("/api/optimization/charging-options"), "operator");
+        assertForbidden(post("/api/optimization/charging-options"), "admin");
+        mockMvc.perform(post("/api/optimization/charging-options")).andExpect(status().isForbidden());
+
+        assertAllowed(get("/api/operator/energy/dashboard"), "operator");
+        assertAllowed(get("/api/operator/energy/dashboard"), "admin");
+        assertForbidden(get("/api/operator/energy/dashboard"), "customer");
+
+        assertAllowed(post("/api/operator/energy/decisions"), "operator");
+        assertAllowed(post("/api/operator/energy/decisions"), "admin");
+        assertForbidden(post("/api/operator/energy/decisions"), "customer");
+
+        assertAllowed(get("/api/grid/dashboard"), "admin");
+        assertAllowed(get("/api/grid/dashboard"), "grid");
+        assertAllowed(post("/api/grid/signals"), "grid");
+        for (String path : new String[]{"/api/admin/stations", "/api/admin/station-manager-applications", "/api/bills/1", "/api/wallet", "/api/operator/energy/dashboard"}) {
+            assertForbidden(get(path), "grid");
+        }
+        assertAllowed(post("/api/grid/signals"), "admin");
+        assertForbidden(get("/api/grid/dashboard"), "operator");
+        assertForbidden(post("/api/grid/signals"), "operator");
+        assertForbidden(get("/api/grid/dashboard"), "customer");
     }
 
     private void configureIdentity(String token, Long userId, Role role) {

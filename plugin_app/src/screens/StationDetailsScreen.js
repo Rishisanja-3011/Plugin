@@ -13,6 +13,7 @@ import useAutoRefresh from '../hooks/useAutoRefresh';
 import { colors, radius } from '../theme/theme';
 import { getFavoriteStationIds, isFavoriteStation, toggleFavoriteStation } from '../utils/favoriteStations';
 import { brandText, money, pageItems } from '../utils/format';
+import { energyModeLabel, gridRegionForStation, renewableTone } from '../utils/energy';
 
 const blockedStatuses = new Set(['OUT_OF_SERVICE', 'UNAVAILABLE']);
 
@@ -46,7 +47,7 @@ const samePointId = (point, id) => id != null && String(point?.id) === String(id
 const stationCoordinates = (station) => {
   const latitude = Number(station?.latitude ?? station?.lat);
   const longitude = Number(station?.longitude ?? station?.lng ?? station?.lon);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (station?.latitude == null || station?.longitude == null || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
   return { latitude, longitude };
 };
 
@@ -57,6 +58,7 @@ export default function StationDetailsScreen({ params, navigate, goBack, showNot
   const [pricing, setPricing] = useState([]);
   const [selectedPointId, setSelectedPointId] = useState(null);
   const [favorite, setFavorite] = useState(false);
+  const [energy, setEnergy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -75,6 +77,9 @@ export default function StationDetailsScreen({ params, navigate, goBack, showNot
       setStation(stationData);
       setPoints(pointList);
       setPricing(Array.isArray(priceData) ? priceData : priceData ? [priceData] : []);
+      api.energy.current(gridRegionForStation(stationData))
+        .then(setEnergy)
+        .catch(() => setEnergy(null));
       setSelectedPointId((current) => (pointList.some((point) => samePointId(point, current)) ? current : null));
       setError('');
     } catch (requestError) {
@@ -217,6 +222,24 @@ export default function StationDetailsScreen({ params, navigate, goBack, showNot
               {selectedPoint && price?.ratePerUnit != null ? money(price.ratePerUnit) : '--'}
             </Text>
           </View>
+        </View>
+      </Card>
+
+      <Card style={styles.greenCard}>
+        <View style={styles.greenIcon}>
+          <Ionicons name="leaf" size={20} color={colors.white} />
+        </View>
+        <View style={styles.greenCopy}>
+          <View style={styles.greenHeading}>
+            <Text style={styles.greenLabel}>Grid greenness</Text>
+            <Text style={styles.greenMode}>{energyModeLabel(energy?.dataMode)}</Text>
+          </View>
+          <Text style={styles.greenValue}>
+            {energy?.renewableSharePercent != null ? `${Math.round(Number(energy.renewableSharePercent))}% renewable` : 'Signal unavailable'}
+          </Text>
+          <Text style={styles.greenHint}>
+            {energy ? renewableTone(energy.renewableSharePercent) : 'Normal booking remains available while grid data reconnects.'}
+          </Text>
         </View>
       </Card>
 
@@ -474,6 +497,28 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 18,
   },
+  greenCard: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F0F8F2',
+    borderColor: '#CFE7D5',
+  },
+  greenIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+  },
+  greenCopy: { flex: 1 },
+  greenHeading: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  greenLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
+  greenMode: { color: colors.success, fontSize: 9, fontWeight: '900' },
+  greenValue: { marginTop: 4, color: colors.textPrimary, fontSize: 17, fontWeight: '900' },
+  greenHint: { marginTop: 3, color: colors.textSecondary, fontSize: 10, lineHeight: 15 },
   pricingIcon: {
     width: 44,
     height: 44,

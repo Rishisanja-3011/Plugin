@@ -95,6 +95,17 @@ public class Booking {
 
     private String lockedRateType;
 
+    private String chargingPreference;
+    private BigDecimal requestedEnergyKwh;
+    private BigDecimal expectedRenewableSharePercent;
+    private BigDecimal expectedCarbonKg;
+    private BigDecimal estimatedCarbonSavedKg;
+    private Integer greenScore;
+    private String energyDataMode;
+    private String energySource;
+    private String energyQuality;
+    private LocalDateTime energyCapturedAt;
+
     private BookingStatus status;
 
     private Boolean startNotificationSent;

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node scripts/security-check.mjs",
+    "test": "node scripts/security-check.mjs && node --test scripts/password-policy.test.mjs",
     "audit:production": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {

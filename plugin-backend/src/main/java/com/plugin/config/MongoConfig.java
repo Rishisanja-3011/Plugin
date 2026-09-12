@@ -128,6 +128,27 @@ public class MongoConfig {
         };
     }
 
+    @Bean
+    public ApplicationRunner renewableOperationsIndexes(MongoTemplate mongoTemplate) {
+        return args -> {
+            try {
+                mongoTemplate.indexOps("energyRecommendationDecisions").ensureIndex(
+                        new CompoundIndexDefinition(new Document()
+                                .append("stationId", 1)
+                                .append("createdAt", -1))
+                                .named("idx_energy_decision_station_created"));
+                mongoTemplate.indexOps("gridSignals").ensureIndex(
+                        new CompoundIndexDefinition(new Document()
+                                .append("gridRegion", 1)
+                                .append("endsAt", 1)
+                                .append("createdAt", -1))
+                                .named("idx_grid_signal_region_window"));
+            } catch (DataAccessException ex) {
+                log.warn("Skipping renewable-operation index initialization because MongoDB is unavailable");
+            }
+        };
+    }
+
     /**
      * These indexes are correctness boundaries, not optional query tuning. A
      * production process must not serve wallet/session traffic when they cannot

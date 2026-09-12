@@ -32,6 +32,12 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
             assignId(chargingSession, collection);
             syncReferences(chargingSession);
             initialize(chargingSession);
+        } else if (entity instanceof EnergyRecommendationDecision decision) {
+            assignId(decision, collection);
+            initialize(decision);
+        } else if (entity instanceof GridSignal signal) {
+            assignId(signal, collection);
+            initialize(signal);
         } else if (entity instanceof Notification notification) {
             assignId(notification, collection);
             syncReferences(notification);
@@ -203,6 +209,14 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
         }
     }
 
+    private void initialize(EnergyRecommendationDecision entity) {
+        if (entity.getCreatedAt() == null) entity.onCreate();
+    }
+
+    private void initialize(GridSignal entity) {
+        if (entity.getCreatedAt() == null) entity.onCreate();
+    }
+
     private void initialize(Notification entity) {
         if (entity.getCreatedAt() == null) {
             entity.onCreate();
@@ -325,6 +339,14 @@ public class MongoEntityCallbacks implements BeforeConvertCallback<Object> {
         if (entity.getId() == null) {
             entity.setId(sequenceService.nextId(collection));
         }
+    }
+
+    private void assignId(EnergyRecommendationDecision entity, String collection) {
+        if (entity.getId() == null) entity.setId(sequenceService.nextId(collection));
+    }
+
+    private void assignId(GridSignal entity, String collection) {
+        if (entity.getId() == null) entity.setId(sequenceService.nextId(collection));
     }
 
     private void assignId(Notification entity, String collection) {
