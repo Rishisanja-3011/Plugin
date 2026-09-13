@@ -1,0 +1,218 @@
+--- SLIDE 1 ---
+[Rectangle 14] PLUGIN
+[Rectangle 15] Renewable-aware EV charging
+[Rectangle 16] Shift charging demand into cleaner hours, reward flexibility, and help operators use more renewable energy.
+[Rectangle 18] HackOut'26 
+[Rectangle 19] Mobile driver app + station operations + grid intelligence
+--- SLIDE 2 ---
+[Rectangle 34] PLUGIN
+[Rectangle 1] The renewable utilization gap
+[Rectangle 2] Renewable supply and EV charging demand often peak at different times
+[Rectangle 3] 02
+[Rectangle 4] Renewable supply
+[Rectangle 5] EV charging demand
+[Rectangle 10] 6:00
+[Rectangle 13] 8:00
+[Rectangle 16] 10:00
+[Rectangle 19] 12:00
+[Rectangle 22] 14:00
+[Rectangle 25] 16:00
+[Rectangle 28] 18:00
+[Rectangle 31] 20:00
+[Rectangle 33] Result: clean energy can be curtailed earlier while unmanaged charging adds pressure later.
+--- SLIDE 3 ---
+[Rectangle 29] PLUGIN
+[Rectangle 1] The PLUGIN control loop
+[Rectangle 2] Forecast, optimize, incentivize, book, and measure
+[Rectangle 3] 03
+[Rectangle 6] 01
+[Rectangle 7] Sense
+[Rectangle 8] Regional renewable share, grid load, carbon and station capacity
+[Rectangle 11] 02
+[Rectangle 12] Optimize
+[Rectangle 13] Evaluate feasible stations and 30-minute charging windows
+[Rectangle 16] 03
+[Rectangle 17] Incentivize
+[Rectangle 18] Lower the rate when renewable availability improves
+[Rectangle 21] 04
+[Rectangle 22] Commit
+[Rectangle 23] Driver selects a recommendation and locks the quoted price
+[Rectangle 25] 05
+[Rectangle 26] Measure
+[Rectangle 27] Track renewable kWh, savings and peak demand avoided
+[Rectangle 28] The same loop coordinates the driver, station operator, and grid operator.
+--- SLIDE 4 ---
+[Rectangle 13] PLUGIN
+[Rectangle 1] Working mobile experience
+[Rectangle 2] The customer compares feasible charging choices before booking
+[Rectangle 3] 04
+[Rectangle 6] Set energy and preference
+[Rectangle 9] Compare dynamic outcomes
+[Rectangle 12] Automatically hoose a greener time
+--- SLIDE 5 ---
+[Rectangle 34] PLUGIN
+[Rectangle 1] How the optimizer decides
+[Rectangle 2] Every recommendation must pass operational constraints before ranking
+[Rectangle 3] 05
+[Rectangle 5] Connector available
+[Rectangle 8] Station open
+[Rectangle 11] No booking overlap
+[Rectangle 14] Energy deliverable
+[Rectangle 17] Capacity within limit
+[Rectangle 20] Feasible 30-minute windows
+[Rectangle 22] GREENEST
+[Rectangle 23] Highest renewable share
+[Rectangle 25] CHEAPEST
+[Rectangle 26] Lowest final cost
+[Rectangle 28] FASTEST
+[Rectangle 29] Earliest feasible start
+[Rectangle 31] BALANCED
+[Rectangle 32] Best weighted trade-off
+[Rectangle 33] Actual station and grid data determine whether objectives share the same best window.
+--- SLIDE 6 ---
+[Rectangle 43] PLUGIN
+[Rectangle 1] Verified optimization scenario
+[Rectangle 2] Surat station, 35 kWh request, ₹50 base tariff, 24-hour flexibility
+[Rectangle 3] 06
+[Rectangle 4] Strategy
+[Rectangle 5] Renewable share
+[Rectangle 6] Rate / kWh
+[Rectangle 7] Discount
+[Rectangle 8] Start
+[Rectangle 10] FASTEST
+[Rectangle 11] 12.72%
+[Rectangle 13] ₹48.09
+[Rectangle 14] 3.82%
+[Rectangle 15] 00:00
+[Rectangle 17] CHEAPEST
+[Rectangle 18] 35.69%
+[Rectangle 20] ₹44.65
+[Rectangle 21] 10.71%
+[Rectangle 22] 10:00
+[Rectangle 24] BALANCED
+[Rectangle 25] 38.01%
+[Rectangle 27] ₹44.30
+[Rectangle 28] 11.40%
+[Rectangle 29] 11:00
+[Rectangle 31] GREENEST
+[Rectangle 32] 38.97%
+[Rectangle 34] ₹44.16
+[Rectangle 35] 11.69%
+[Rectangle 36] 12:00
+[Rectangle 37] 26.25 pp
+[Rectangle 38] renewable-share gain: fastest to greenest
+[Rectangle 39] ₹3.93/kWh
+[Rectangle 40] rate reduction: fastest to greenest
+[Rectangle 41] ₹137.55
+[Rectangle 42] estimated saving on 35 kWh
+--- SLIDE 7 ---
+[Rectangle 24] PLUGIN
+[Rectangle 1] Transparent renewable pricing
+[Rectangle 2] Drivers see why the rate changed before they confirm
+[Rectangle 3] 07
+[Rectangle 4] BASE TARIFF
+[Rectangle 5] ₹50.00
+[Rectangle 6] ×
+[Rectangle 7] RENEWABLE FACTOR
+[Rectangle 8] 0.8831
+[Rectangle 9] =
+[Rectangle 10] LOCKED RATE
+[Rectangle 11] ₹44.16
+[Rectangle 14] More renewable energy
+[Rectangle 15] larger discount
+[Rectangle 17] Grid stress or capacity risk
+[Rectangle 18] smaller incentive or defer option
+[Rectangle 20] Booking confirmation
+[Rectangle 21] price and source snapshot locked
+[Rectangle 23] Policy stays configurable, bounded, auditable, and visible to the driver.
+--- SLIDE 8 ---
+[Rectangle 23] PLUGIN
+[Rectangle 1] Three coordinated decisions
+[Rectangle 2] Each role acts on the same renewable and capacity outlook
+[Rectangle 3] 08
+[Rectangle 5] DRIVER
+[Rectangle 6] Shares flexibility
+[Rectangle 8] Chooses energy need, ready-by time and preference
+[Rectangle 9] Receives a cheaper, cleaner feasible slot
+[Rectangle 11] STATION OPERATOR
+[Rectangle 12] Manages local capacity
+[Rectangle 14] Publishes charger status, tariff, solar and storage availability
+[Rectangle 15] Uses renewable supply without overloading the site
+[Rectangle 17] GRID OPERATOR
+[Rectangle 18] Shapes regional demand
+[Rectangle 20] Publishes limits, congestion windows and defer incentives
+[Rectangle 21] Moves aggregated charging away from grid stress
+[Rectangle 22] Shared outcome: more EV energy served when renewable supply is available.
+--- SLIDE 9 ---
+[Rectangle 26] PLUGIN
+[Rectangle 1] Implementation architecture
+[Rectangle 2] A renewable intelligence layer extends the existing EV platform
+[Rectangle 3] 09
+[Rectangle 5] EXPERIENCE
+[Rectangle 6] Expo mobile app
+[Rectangle 7] React web portal
+[Rectangle 10] SECURE API
+[Rectangle 11] JWT + role access
+[Rectangle 12] Validated REST contracts
+[Rectangle 15] INTELLIGENCE
+[Rectangle 16] Forecast + cache
+[Rectangle 17] Optimizer + pricing
+[Rectangle 20] SYSTEM OF RECORD
+[Rectangle 21] MongoDB Atlas
+[Rectangle 22] Audit + booking snapshots
+[Rectangle 23] India Energy Atlas regional fuel-mix profile
+[Rectangle 25] Timeouts, numeric validation, caching and explicit FORECAST labels protect trust and API quota.
+--- SLIDE 10 ---
+[Rectangle 30] PLUGIN
+[Rectangle 1] Impact that judges can verify
+[Rectangle 2] Every accepted recommendation should produce an auditable before-and-after record
+[Rectangle 3] 10
+[Rectangle 4] 01
+[Rectangle 5] Renewable kWh utilized
+[Rectangle 6] Energy delivered × renewable share
+[Rectangle 8] 02
+[Rectangle 9] Demand shifted
+[Rectangle 10] Optimized load moved from the original window
+[Rectangle 12] 03
+[Rectangle 13] Peak avoided
+[Rectangle 14] Charging load removed from constrained hours
+[Rectangle 16] 04
+[Rectangle 17] Driver savings
+[Rectangle 18] Baseline cost minus locked optimized cost
+[Rectangle 20] 05
+[Rectangle 21] Carbon avoided
+[Rectangle 22] Baseline emissions minus optimized estimate
+[Rectangle 24] 06
+[Rectangle 25] Acceptance rate
+[Rectangle 26] Accepted green recommendations / offers
+[Rectangle 29] Success means cleaner charging actually happened, not only that a recommendation appeared.
+--- SLIDE 11 ---
+[Rectangle 21] PLUGIN
+[Rectangle 1] Path from MVP to grid-scale orchestration
+[Rectangle 2] Development follows measurable control-loop maturity
+[Rectangle 3] 11
+[Rectangle 5] NOW
+[Rectangle 6] Explainable scheduling
+[Rectangle 7] Four strategies Dynamic tariff Price lock Role dashboards
+[Rectangle 9] NEXT
+[Rectangle 10] Automatic flexibility
+[Rectangle 11] Ready-by charging Green commitment Action notifications Impact ledger
+[Rectangle 13] THEN
+[Rectangle 14] Station energy control
+[Rectangle 15] Local solar forecast Battery state Import limits Surplus capture
+[Rectangle 17] SCALE
+[Rectangle 18] Grid programs
+[Rectangle 19] Demand-response events Verified response Regional aggregation Operator settlement
+[Rectangle 20] Each stage keeps the recommendation explainable and adds stronger proof of renewable utilization.
+--- SLIDE 12 ---
+[Rectangle 13] PLUGIN
+[Rectangle 1] A practical path to renewable-first charging
+[Rectangle 2] A driver sees a better time and price. A station uses cleaner supply. The grid receives flexible demand when it can support it.
+[Rectangle 4] 4
+[Rectangle 5] explainable charging strategies
+[Rectangle 6] 24 h
+[Rectangle 7] optimization horizon
+[Rectangle 8] 146
+[Rectangle 9] backend tests passing
+[Rectangle 11] Demo will prove the full loop from forecast to measured impact
+[Rectangle 12] HackOut'26 PLUGIN renewable optimization
